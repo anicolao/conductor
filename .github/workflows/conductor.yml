@@ -1,0 +1,78 @@
+name: Conductor
+
+on:
+  issues:
+    types:
+      - opened
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: conductor-${{ github.event.issue.number || github.event.number }}
+  cancel-in-progress: false
+
+jobs:
+  conductor:
+    if: github.event.issue.pull_request == null
+    runs-on: ubuntu-latest
+    env:
+      CONDUCTOR_GH_TOKEN: ${{ secrets.CONDUCTOR_GH_TOKEN != '' && secrets.CONDUCTOR_GH_TOKEN || github.token }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.CONDUCTOR_GH_TOKEN != '' && secrets.CONDUCTOR_GH_TOKEN || github.token }}
+
+      - name: Resolve active persona
+        id: route
+        run: |
+          python3 "$GITHUB_WORKSPACE/scripts/conductor/router.py" \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --output "$GITHUB_OUTPUT"
+
+      - name: Stop when the event does not target Conductor
+        if: steps.route.outputs.should_run != 'true'
+        run: echo "No persona label or @conductor mention found; skipping."
+
+      - name: Ensure persona labels exist
+        if: steps.route.outputs.should_run == 'true'
+        env:
+          GH_TOKEN: ${{ env.CONDUCTOR_GH_TOKEN }}
+        run: |
+          gh label create "persona: conductor" --color "5319e7" --description "Routes the next workflow run to the conductor persona." --force
+          gh label create "persona: coder" --color "0e8a16" --description "Routes the next workflow run to the coder persona." --force
+
+      - name: Fetch issue comment history
+        if: steps.route.outputs.should_run == 'true'
+        env:
+          GH_TOKEN: ${{ env.CONDUCTOR_GH_TOKEN }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${{ steps.route.outputs.issue_number }}/comments" > /tmp/conductor-comments.json
+
+      - name: Build Gemini prompt
+        if: steps.route.outputs.should_run == 'true'
+        id: prompt
+        run: |
+          python3 "$GITHUB_WORKSPACE/scripts/conductor/router.py" \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --persona "${{ steps.route.outputs.persona }}" \
+            --comments-path /tmp/conductor-comments.json \
+            --output "$GITHUB_OUTPUT"
+
+      - name: Run Gemini CLI as ${{ steps.route.outputs.persona }}
+        if: steps.route.outputs.should_run == 'true'
+        uses: google-github-actions/run-gemini-cli@v0.1.21
+        env:
+          GH_TOKEN: ${{ env.CONDUCTOR_GH_TOKEN }}
+        with:
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          gemini_cli_version: "0.37.0"
+          prompt: ${{ steps.prompt.outputs.prompt }}
