@@ -98,7 +98,7 @@ ${event.comment?.body || ''}
 
   console.log('Invoking Gemini CLI...');
   const result = spawnSync('npx', args, {
-    stdio: 'inherit',
+    stdio: 'pipe',
     encoding: 'utf8',
     env: {
       ...process.env,
@@ -107,8 +107,36 @@ ${event.comment?.body || ''}
     }
   });
 
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+
   if (result.status !== 0) {
     console.error('Gemini CLI execution failed');
+
+    const errorOutput = (result.stderr || result.stdout || 'No output captured').trim();
+    const lines = errorOutput.split('\n');
+    const snippet = lines.length > 50 ? lines.slice(-50).join('\n') : errorOutput;
+
+    const body = `### ❌ Gemini CLI Execution Failed
+
+**Exit Code**: ${result.status}
+
+<details>
+<summary>Error Snippet (Last 50 lines)</summary>
+
+\`\`\`
+${snippet}
+\`\`\`
+</details>
+
+*Automated report by Conductor*`;
+
+    console.log('Posting failure comment to GitHub...');
+    spawnSync('gh', ['issue', 'comment', String(issueNumber), '--body', body], {
+      stdio: 'inherit',
+      env: process.env
+    });
+
     process.exit(result.status || 1);
   }
 }
