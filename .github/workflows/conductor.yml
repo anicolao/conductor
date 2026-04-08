@@ -53,8 +53,9 @@ jobs:
 
       - name: Run Conductor
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+          CONDUCTOR_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
+          GH_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
         run: npm start
