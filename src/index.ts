@@ -48,9 +48,13 @@ async function main() {
     process.exit(0);
   }
 
-  console.log(`Activating persona: ${persona}`);
+  // 2. Determine Branch (for context)
+  const branchLabel = labels.find(l => l.startsWith('branch:'));
+  const currentBranch = branchLabel ? branchLabel.split(':')[1].trim() : 'main';
 
-  // 2. Load Prompt
+  console.log(`Activating persona: ${persona} on branch: ${currentBranch}`);
+
+  // 3. Load Prompt
   const promptPath = path.join(__dirname, '..', 'prompts', `${persona}.md`);
   if (!fs.existsSync(promptPath)) {
     console.error(`Prompt not found for persona: ${persona}`);
@@ -58,18 +62,20 @@ async function main() {
   }
   const systemPrompt = fs.readFileSync(promptPath, 'utf8');
 
-  // 3. Prepare Context
+  // 4. Prepare Context
   const context = `
 Issue #${issueNumber}
+Current Branch: ${currentBranch}
 Labels: ${labels.join(', ')}
 ---
+ISSUE BODY:
 ${event.issue?.body || ''}
 ---
+LATEST COMMENT:
 ${event.comment?.body || ''}
 `;
 
-  // 4. Invoke Gemini CLI
-  // We assume 'gemini' is available in the environment
+  // 5. Invoke Gemini CLI
   const args = [
     '--system', systemPrompt,
     '--prompt', context

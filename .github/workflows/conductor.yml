@@ -21,6 +21,24 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Determine Branch
+        id: branch
+        run: |
+          # Extract branch from labels like "branch: feat/xyz"
+          BRANCH=$(echo '${{ toJson(github.event.issue.labels) }}' | jq -r '.[] | select(.name | startswith("branch:")) | .name' | cut -d':' -f2 | xargs)
+          if [ -z "$BRANCH" ]; then
+            BRANCH="main"
+          fi
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          echo "Selected branch: $BRANCH"
+
+      - name: Switch to Branch
+        run: |
+          BRANCH=${{ steps.branch.outputs.branch }}
+          if [ "$BRANCH" != "main" ]; then
+            git checkout $BRANCH || git checkout -b $BRANCH
+          fi
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
