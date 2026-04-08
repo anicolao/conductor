@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { spawnSync } from 'child_process';
+import dotenv from 'dotenv';
 
 interface GitHubEvent {
   issue?: {
@@ -14,6 +15,8 @@ interface GitHubEvent {
 }
 
 async function main() {
+  dotenv.config();
+
   const eventPath = process.env.GITHUB_EVENT_PATH;
   if (!eventPath) {
     console.error('GITHUB_EVENT_PATH not set');
@@ -75,16 +78,33 @@ LATEST COMMENT:
 ${event.comment?.body || ''}
 `;
 
-  // 5. Invoke Gemini CLI
+  const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!geminiApiKey) {
+    console.error('Gemini API key not set. Configure GEMINI_API_KEY in GitHub Actions secrets or a local .env file.');
+    process.exit(1);
+  }
+
+  const prompt = `${systemPrompt}\n\n${context}`;
+
+  // Invoke the official CLI package in headless mode so Actions does not depend on a preinstalled binary.
   const args = [
-    '--system', systemPrompt,
-    '--prompt', context
+    '-y',
+    '@google/gemini-cli',
+    '--prompt',
+    prompt,
+    '--approval-mode',
+    'yolo'
   ];
 
   console.log('Invoking Gemini CLI...');
-  const result = spawnSync('gemini', args, {
+  const result = spawnSync('npx', args, {
     stdio: 'inherit',
-    encoding: 'utf8'
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      GEMINI_API_KEY: geminiApiKey,
+      GOOGLE_API_KEY: geminiApiKey
+    }
   });
 
   if (result.status !== 0) {

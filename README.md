@@ -13,6 +13,13 @@ Conductor aims for extreme simplicity and high agency. Instead of complex, hardc
 - **GitHub-Native**: Uses Issues for state tracking and Actions for execution.
 - **Agent Agnostic**: Supports any CLI-based agent that can interact with a codebase.
 
+## Gemini Setup
+
+This MVP invokes the official Gemini CLI through `npx` in headless mode.
+
+- For GitHub Actions, set the repository secret `GEMINI_API_KEY`.
+- For local runs, copy `.env.example` to `.env` and set `GEMINI_API_KEY`.
+
 ## Licensing
 
 This project is licensed under the GPLv3 License - see the [LICENSE](LICENSE) file for details.
