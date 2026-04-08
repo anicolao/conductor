@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { spawnSync } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import dotenv from 'dotenv';
 
 interface GitHubEvent {
@@ -12,6 +12,142 @@ interface GitHubEvent {
   comment?: {
     body: string;
   };
+}
+
+interface CommandResult {
+  status: number;
+  stdout: string;
+  stderr: string;
+}
+
+function formatStreamChunk(chunk: string, source: 'stdout' | 'stderr'): string {
+  return source === 'stderr' ? `[stderr] ${chunk}` : chunk;
+}
+
+function createLineForwarder(source: 'stdout' | 'stderr', onChunk: (formatted: string, raw: string, source: 'stdout' | 'stderr') => void) {
+  let buffer = '';
+
+  return {
+    push(chunk: string) {
+      buffer += chunk;
+
+      while (true) {
+        const newlineIndex = buffer.indexOf('\n');
+        if (newlineIndex === -1) break;
+
+        const line = buffer.slice(0, newlineIndex + 1);
+        buffer = buffer.slice(newlineIndex + 1);
+        onChunk(formatStreamChunk(line, source), line, source);
+      }
+    },
+    flush() {
+      if (!buffer) return;
+      onChunk(formatStreamChunk(buffer, source), buffer, source);
+      buffer = '';
+    }
+  };
+}
+
+async function runStreamingCommand(command: string, args: string[], env: NodeJS.ProcessEnv): Promise<CommandResult> {
+  return await new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      env,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    const stdoutForwarder = createLineForwarder('stdout', (formatted, raw) => {
+      stdout += raw;
+      process.stdout.write(formatted);
+    });
+    const stderrForwarder = createLineForwarder('stderr', (formatted, raw) => {
+      stderr += raw;
+      process.stdout.write(formatted);
+    });
+
+    child.stdout.on('data', chunk => {
+      stdoutForwarder.push(String(chunk));
+    });
+
+    child.stderr.on('data', chunk => {
+      stderrForwarder.push(String(chunk));
+    });
+
+    child.on('error', reject);
+
+    child.on('close', code => {
+      stdoutForwarder.flush();
+      stderrForwarder.flush();
+      resolve({
+        status: code ?? 1,
+        stdout,
+        stderr
+      });
+    });
+  });
+}
+
+function verifyGitHubCli(issueNumber: number): string {
+  const repoCheck = spawnSync('gh', ['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'], {
+    encoding: 'utf8',
+    env: process.env
+  });
+
+  if (repoCheck.status !== 0) {
+    const authStatus = spawnSync('gh', ['auth', 'status'], {
+      encoding: 'utf8',
+      env: process.env
+    });
+
+    const failureDetails = (repoCheck.stderr || repoCheck.stdout || authStatus.stderr || authStatus.stdout || 'No gh output captured').trim();
+
+    console.error('GitHub CLI preflight failed.');
+    if (failureDetails) process.stderr.write(`${failureDetails}\n`);
+
+    const body = `### ❌ GitHub CLI Preflight Failed
+
+Issue #${issueNumber} could not verify \`gh\` access before invoking Gemini.
+
+<details>
+<summary>Preflight output</summary>
+
+\`\`\`
+${failureDetails}
+\`\`\`
+</details>
+
+*Automated report by Conductor*`;
+
+    spawnSync('gh', ['issue', 'comment', String(issueNumber), '--body', body], {
+      stdio: 'inherit',
+      env: process.env
+    });
+
+    process.exit(repoCheck.status || 1);
+  }
+
+  return repoCheck.stdout.trim();
+}
+
+function buildGeminiEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env
+  };
+
+  if (process.env.GEMINI_API_KEY) {
+    env.GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    delete env.GOOGLE_API_KEY;
+    return env;
+  }
+
+  if (process.env.GOOGLE_API_KEY) {
+    env.GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+    delete env.GEMINI_API_KEY;
+  }
+
+  return env;
 }
 
 async function main() {
@@ -84,7 +220,14 @@ ${event.comment?.body || ''}
     process.exit(1);
   }
 
-  const prompt = `${systemPrompt}\n\n${context}`;
+  const verifiedRepo = verifyGitHubCli(issueNumber);
+  console.log(`Verified GitHub CLI access to ${verifiedRepo}`);
+
+  const prompt = `${systemPrompt}\n\n${context}
+---
+ENVIRONMENT:
+- GitHub CLI repository access has been preflight-verified for ${verifiedRepo}.
+- If a gh command fails, report the exact command and stderr instead of inferring an authentication problem.`;
 
   // Invoke the official CLI package in headless mode so Actions does not depend on a preinstalled binary.
   const args = [
@@ -97,18 +240,8 @@ ${event.comment?.body || ''}
   ];
 
   console.log('Invoking Gemini CLI...');
-  const result = spawnSync('npx', args, {
-    stdio: 'pipe',
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      GEMINI_API_KEY: geminiApiKey,
-      GOOGLE_API_KEY: geminiApiKey
-    }
-  });
-
-  if (result.stdout) process.stdout.write(result.stdout);
-  if (result.stderr) process.stderr.write(result.stderr);
+  const childEnv = buildGeminiEnv();
+  const result = await runStreamingCommand('npx', args, childEnv);
 
   if (result.status !== 0) {
     console.error('Gemini CLI execution failed');
@@ -134,7 +267,7 @@ ${snippet}
     console.log('Posting failure comment to GitHub...');
     spawnSync('gh', ['issue', 'comment', String(issueNumber), '--body', body], {
       stdio: 'inherit',
-      env: process.env
+      env: childEnv
     });
 
     process.exit(result.status || 1);
