@@ -16,36 +16,38 @@ Conductor uses two primary personas for the MVP:
 
 ## Persona Assignment Mechanism
 
-To ensure reliability and clear handoff, Conductor uses **GitHub Issue Labels** to explicitly assign the active persona, while using **Comments** as the execution trigger.
+To ensure reliability and clear handoff, Conductor uses **GitHub Issue Labels** to explicitly assign the active persona, with **Comments** as the primary execution trigger.
 
-1. **Labeling**: The current persona is responsible for setting the label for the *next* persona in the sequence (e.g., `persona: coder`).
-2. **Identification**: The workflow reads the `persona:` label to determine which persona's system prompt to load into Gemini CLI.
-3. **Execution**: The GitHub Action triggers **only** when a new comment is added to the issue. This ensures that the agent always has the latest instructions and context before starting its task.
-4. **Handoff**: A typical handoff involves setting the next persona's label and then posting a comment with the specific task instructions.
+1. **Explicit Labeling**: If a `persona: <name>` label is present (e.g., `persona: coder`), the workflow loads that persona's system prompt into Gemini CLI.
+2. **Implicit Initiation**: If **no** `persona:` label is present, the framework checks the comment (or issue body) for an `@conductor` mention. If found, it defaults to the `@conductor` persona.
+3. **Execution**: The GitHub Action triggers on:
+   - `issues` (opened): Allows `@conductor` to respond to a new issue immediately if mentioned.
+   - `issue_comment` (created): The primary loop trigger for handoffs between personas.
+4. **Filtering**: If no `persona:` label is found AND `@conductor` is not mentioned, the workflow exits without action.
+5. **Handoff**: A persona hands off by setting the *next* persona's label and then posting a comment with instructions.
 
 ## Workflow: Feature-to-PR
 
 ### 1. Initiation
-A **User** creates a GitHub Issue, sets the label `persona: conductor`, and describes a feature in a comment (or the issue body).
+A **User** creates a GitHub Issue and describes a feature, mentioning `@conductor`.
 > **User**: `@conductor` - I need a new utility to parse JSON logs in the `utils/` directory.
 
 ### 2. Planning & Delegation
-The **GitHub Action** triggers on the user's comment. Finding the `persona: conductor` label, it invokes Gemini CLI as the **@conductor**.
+The **GitHub Action** triggers. Finding no label but seeing the `@conductor` mention, it invokes Gemini CLI as the **@conductor**.
 - `@conductor` analyzes the codebase and request.
 - `@conductor` creates a new branch (e.g., `feat/json-parser`).
 - **Handoff**: `@conductor` sets the issue label to `persona: coder` and then comments with instructions.
 > **@conductor**: `@coder` - Please implement a `LogParser` class in `utils/log_parser.ts`. Include unit tests in `tests/log_parser.spec.ts`. Use the current branch `feat/json-parser`.
 
 ### 3. Implementation
-The **GitHub Action** triggers on `@conductor`'s comment. Finding the `persona: coder` label, it invokes Gemini CLI as the **@coder**.
-- `@coder` reads the instructions and code.
-- `@coder` implements the feature and tests.
+The **GitHub Action** triggers on the comment. Finding the `persona: coder` label, it invokes Gemini CLI as the **@coder**.
+- `@coder` performs the implementation and tests.
 - `@coder` commits and pushes changes to the branch.
 - **Handoff**: `@coder` sets the issue label back to `persona: conductor` and comments that work is ready.
 > **@coder**: `@conductor` - Implementation and tests are complete on `feat/json-parser`. Ready for verification.
 
 ### 4. Verification & PR
-The **GitHub Action** triggers on `@coder`'s comment. Finding the `persona: conductor` label, it invokes Gemini CLI as the **@conductor**.
+The **GitHub Action** triggers. Finding the `persona: conductor` label, it invokes Gemini CLI as the **@conductor**.
 - `@conductor` checks out the branch, runs tests, and reviews the code.
 - If verified: `@conductor` opens a Pull Request via `gh` and removes the `persona:` labels, tagging the user for final approval.
 - If errors exist: `@conductor` sets the label back to `persona: coder` and provides feedback in a new comment.
@@ -53,7 +55,7 @@ The **GitHub Action** triggers on `@coder`'s comment. Finding the `persona: cond
 ## Technical Implementation Details
 
 ### GitHub Action Configuration
-The workflow triggers on the `issue_comment` (created) event. It determines the active persona by inspecting the issue's labels for the pattern `persona: <name>`. Triggering only on comments prevents redundant runs that would occur on label updates alone and ensures the "instruction" is present.
+The workflow triggers on `issues` (opened) and `issue_comment` (created) events. It determines the active persona by inspecting labels for `persona: <name>`, falling back to an `@conductor` mention check if no label exists.
 
 ### Agent Environment
 Each agent (Gemini CLI) is provided with:
