@@ -6,6 +6,8 @@ from pathlib import Path
 
 from scripts.conductor import router
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 class RouterTests(unittest.TestCase):
     def test_persona_from_label_wins(self) -> None:
@@ -57,7 +59,7 @@ class RouterTests(unittest.TestCase):
         ]
 
         prompt = router.build_prompt(
-            Path("/home/runner/work/conductor/conductor"),
+            REPO_ROOT,
             "conductor",
             event,
             comments,
@@ -86,7 +88,7 @@ class RouterTests(unittest.TestCase):
             subprocess.run(
                 [
                     "python3",
-                    "/home/runner/work/conductor/conductor/scripts/conductor/router.py",
+                    str(REPO_ROOT / "scripts/conductor/router.py"),
                     "--event-path",
                     str(event_path),
                     "--output",
