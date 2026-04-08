@@ -15,29 +15,16 @@ jobs:
   run-conductor:
     if: github.event.issue && (github.event.issue.labels.*.name || contains(github.event.comment.body, '@conductor') || contains(github.event.issue.body, '@conductor'))
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+      GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GITHUB_EVENT_PATH: ${{ github.event_path }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Determine Branch
-        id: branch
-        run: |
-          # Extract branch from labels like "branch: feat/xyz"
-          BRANCH=$(echo '${{ toJson(github.event.issue.labels) }}' | jq -r '.[] | select(.name | startswith("branch:")) | .name' | cut -d':' -f2 | xargs)
-          if [ -z "$BRANCH" ]; then
-            BRANCH="main"
-          fi
-          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
-          echo "Selected branch: $BRANCH"
-
-      - name: Switch to Branch
-        run: |
-          BRANCH=${{ steps.branch.outputs.branch }}
-          if [ "$BRANCH" != "main" ]; then
-            git checkout $BRANCH || git checkout -b $BRANCH
-          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -45,16 +32,61 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install Dependencies
-        run: npm install
+      - name: Run Conductor Loop
+        run: |
+          ISSUE_NUMBER=$(jq -r '.issue.number // .client_payload.issue_number // empty' "$GITHUB_EVENT_PATH")
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "No issue number found in event payload"
+            exit 1
+          fi
 
-      - name: Build
-        run: npm run build
+          current_branch() {
+            git branch --show-current
+          }
 
-      - name: Run Conductor
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GITHUB_EVENT_PATH: ${{ github.event_path }}
-        run: npm start
+          checkout_branch() {
+            BRANCH="$1"
+
+            if [ -z "$BRANCH" ] || [ "$BRANCH" = "main" ]; then
+              if [ "$(current_branch)" != "main" ]; then
+                git checkout main
+              fi
+              git pull --ff-only origin main
+              return
+            fi
+
+            git fetch origin "$BRANCH"
+            git checkout -B "$BRANCH" "origin/$BRANCH"
+          }
+
+          for HOP in $(seq 1 6); do
+            echo "=== Hop $HOP ==="
+
+            ISSUE_JSON=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}")
+            PERSONA=$(echo "$ISSUE_JSON" | jq -r '.labels[]?.name | select(startswith("persona:"))' | head -n1 | cut -d':' -f2- | xargs)
+            BRANCH=$(echo "$ISSUE_JSON" | jq -r '.labels[]?.name | select(startswith("branch:"))' | head -n1 | cut -d':' -f2- | xargs)
+
+            if [ -z "$PERSONA" ] && [ "$HOP" -eq 1 ]; then
+              TRIGGER_TEXT=$(jq -r '.comment.body // .issue.body // ""' "$GITHUB_EVENT_PATH")
+              if printf '%s' "$TRIGGER_TEXT" | grep -q '@conductor'; then
+                PERSONA="conductor"
+              fi
+            fi
+
+            if [ -z "$PERSONA" ]; then
+              echo "No active persona label or @conductor mention remains. Stopping."
+              exit 0
+            fi
+
+            echo "Persona: $PERSONA"
+            echo "Branch: ${BRANCH:-main}"
+
+            checkout_branch "$BRANCH"
+
+            npm install
+            npm run build
+            npm start
+          done
+
+          echo "Reached hop limit while an active persona still exists on issue #$ISSUE_NUMBER"
+          exit 1

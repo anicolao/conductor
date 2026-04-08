@@ -4,6 +4,9 @@ import { spawn, spawnSync } from 'child_process';
 import dotenv from 'dotenv';
 
 interface GitHubEvent {
+  repository?: {
+    full_name: string;
+  };
   issue?: {
     number: number;
     labels: { name: string }[];
@@ -12,6 +15,18 @@ interface GitHubEvent {
   comment?: {
     body: string;
   };
+  client_payload?: {
+    issue_number?: number;
+  };
+}
+
+interface GitHubIssue {
+  body: string | null;
+  labels: { name: string }[];
+}
+
+interface GitHubIssueComment {
+  body: string | null;
 }
 
 interface CommandResult {
@@ -150,6 +165,51 @@ function buildGeminiEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
+async function fetchGitHubJson<T>(url: string, token: string): Promise<T> {
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${token}`,
+      'User-Agent': 'conductor-mvp'
+    }
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`GitHub API request failed (${response.status} ${response.statusText}): ${body}`);
+  }
+
+  return await response.json() as T;
+}
+
+async function loadLiveIssueState(event: GitHubEvent, issueNumber: number) {
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  if (!token) {
+    console.error('GitHub token not set. Configure GITHUB_TOKEN or GH_TOKEN before running Conductor.');
+    process.exit(1);
+  }
+
+  const repoFullName = process.env.GITHUB_REPOSITORY || event.repository?.full_name;
+  if (!repoFullName) {
+    console.error('GITHUB_REPOSITORY not set and repository missing from event payload.');
+    process.exit(1);
+  }
+
+  const baseUrl = `https://api.github.com/repos/${repoFullName}/issues/${issueNumber}`;
+  const [issue, comments] = await Promise.all([
+    fetchGitHubJson<GitHubIssue>(baseUrl, token),
+    fetchGitHubJson<GitHubIssueComment[]>(`${baseUrl}/comments?per_page=100`, token)
+  ]);
+
+  const latestComment = comments.length > 0 ? comments[comments.length - 1]?.body || '' : '';
+
+  return {
+    repoFullName,
+    issue,
+    latestComment
+  };
+}
+
 async function main() {
   dotenv.config();
 
@@ -160,15 +220,17 @@ async function main() {
   }
 
   const event: GitHubEvent = JSON.parse(fs.readFileSync(eventPath, 'utf8'));
-  const issueNumber = event.issue?.number;
+  const issueNumber = event.issue?.number || event.client_payload?.issue_number;
   if (!issueNumber) {
     console.error('No issue number found in event');
     process.exit(0);
   }
 
+  const { repoFullName, issue, latestComment } = await loadLiveIssueState(event, issueNumber);
+
   // 1. Determine Persona
   let persona: 'conductor' | 'coder' | null = null;
-  const labels = event.issue?.labels.map(l => l.name) || [];
+  const labels = issue.labels.map(l => l.name) || [];
   
   if (labels.includes('persona: coder')) {
     persona = 'coder';
@@ -176,7 +238,7 @@ async function main() {
     persona = 'conductor';
   } else {
     // Implicit initiation check
-    const body = event.comment?.body || event.issue?.body || '';
+    const body = latestComment || issue.body || event.comment?.body || event.issue?.body || '';
     if (body.includes('@conductor')) {
       persona = 'conductor';
     }
@@ -204,14 +266,15 @@ async function main() {
   // 4. Prepare Context
   const context = `
 Issue #${issueNumber}
+Repository: ${repoFullName}
 Current Branch: ${currentBranch}
 Labels: ${labels.join(', ')}
 ---
 ISSUE BODY:
-${event.issue?.body || ''}
+${issue.body || ''}
 ---
 LATEST COMMENT:
-${event.comment?.body || ''}
+${latestComment}
 `;
 
   const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
