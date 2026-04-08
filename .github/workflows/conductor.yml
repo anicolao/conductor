@@ -1,0 +1,100 @@
+name: Conductor
+
+on:
+  issues:
+    types:
+      - opened
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: conductor-${{ github.repository }}-${{ github.event.issue.number || github.event.number }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: github.event.issue.pull_request == null
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CONDUCTOR_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      CONDUCTOR_GEMINI_MODEL: ${{ vars.CONDUCTOR_GEMINI_MODEL }}
+      CONDUCTOR_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set git identity
+        run: |
+          git config user.name "conductor[bot]"
+          git config user.email "conductor[bot]@users.noreply.github.com"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Gemini CLI
+        run: npm install --global @google/gemini-cli
+
+      - name: Configure Gemini CLI for CI
+        run: |
+          mkdir -p "$HOME/.gemini"
+          cat > "$HOME/.gemini/settings.json" <<'EOF'
+          {
+            "privacy": {
+              "usageStatisticsEnabled": false
+            },
+            "security": {
+              "folderTrust": {
+                "enabled": false
+              }
+            },
+            "tools": {
+              "sandbox": false,
+              "shell": {
+                "pager": "cat"
+              }
+            }
+          }
+          EOF
+
+      - name: Resolve active persona
+        id: resolve
+        run: scripts/conductor/resolve-event.sh
+
+      - name: Exit when the event is not actionable
+        if: steps.resolve.outputs.should_run != 'true'
+        run: echo "No persona label or @conductor mention matched this event."
+
+      - name: Build issue context
+        if: steps.resolve.outputs.should_run == 'true'
+        id: context
+        env:
+          CONDUCTOR_ISSUE_NUMBER: ${{ steps.resolve.outputs.issue_number }}
+          CONDUCTOR_PERSONA: ${{ steps.resolve.outputs.persona }}
+          CONDUCTOR_TRIGGER_KIND: ${{ steps.resolve.outputs.trigger_kind }}
+        run: scripts/conductor/build-context.sh
+
+      - name: Run persona
+        if: steps.resolve.outputs.should_run == 'true'
+        env:
+          CONDUCTOR_CONTEXT_PATH: ${{ steps.context.outputs.context_path }}
+          CONDUCTOR_ISSUE_NUMBER: ${{ steps.resolve.outputs.issue_number }}
+          CONDUCTOR_PERSONA: ${{ steps.resolve.outputs.persona }}
+          CONDUCTOR_PROMPT_PATH: .github/prompts/${{ steps.resolve.outputs.persona }}.md
+          CONDUCTOR_TRIGGER_KIND: ${{ steps.resolve.outputs.trigger_kind }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: scripts/conductor/run-persona.sh
