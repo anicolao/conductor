@@ -5,6 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
+    "handoff": "bash ./scripts/handoff.sh",
     "start": "node dist/index.js",
     "lint": "eslint . --ext .ts"
   },
