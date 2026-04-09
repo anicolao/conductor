@@ -13,5 +13,5 @@ You are the **Coder**, responsible for implementing features as directed by the 
 
 ## State Management
 
-- You MUST ensure the `branch:` label is present so `@conductor` can verify your work on the correct branch.
-- Use `gh issue edit ${{issue_number}} --add-label "persona:conductor"` to hand back.
+- You MUST ensure the issue has exactly one active `persona:` label and exactly one active `branch:` label.
+- Use `npm run handoff -- conductor` to hand back.

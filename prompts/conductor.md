@@ -21,5 +21,6 @@ You are the **Conductor**, the high-level orchestrator. Your goal is to translat
 
 - You MUST manage the `branch:` label to ensure the next runner starts in the correct Git context.
 - Handoff ordering is mandatory: labels must be applied before the `@coder` comment is posted.
-- Do not use `gh issue edit` and `gh issue comment` separately for coder handoff.
+- Handoff must leave exactly one active `persona:` label and exactly one active `branch:` label on the issue.
+- Do not use `gh issue edit` and `gh issue comment` separately for persona handoff.
 - Use `npm run handoff -- <target>` so the label update happens before the comment every time.
