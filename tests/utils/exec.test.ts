@@ -1,4 +1,5 @@
-import { formatStreamChunk, createLineForwarder, runStreamingCommand } from './exec';
+import { describe, it, expect, vi } from 'vitest';
+import { formatStreamChunk, createLineForwarder, runStreamingCommand } from '../../src/utils/exec';
 
 describe('exec utility', () => {
   describe('formatStreamChunk', () => {
@@ -13,7 +14,7 @@ describe('exec utility', () => {
 
   describe('createLineForwarder', () => {
     it('should buffer and flush lines correctly', () => {
-      const onChunk = jest.fn();
+      const onChunk = vi.fn();
       const forwarder = createLineForwarder('stdout', onChunk);
 
       forwarder.push('hello');
@@ -28,7 +29,7 @@ describe('exec utility', () => {
     });
 
     it('should handle multiple lines in one push', () => {
-      const onChunk = jest.fn();
+      const onChunk = vi.fn();
       const forwarder = createLineForwarder('stdout', onChunk);
 
       forwarder.push('line1\nline2\n');
