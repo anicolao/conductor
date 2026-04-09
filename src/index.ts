@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { CommandResult, runStreamingCommand } from './utils/exec';
 
 interface GitHubEvent {
+  action?: string;
   issue?: {
     number: number;
     labels: { name: string }[];
@@ -14,6 +15,16 @@ interface GitHubEvent {
   comment?: {
     body: string;
   };
+  project_item?: {
+    content_node_id: string;
+    content_type: string;
+    node_id: string;
+  };
+  changes?: {
+    field_value?: {
+      field_name: string;
+    }
+  }
 }
 
 function verifyGitHubCli(issueNumber: number): string {
@@ -117,7 +128,56 @@ async function main() {
   }
 
   const event: GitHubEvent = JSON.parse(fs.readFileSync(eventPath, 'utf8'));
-  const issueNumber = event.issue?.number;
+  let issueNumber = event.issue?.number;
+  let labels = event.issue?.labels.map(l => l.name) || [];
+  let issueBody = event.issue?.body || '';
+  let commentBody = event.comment?.body || '';
+
+  if (!issueNumber && event.project_item && event.project_item.content_type === 'Issue') {
+    // Handle Project V2 Item event
+    console.log('Detected project_item event. Resolving issue...');
+    const nodeId = event.project_item.content_node_id;
+    
+    // Fetch issue details
+    const issueData = spawnSync('gh', ['api', 'graphql', '-f', `query=query($id: ID!) { node(id: $id) { ... on Issue { number body labels(first: 100) { nodes { name } } } } }`, '-f', `id=${nodeId}`], {
+      encoding: 'utf8',
+      env: process.env
+    });
+
+    if (issueData.status === 0) {
+      const parsed = JSON.parse(issueData.stdout);
+      if (parsed.data?.node) {
+        issueNumber = parsed.data.node.number;
+        labels = parsed.data.node.labels.nodes.map((n: any) => n.name);
+        issueBody = parsed.data.node.body;
+      }
+    }
+
+    if (issueNumber && event.action === 'edited' && event.changes?.field_value?.field_name === 'Status') {
+      // Check if the new status is "In Progress"
+      const itemNodeId = event.project_item.node_id;
+      const statusData = spawnSync('gh', ['api', 'graphql', '-f', `query=query($id: ID!) { node(id: $id) { ... on ProjectV2Item { fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } } } } }`, '-f', `id=${itemNodeId}`], {
+        encoding: 'utf8',
+        env: process.env
+      });
+
+      if (statusData.status === 0) {
+        const parsedStatus = JSON.parse(statusData.stdout);
+        const statusName = parsedStatus.data?.node?.fieldValueByName?.name;
+        console.log(`Project item status: ${statusName}`);
+        if (statusName === 'In Progress') {
+          if (!labels.includes('persona: conductor') && !labels.includes('persona: coder')) {
+            console.log('Status moved to In Progress. Activating conductor persona.');
+            spawnSync('gh', ['issue', 'edit', String(issueNumber), '--add-label', 'persona: conductor'], {
+              env: process.env
+            });
+            labels.push('persona: conductor');
+          }
+        }
+      }
+    }
+  }
+
   if (!issueNumber) {
     console.error('No issue number found in event');
     process.exit(0);
@@ -125,7 +185,6 @@ async function main() {
 
   // 1. Determine Persona
   let persona: 'conductor' | 'coder' | null = null;
-  const labels = event.issue?.labels.map(l => l.name) || [];
   
   if (labels.includes('persona: coder')) {
     persona = 'coder';
@@ -133,7 +192,7 @@ async function main() {
     persona = 'conductor';
   } else {
     // Implicit initiation check
-    const body = event.comment?.body || event.issue?.body || '';
+    const body = commentBody || issueBody || '';
     if (body.includes('@conductor')) {
       persona = 'conductor';
     }
@@ -165,10 +224,10 @@ Current Branch: ${currentBranch}
 Labels: ${labels.join(', ')}
 ---
 ISSUE BODY:
-${event.issue?.body || ''}
+${issueBody}
 ---
 LATEST COMMENT:
-${event.comment?.body || ''}
+${commentBody}
 `;
 
   const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
