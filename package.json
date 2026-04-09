@@ -7,7 +7,8 @@
     "build": "tsc",
     "handoff": "bash ./scripts/handoff.sh",
     "start": "node dist/index.js",
-    "lint": "eslint . --ext .ts"
+    "lint": "eslint . --ext .ts",
+    "test": "jest"
   },
   "dependencies": {
     "@octokit/rest": "^20.0.0",
@@ -17,10 +18,13 @@
     "node": ">=24"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "eslint": "^8.0.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.9",
     "typescript": "^5.0.0"
   }
 }

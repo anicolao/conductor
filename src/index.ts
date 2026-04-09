@@ -20,11 +20,11 @@ interface CommandResult {
   stderr: string;
 }
 
-function formatStreamChunk(chunk: string, source: 'stdout' | 'stderr'): string {
+export function formatStreamChunk(chunk: string, source: 'stdout' | 'stderr'): string {
   return source === 'stderr' ? `[stderr] ${chunk}` : chunk;
 }
 
-function createLineForwarder(source: 'stdout' | 'stderr', onChunk: (formatted: string, raw: string, source: 'stdout' | 'stderr') => void) {
+export function createLineForwarder(source: 'stdout' | 'stderr', onChunk: (formatted: string, raw: string, source: 'stdout' | 'stderr') => void) {
   let buffer = '';
 
   return {
