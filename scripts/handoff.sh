@@ -21,6 +21,8 @@ fi
 
 issue_number="$(node -e "const fs=require('fs'); const event=JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')); if (!event.issue?.number) process.exit(1); process.stdout.write(String(event.issue.number));")"
 
+existing_labels="$(gh issue view "$issue_number" --json labels --jq '.labels[].name')"
+
 body_file="$(mktemp)"
 trap 'rm -f "$body_file"' EXIT
 cat > "$body_file"
@@ -29,6 +31,17 @@ if [ ! -s "$body_file" ]; then
   echo "Comment body must be provided on stdin" >&2
   exit 1
 fi
+
+while IFS= read -r label; do
+  case "$label" in
+    "persona: "*)
+      gh issue edit "$issue_number" --remove-label "$label"
+      ;;
+    "branch: "*)
+      gh issue edit "$issue_number" --remove-label "$label"
+      ;;
+  esac
+done <<< "$existing_labels"
 
 gh issue edit "$issue_number" \
   --add-label "persona: $target" \
