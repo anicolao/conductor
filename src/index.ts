@@ -168,12 +168,6 @@ function buildGeminiEnv(): NodeJS.ProcessEnv {
     if (value) env[key] = value;
   }
 
-  // Gemini enables strict environment redaction when GITHUB_SHA is present.
-  // Excluding it preserves the GitHub auth token env vars for Gemini shell tools.
-  delete env.GITHUB_SHA;
-  delete env.GOOGLE_API_KEY;
-  delete env.GEMINI_API_KEY;
-
   if (process.env.GEMINI_API_KEY) {
     env.GEMINI_API_KEY = process.env.GEMINI_API_KEY;
     return env;
