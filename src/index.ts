@@ -132,19 +132,55 @@ ${failureDetails}
 }
 
 function buildGeminiEnv(): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {
-    ...process.env
-  };
+  const forwardedKeys = [
+    'PATH',
+    'HOME',
+    'LANG',
+    'SHELL',
+    'TERM',
+    'TMPDIR',
+    'TMP',
+    'TEMP',
+    'USER',
+    'LOGNAME',
+    'COLORTERM',
+    'CI',
+    'GITHUB_ACTIONS',
+    'GITHUB_ACTOR',
+    'GITHUB_EVENT_NAME',
+    'GITHUB_EVENT_PATH',
+    'GITHUB_REPOSITORY',
+    'GITHUB_RUN_ATTEMPT',
+    'GITHUB_RUN_ID',
+    'GITHUB_RUN_NUMBER',
+    'RUNNER_ARCH',
+    'RUNNER_OS',
+    'RUNNER_TEMP',
+    'RUNNER_TOOL_CACHE',
+    'CONDUCTOR_TOKEN',
+    'GH_TOKEN',
+    'GITHUB_TOKEN'
+  ];
+  const env: NodeJS.ProcessEnv = {};
+
+  for (const key of forwardedKeys) {
+    const value = process.env[key];
+    if (value) env[key] = value;
+  }
+
+  // Gemini enables strict environment redaction when GITHUB_SHA is present.
+  // Excluding it preserves the GitHub auth token env vars for Gemini shell tools.
+  delete env.GITHUB_SHA;
+  delete env.GOOGLE_API_KEY;
+  delete env.GEMINI_API_KEY;
 
   if (process.env.GEMINI_API_KEY) {
     env.GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-    delete env.GOOGLE_API_KEY;
     return env;
   }
 
   if (process.env.GOOGLE_API_KEY) {
     env.GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
-    delete env.GEMINI_API_KEY;
   }
 
   return env;
