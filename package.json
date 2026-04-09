@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "LLM Coordination Framework",
   "main": "dist/index.js",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "build": "tsc",
     "handoff": "bash ./scripts/handoff.sh",
@@ -14,7 +17,7 @@
     "dotenv": "^16.0.0"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@types/node": "^24.0.0",
     "typescript": "^5.0.0"
   }
 }
