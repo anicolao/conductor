@@ -31,10 +31,8 @@ function createLineForwarder(source: 'stdout' | 'stderr', onChunk: (formatted: s
     push(chunk: string) {
       buffer += chunk;
 
-      while (true) {
-        const newlineIndex = buffer.indexOf('\n');
-        if (newlineIndex === -1) break;
-
+      let newlineIndex;
+      while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
         const line = buffer.slice(0, newlineIndex + 1);
         buffer = buffer.slice(newlineIndex + 1);
         onChunk(formatStreamChunk(line, source), line, source);
