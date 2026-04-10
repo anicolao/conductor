@@ -5,10 +5,6 @@ run-name: Conductor [${{ github.event.client_payload.repository || github.reposi
 on:
   repository_dispatch:
     types: [project_in_progress]
-  issue_comment:
-    types: [created]
-  issues:
-    types: [opened]
 
 permissions:
   contents: write
@@ -17,21 +13,15 @@ permissions:
 
 jobs:
   run-conductor:
-    if: >
-      github.event_name == 'repository_dispatch'
-      || (github.event.issue && (contains(join(github.event.issue.labels.*.name, '||'), 'persona: ') || contains(github.event.comment.body, '@conductor') || contains(github.event.issue.body, '@conductor')))
+    # No longer filtering by labels/mentions here because the bridge already does it.
+    # This prevents duplicate runs for the conductor repo itself.
     runs-on: ubuntu-latest
     steps:
       - name: Determine Target Metadata
         id: metadata
         run: |
-          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            ISSUE_NUMBER=$(jq -r '.client_payload.issue_number // empty' "$GITHUB_EVENT_PATH")
-            REPO=$(jq -r '.client_payload.repository // "${{ github.repository }}"' "$GITHUB_EVENT_PATH")
-          else
-            ISSUE_NUMBER="${{ github.event.issue.number }}"
-            REPO="${{ github.repository }}"
-          fi
+          ISSUE_NUMBER=$(jq -r '.client_payload.issue_number // empty' "$GITHUB_EVENT_PATH")
+          REPO=$(jq -r '.client_payload.repository // "${{ github.repository }}"' "$GITHUB_EVENT_PATH")
           echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
           echo "repository=$REPO" >> $GITHUB_OUTPUT
           echo "Target Repo: $REPO, Issue: $ISSUE_NUMBER"
