@@ -59,7 +59,7 @@ async function githubGraphql(query, variables, token) {
   return body.data;
 }
 
-async function dispatchProjectActivation(repository, issueNumber, token, eventName = null, action = null, body = null, issueUrl = null, issueNodeId = null, projectNumber = null, projectUrl = null) {
+async function dispatchProjectActivation(repository, issueNumber, token, eventName = null, action = null, body = null, issueUrl = null, issueNodeId = null, projectNumber = null, projectUrl = null, persona = null) {
   const response = await fetch(`https://api.github.com/repos/${TARGET_REPO}/dispatches`, {
     method: "POST",
     headers: {
@@ -78,6 +78,7 @@ async function dispatchProjectActivation(repository, issueNumber, token, eventNa
         project_number: projectNumber || TARGET_PROJECT_NUMBER,
         project_url: projectUrl || `https://github.com/orgs/${TARGET_REPO.split('/')[0]}/projects/${projectNumber || TARGET_PROJECT_NUMBER}`,
         status: TARGET_STATUS,
+        persona: persona,
         event_name: eventName,
         action: action,
         body: body
@@ -156,13 +157,13 @@ exports.githubProjectsV2Webhook = onRequest(
         return;
       }
 
-      const hasPersona = labels.some(l => l.startsWith("persona:"));
-      const mentionsConductor = body.includes("@conductor");
+      const personaLabel = labels.find(l => l.startsWith("persona:"));
+      const persona = personaLabel ? personaLabel.split(":")[1].trim() : (body.includes("@conductor") ? "conductor" : null);
 
-      if (hasPersona || mentionsConductor) {
-        await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value(), eventName, action, body, issueUrl, issueNodeId);
-        logger.info("Dispatched issue event", { deliveryId, eventName, action, repositoryName, issueNumber });
-        res.status(202).json({ ok: true, repository: repositoryName, issueNumber, eventName });
+      if (persona) {
+        await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value(), eventName, action, body, issueUrl, issueNodeId, null, null, persona);
+        logger.info("Dispatched issue event", { deliveryId, eventName, action, repositoryName, issueNumber, persona });
+        res.status(202).json({ ok: true, repository: repositoryName, issueNumber, eventName, persona });
         return;
       }
 
@@ -186,8 +187,8 @@ exports.githubProjectsV2Webhook = onRequest(
     }
 
     const changedFieldName = req.body?.changes?.field_value?.field_name;
-    if (changedFieldName !== "Status") {
-      logger.info("Ignoring non-status project item edit", {
+    if (changedFieldName !== "Status" && changedFieldName !== "Persona") {
+      logger.info("Ignoring non-status/persona project item edit", {
         deliveryId,
         changedFieldName: changedFieldName || null
       });
@@ -208,7 +209,12 @@ exports.githubProjectsV2Webhook = onRequest(
           node(id: $id) {
             ... on ProjectV2Item {
               id
-              fieldValueByName(name: "Status") {
+              status: fieldValueByName(name: "Status") {
+                ... on ProjectV2ItemFieldSingleSelectValue {
+                  name
+                }
+              }
+              persona: fieldValueByName(name: "Persona") {
                 ... on ProjectV2ItemFieldSingleSelectValue {
                   name
                 }
@@ -254,7 +260,8 @@ exports.githubProjectsV2Webhook = onRequest(
       const repositoryName = item?.content?.repository?.nameWithOwner;
       const projectNumber = item?.project?.number;
       const projectUrl = item?.project?.url;
-      const statusName = item?.fieldValueByName?.name;
+      const statusName = item?.status?.name;
+      const personaName = item?.persona?.name;
 
       if (!issueNumber || !repositoryName) {
         logger.info("Ignoring unrelated project item", {
@@ -266,8 +273,24 @@ exports.githubProjectsV2Webhook = onRequest(
         return;
       }
 
+      // Trigger if Status is "In Progress" OR if Persona was changed
+      const isStatusTrigger = changedFieldName === "Status" && statusName === TARGET_STATUS;
+      const isPersonaTrigger = changedFieldName === "Persona";
+
+      if (!isStatusTrigger && !isPersonaTrigger) {
+        logger.info("Ignoring project item edit: neither status trigger nor persona trigger met", {
+          deliveryId,
+          issueNumber,
+          changedFieldName,
+          statusName
+        });
+        res.status(204).send("");
+        return;
+      }
+
+      // If status trigger, we still need status to be TARGET_STATUS
       if (statusName !== TARGET_STATUS) {
-        logger.info("Ignoring project item outside target status", {
+        logger.info("Ignoring persona change because status is not 'In Progress'", {
           deliveryId,
           issueNumber,
           statusName
@@ -276,19 +299,9 @@ exports.githubProjectsV2Webhook = onRequest(
         return;
       }
 
-      if (issueLabels.some((label) => label.startsWith("persona:"))) {
-        logger.info("Ignoring project item for issue with active persona", {
-          deliveryId,
-          issueNumber,
-          issueLabels
-        });
-        res.status(204).send("");
-        return;
-      }
-
-      await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value(), eventName, req.body?.action, issueBody, issueUrl, issueNodeId, projectNumber, projectUrl);
-      logger.info("Dispatched project activation", { deliveryId, repositoryName, issueNumber, statusName, projectNumber });
-      res.status(202).json({ ok: true, repository: repositoryName, issueNumber, status: statusName, projectNumber });
+      await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value(), eventName, req.body?.action, issueBody, issueUrl, issueNodeId, projectNumber, projectUrl, personaName);
+      logger.info("Dispatched project activation", { deliveryId, repositoryName, issueNumber, statusName, personaName, projectNumber });
+      res.status(202).json({ ok: true, repository: repositoryName, issueNumber, status: statusName, persona: personaName, projectNumber });
     } catch (error) {
       logger.error("Failed to bridge projects_v2_item", {
         deliveryId,

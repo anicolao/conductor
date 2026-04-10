@@ -32,7 +32,16 @@ The working design is:
 2. An organization-level webhook or GitHub App receives the `projects_v2_item` event.
 3. That bridge sends a `repository_dispatch` event to `LLM-Orchestration/conductor`.
 4. The Conductor workflow starts from `repository_dispatch`.
-5. `src/index.ts` resolves the live issue state and activates `persona: conductor` if no persona is already active.
+5. `src/index.ts` resolves the live issue state and activates the persona specified in the Project V2 `Persona` field (defaulting to `conductor` if not set).
+
+### The Persona Field
+
+To support more granular control over which agent is active, the project board uses a custom single-select field named **Persona**.
+
+- **Field Name**: `Persona`
+- **Options**: `conductor`, `coder`
+
+When a handoff occurs (e.g., from Conductor to Coder), the `handoff.sh` script updates this field. The Firebase bridge detects the change and dispatches a new `repository_dispatch` event, ensuring the next agent starts its work immediately.
 
 ## Workflow Trigger
 
@@ -59,6 +68,7 @@ The dispatch contract is:
     "project_number": 1,
     "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1",
     "status": "In Progress",
+    "persona": "conductor",
     "event_name": "issue_comment",
     "action": "created"
   }

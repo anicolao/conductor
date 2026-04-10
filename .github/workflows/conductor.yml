@@ -1,6 +1,6 @@
 name: Conductor
 
-run-name: Conductor [${{ github.event.client_payload.repository }}] Issue #${{ github.event.client_payload.issue_number }}${{ github.event.client_payload.event_name && format(' ({0}:{1})', github.event.client_payload.event_name, github.event.client_payload.action) || '' }}
+run-name: Conductor [${{ github.event.client_payload.repository }}] Issue #${{ github.event.client_payload.issue_number }} - Persona: ${{ github.event.client_payload.persona || 'unknown' }}${{ github.event.client_payload.event_name && format(' ({0}:{1})', github.event.client_payload.event_name, github.event.client_payload.action) || '' }}
 
 on:
   repository_dispatch:
