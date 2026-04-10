@@ -114,15 +114,15 @@ function loadIssueState(repository: string, issueNumber: number): { labels: stri
   };
 }
 
-function activateConductorPersona(repository: string, issueNumber: number): void {
-  const result = spawnSync('gh', ['issue', 'edit', String(issueNumber), '-R', repository, '--add-label', 'persona: conductor'], {
+function activatePersonaLabel(repository: string, issueNumber: number, persona: 'conductor' | 'coder'): void {
+  const result = spawnSync('gh', ['issue', 'edit', String(issueNumber), '-R', repository, '--add-label', `persona: ${persona}`], {
     encoding: 'utf8',
     env: process.env
   });
 
   if (result.status !== 0) {
     const details = (result.stderr || result.stdout || 'No gh output captured').trim();
-    console.error(`Failed to activate conductor persona on issue #${issueNumber} in ${repository}`);
+    console.error(`Failed to activate ${persona} persona on issue #${issueNumber} in ${repository}`);
     if (details) process.stderr.write(`${details}\n`);
   }
 }
@@ -166,15 +166,21 @@ async function main() {
   }
 
   if (eventName === 'repository_dispatch' && !labels.some(label => label.startsWith('persona:'))) {
-    console.log(`repository_dispatch received for issue #${issueNumber} in ${repository}. Activating conductor persona.`);
-    activateConductorPersona(repository, issueNumber);
-    labels.push('persona: conductor');
+    const targetPersona = (event.client_payload?.persona === 'coder' || event.client_payload?.persona === 'conductor') 
+      ? event.client_payload.persona 
+      : 'conductor';
+    console.log(`repository_dispatch received for issue #${issueNumber} in ${repository}. Activating ${targetPersona} persona.`);
+    activatePersonaLabel(repository, issueNumber, targetPersona);
+    labels.push(`persona: ${targetPersona}`);
   }
 
   // 1. Determine Persona
   let persona: 'conductor' | 'coder' | null = null;
   
-  if (labels.includes('persona: coder')) {
+  const payloadPersona = event.client_payload?.persona;
+  if (payloadPersona === 'coder' || payloadPersona === 'conductor') {
+    persona = payloadPersona;
+  } else if (labels.includes('persona: coder')) {
     persona = 'coder';
   } else if (labels.includes('persona: conductor')) {
     persona = 'conductor';
