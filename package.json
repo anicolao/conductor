@@ -10,6 +10,7 @@
     "handoff": "bash ./scripts/handoff.sh",
     "start": "node dist/index.js",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "lint": "eslint . --ext .ts",
     "test:watch": "vitest"
   },
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^4.1.4",
     "typescript": "^5.0.0",
     "vitest": "^4.1.3"
   }

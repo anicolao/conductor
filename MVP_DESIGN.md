@@ -59,3 +59,12 @@ Each agent (Gemini CLI) is provided with:
 - Full repository access on the correct feature branch.
 - A system prompt defining its role.
 - Tools for code modification, git operations, and `gh` CLI for state/PR management.
+
+## Testing & Quality
+
+To ensure long-term maintainability and reliability, the Conductor project adheres to the following testing standards:
+
+1. **Mandatory Testing**: All new features and bug fixes MUST include corresponding unit or integration tests.
+2. **Coverage Threshold**: A minimum code coverage of **80%** must be maintained by all future updates.
+3. **Verification**: The `@conductor` will verify coverage using `npm run test:coverage` during the review phase before opening or merging a Pull Request.
+4. **Coverage Reports**: Vitest is configured to generate `text`, `json`, and `html` reports to aid in identifying untested code paths.
