@@ -64,7 +64,7 @@ The dispatch contract is:
 
 ## Bridge Requirements
 
-The webhook bridge can be a GitHub App handler, a small HTTP service, or a serverless function. It only needs to do three things:
+The webhook bridge in this repository is a Firebase HTTPS function named `githubProjectsV2Webhook`. It does three things:
 
 1. Verify the GitHub webhook signature.
 2. Detect that the item belongs to the `AI Orchestration` project and its status became `In Progress`.
@@ -85,6 +85,38 @@ curl -X POST \
     }
   }'
 ```
+
+## Firebase Deployment
+
+The Firebase project for this bridge is:
+
+- Project ID: `llm-orch-conductor-bridge`
+- Console: `https://console.firebase.google.com/project/llm-orch-conductor-bridge/overview`
+
+The Firebase project alias for this repository is also `llm-orch-conductor-bridge`.
+
+Root npm entry points:
+
+- `npm run firebase:deploy`
+- `npm run firebase:serve`
+
+Required Firebase function secrets:
+
+- `GITHUB_WEBHOOK_SECRET`
+- `CONDUCTOR_TOKEN`
+
+Deployment status:
+
+- The project was created successfully.
+- Cloud Functions deployment is currently blocked because the new Firebase project is still on the Spark plan.
+- Firebase requires Blaze before it will enable `cloudfunctions.googleapis.com`, `cloudbuild.googleapis.com`, and `secretmanager.googleapis.com`.
+
+After the project is upgraded to Blaze, the remaining steps are:
+
+1. set `GITHUB_WEBHOOK_SECRET`
+2. set `CONDUCTOR_TOKEN`
+3. deploy `githubProjectsV2Webhook`
+4. point the GitHub organization webhook at the deployed function URL
 
 ## Required Token Permissions
 

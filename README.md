@@ -32,7 +32,13 @@ Project moves do not trigger GitHub Actions directly. Conductor uses an org-proj
 2. The bridge sends `repository_dispatch` with `event_type=project_in_progress`.
 3. The workflow starts and activates `persona: conductor` on the target issue.
 
+The bridge in this repository is deployed as a Firebase HTTPS function.
+
 See [PROJECTS_V2_INTEGRATION.md](PROJECTS_V2_INTEGRATION.md) for the exact dispatch contract and setup details.
+
+Current Firebase bridge project:
+
+- `llm-orch-conductor-bridge`
 
 ## Licensing
 
