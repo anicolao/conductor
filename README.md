@@ -29,8 +29,8 @@ The live shared board is the organization-owned project at:
 Project moves do not trigger GitHub Actions directly. Conductor uses an org-project bridge:
 
 1. An organization webhook or GitHub App observes `projects_v2_item`.
-2. The bridge sends `repository_dispatch` with `event_type=project_in_progress`.
-3. The workflow starts and activates `persona: conductor` on the target issue.
+2. The bridge sends `repository_dispatch` with `event_type=project_in_progress`, including the source repository in the payload.
+3. The workflow starts and activates `persona: conductor` on the target issue in any repository within the organization.
 
 The bridge in this repository is deployed as a Firebase HTTPS function.
 

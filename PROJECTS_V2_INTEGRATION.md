@@ -54,6 +54,7 @@ The dispatch contract is:
 {
   "event_type": "project_in_progress",
   "client_payload": {
+    "repository": "LLM-Orchestration/conductor",
     "issue_number": 38,
     "project_number": 1,
     "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1",
@@ -78,6 +79,7 @@ curl -X POST \
   -d '{
     "event_type": "project_in_progress",
     "client_payload": {
+      "repository": "LLM-Orchestration/conductor",
       "issue_number": 38,
       "project_number": 1,
       "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1",
@@ -136,10 +138,10 @@ The current local `gh` token and repo secret were refreshed with:
 
 ## Operator Flow
 
-1. Add an issue from `LLM-Orchestration/conductor` to the `AI Orchestration` project.
+1. Add an issue from any repository in the `LLM-Orchestration` organization to the `AI Orchestration` project.
 2. Move it to `In Progress`.
-3. The webhook bridge dispatches `project_in_progress`.
-4. Conductor activates on that issue and continues with the normal persona handoff flow.
+3. The webhook bridge dispatches `project_in_progress` to the `conductor` repository, including the source repository in the payload.
+4. Conductor activates on that issue in its respective repository and continues with the normal persona handoff flow.
 
 ## Notes
 
