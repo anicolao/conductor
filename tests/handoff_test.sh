@@ -207,5 +207,54 @@ else
   exit 1
 fi
 
+# Test 5: Basic label handoff (no project info)
+cat > "$GITHUB_EVENT_PATH" <<'EOF'
+{
+  "client_payload": {
+    "issue_number": 456,
+    "repository": "LLM-Orchestration/other-repo"
+  }
+}
+EOF
+cat > "$TEST_DIR/gh" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+  "issue view"*".labels[].name"*)
+    echo "persona: conductor"
+    echo "branch: $branch_name"
+    ;;
+  "issue view"*)
+    echo '{"labels":[{"name":"persona: conductor"}, {"name":"branch: $branch_name"}]}'
+    ;;
+  "issue edit"*)
+    if [[ "\$*" == *"-R LLM-Orchestration/other-repo"* ]] && [[ "\$*" == *"--add-label persona: conductor"* ]]; then
+      exit 0
+    else
+      echo "Error: wrong repo or label in issue edit" >&2
+      exit 1
+    fi
+    ;;
+  "issue comment"*)
+    if [[ "\$*" == *"-R LLM-Orchestration/other-repo"* ]]; then
+      exit 0
+    else
+      echo "Error: wrong repo in issue comment" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+EOF
+
+echo "Running handoff.sh (expecting success for basic label handoff)..."
+if bash scripts/handoff.sh conductor < "$TEST_DIR/comment.md"; then
+  echo "Success: handoff.sh succeeded with basic label handoff"
+else
+  echo "Error: handoff.sh failed with basic label handoff"
+  exit 1
+fi
+
 echo "All handoff validation tests passed!"
 exit 0
