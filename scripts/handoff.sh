@@ -19,19 +19,30 @@ if [ -z "$branch_name" ]; then
   exit 1
 fi
 
-issue_number="$(node -e "
+# Extract issue number and repository from GITHUB_EVENT_PATH
+issue_data="$(node -e "
 const fs = require('fs');
-const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+const eventPath = process.env.GITHUB_EVENT_PATH;
+if (!fs.existsSync(eventPath)) process.exit(1);
+const event = JSON.parse(fs.readFileSync(eventPath, 'utf8'));
 const num = event.issue?.number || event.client_payload?.issue_number;
-if (!num) {
-  console.error('Could not find issue number in GITHUB_EVENT_PATH');
+const repo = event.client_payload?.repository || process.env.GITHUB_REPOSITORY;
+if (!num || !repo) {
   process.exit(1);
 }
-process.stdout.write(String(num));
+console.log(JSON.stringify({issue_number: String(num), repository: repo}));
 ")"
 
+if [ -z "$issue_data" ]; then
+  echo "Could not find issue number or repository in GITHUB_EVENT_PATH" >&2
+  exit 1
+fi
+
+issue_number="$(echo "$issue_data" | jq -r '.issue_number')"
+repository="$(echo "$issue_data" | jq -r '.repository')"
+
 current_labels() {
-  gh issue view "$issue_number" --json labels --jq '.labels[].name'
+  gh issue view "$issue_number" -R "$repository" --json labels --jq '.labels[].name'
 }
 
 existing_labels="$(current_labels)"
@@ -45,34 +56,42 @@ if [ ! -s "$body_file" ]; then
   exit 1
 fi
 
+# Prepare atomic label edit
+remove_labels=()
 while IFS= read -r label; do
+  if [ -z "$label" ]; then continue; fi
   case "$label" in
     "persona: "*)
-      gh issue edit "$issue_number" --remove-label "$label"
+      remove_labels+=("--remove-label" "$label")
       ;;
     "branch: "*)
-      gh issue edit "$issue_number" --remove-label "$label"
+      remove_labels+=("--remove-label" "$label")
       ;;
   esac
 done <<< "$existing_labels"
 
-gh issue edit "$issue_number" \
+echo "Updating labels on ${repository}#${issue_number}..."
+gh issue edit "$issue_number" -R "$repository" \
+  "${remove_labels[@]}" \
   --add-label "persona: $target" \
   --add-label "branch: $branch_name"
 
+# Verification
 verified=0
-for _ in 1 2 3 4 5; do
+for i in 1 2 3 4 5; do
   labels_after="$(current_labels)"
   if grep -Fqx "persona: $target" <<< "$labels_after" && grep -Fqx "branch: $branch_name" <<< "$labels_after"; then
     verified=1
     break
   fi
+  echo "Waiting for label propagation (attempt $i)..."
   sleep 1
 done
 
 if [ "$verified" -ne 1 ]; then
-  echo "Failed to verify handoff labels on issue $issue_number before posting comment" >&2
+  echo "Failed to verify handoff labels on issue ${repository}#${issue_number} before posting comment" >&2
   exit 1
 fi
 
-gh issue comment "$issue_number" --body-file "$body_file"
+echo "Posting comment to ${repository}#${issue_number}..."
+gh issue comment "$issue_number" -R "$repository" --body-file "$body_file"

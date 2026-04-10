@@ -28,33 +28,30 @@ The workflow file can still load, but no Actions run will ever be created from t
 
 The working design is:
 
-1. A Projects V2 item in the organization project moves to `In Progress`.
-2. An organization-level webhook or GitHub App receives the `projects_v2_item` event.
-3. That bridge sends a `repository_dispatch` event to `LLM-Orchestration/conductor`.
+1. A Projects V2 item in the organization project moves to `In Progress`, OR an issue is labeled/opened, OR a comment is created.
+2. An organization-level webhook receives the event and forwards it to the Bridge (Firebase function).
+3. The bridge performs filtering (ignores bots, filters actions) and sends a `repository_dispatch` event to `LLM-Orchestration/conductor`.
 4. The Conductor workflow starts from `repository_dispatch`.
-5. `src/index.ts` resolves the live issue state and activates `persona: conductor` if no persona is already active.
+5. `src/index.ts` resolves the live issue state and activates `persona: conductor` if no persona is already active. It supports issues in any repository as specified in the dispatch payload.
 
 ## Workflow Trigger
 
-The workflow now listens for:
+The workflow now listens exclusively for `repository_dispatch` to prevent duplicate runs and centralize event processing:
 
 ```yaml
 on:
   repository_dispatch:
-    types: [project_in_progress]
-  issue_comment:
-    types: [created]
-  issues:
-    types: [opened]
+    types: [project_in_progress, external_issue_event, external_issue_comment]
 ```
 
-The dispatch contract is:
+The dispatch payload includes the target repository:
 
 ```json
 {
   "event_type": "project_in_progress",
   "client_payload": {
     "issue_number": 38,
+    "repository": "owner/repo",
     "project_number": 1,
     "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1",
     "status": "In Progress"
@@ -64,27 +61,15 @@ The dispatch contract is:
 
 ## Bridge Requirements
 
-The webhook bridge in this repository is a Firebase HTTPS function named `githubProjectsV2Webhook`. It does three things:
+The webhook bridge in this repository is a Firebase HTTPS function named `githubProjectsV2Webhook`. It:
 
-1. Verify the GitHub webhook signature.
-2. Detect that the item belongs to the `AI Orchestration` project and its status became `In Progress`.
-3. Call:
-
-```bash
-curl -X POST \
-  -H "Accept: application/vnd.github+json" \
-  -H "Authorization: Bearer $CONDUCTOR_TOKEN" \
-  https://api.github.com/repos/LLM-Orchestration/conductor/dispatches \
-  -d '{
-    "event_type": "project_in_progress",
-    "client_payload": {
-      "issue_number": 38,
-      "project_number": 1,
-      "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1",
-      "status": "In Progress"
-    }
-  }'
-```
+1. Verifies the GitHub webhook signature.
+2. Filters out events from Bot accounts.
+3. Detects specific event types:
+   - `projects_v2_item`: status changes to `In Progress`.
+   - `issues`: `labeled` or `opened`.
+   - `issue_comment`: `created`.
+4. Dispatches to `LLM-Orchestration/conductor` with enriched metadata (repository name and issue number).
 
 ## Firebase Deployment
 

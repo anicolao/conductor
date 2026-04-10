@@ -1,12 +1,10 @@
 name: Conductor
 
+run-name: Conductor for ${{ github.event.client_payload.repository || github.repository }} #${{ github.event.client_payload.issue_number || github.event.issue.number }}
+
 on:
   repository_dispatch:
-    types: [project_in_progress]
-  issue_comment:
-    types: [created]
-  issues:
-    types: [opened]
+    types: [project_in_progress, external_issue_event, external_issue_comment]
 
 permissions:
   contents: write
@@ -15,9 +13,6 @@ permissions:
 
 jobs:
   run-conductor:
-    if: >
-      github.event_name == 'repository_dispatch'
-      || (github.event.issue && (contains(join(github.event.issue.labels.*.name, '||'), 'persona: ') || contains(github.event.comment.body, '@conductor') || contains(github.event.issue.body, '@conductor')))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -32,13 +27,15 @@ jobs:
           GH_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
         run: |
           BRANCH=""
-          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            ISSUE_NUMBER=$(jq -r '.client_payload.issue_number // empty' "$GITHUB_EVENT_PATH")
-            if [ -n "$ISSUE_NUMBER" ]; then
-              BRANCH=$(gh api "repos/${{ github.repository }}/issues/$ISSUE_NUMBER" --jq '.labels[].name | select(startswith("branch:"))' 2>/dev/null | cut -d':' -f2- | xargs || true)
-            fi
-          else
-            BRANCH=$(echo '${{ toJson(github.event.issue.labels) }}' | jq -r '.[] | select(.name | startswith("branch:")) | .name' | cut -d':' -f2- | xargs)
+          ISSUE_NUMBER=$(jq -r '.client_payload.issue_number // empty' "$GITHUB_EVENT_PATH")
+          REPOSITORY=$(jq -r '.client_payload.repository // empty' "$GITHUB_EVENT_PATH")
+          
+          if [ -z "$REPOSITORY" ]; then
+            REPOSITORY="${{ github.repository }}"
+          fi
+
+          if [ -n "$ISSUE_NUMBER" ]; then
+            BRANCH=$(gh api "repos/$REPOSITORY/issues/$ISSUE_NUMBER" --jq '.labels[].name | select(startswith("branch:"))' 2>/dev/null | cut -d':' -f2- | xargs || true)
           fi
 
           if [ -z "$BRANCH" ]; then

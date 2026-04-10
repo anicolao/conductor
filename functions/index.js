@@ -59,7 +59,7 @@ async function githubGraphql(query, variables, token) {
   return body.data;
 }
 
-async function dispatchProjectActivation(issueNumber, token) {
+async function dispatchConductorEvent(token, eventType, payload) {
   const response = await fetch(`https://api.github.com/repos/${TARGET_REPO}/dispatches`, {
     method: "POST",
     headers: {
@@ -69,19 +69,14 @@ async function dispatchProjectActivation(issueNumber, token) {
       "User-Agent": "conductor-project-bridge"
     },
     body: JSON.stringify({
-      event_type: "project_in_progress",
-      client_payload: {
-        issue_number: issueNumber,
-        project_number: TARGET_PROJECT_NUMBER,
-        project_url: "https://github.com/orgs/LLM-Orchestration/projects/1",
-        status: TARGET_STATUS
-      }
+      event_type: eventType,
+      client_payload: payload
     })
   });
 
   if (!response.ok) {
     const body = await response.text();
-    const error = new Error("GitHub repository_dispatch failed");
+    const error = new Error(`GitHub repository_dispatch failed for ${eventType}`);
     error.details = { status: response.status, body };
     throw error;
   }
@@ -114,118 +109,179 @@ exports.githubProjectsV2Webhook = onRequest(
       return;
     }
 
-    if (eventName !== "projects_v2_item") {
-      logger.info("Ignoring unsupported GitHub event", { deliveryId, eventName });
+    // Loop Prevention: Ignore events from bots
+    if (req.body?.sender?.type === "Bot") {
+      logger.info("Ignoring bot event", { deliveryId, sender: req.body?.sender?.login });
       res.status(204).send("");
-      return;
-    }
-
-    if (req.body?.action !== "edited") {
-      logger.info("Ignoring project item event without an edited action", {
-        deliveryId,
-        action: req.body?.action || null
-      });
-      res.status(204).send("");
-      return;
-    }
-
-    const changedFieldName = req.body?.changes?.field_value?.field_name;
-    if (changedFieldName !== "Status") {
-      logger.info("Ignoring non-status project item edit", {
-        deliveryId,
-        changedFieldName: changedFieldName || null
-      });
-      res.status(204).send("");
-      return;
-    }
-
-    const itemNodeId = req.body?.projects_v2_item?.node_id;
-    if (!itemNodeId) {
-      logger.warn("projects_v2_item payload missing node_id", { deliveryId });
-      res.status(400).send("Missing projects_v2_item.node_id");
       return;
     }
 
     try {
-      const data = await githubGraphql(
-        `query ProjectItemState($id: ID!) {
-          node(id: $id) {
-            ... on ProjectV2Item {
-              id
-              fieldValueByName(name: "Status") {
-                ... on ProjectV2ItemFieldSingleSelectValue {
-                  name
-                }
-              }
-              project {
-                ... on ProjectV2 {
-                  number
-                  title
-                }
-              }
-              content {
-                ... on Issue {
-                  number
-                  labels(first: 100) {
-                    nodes {
-                      name
-                    }
+      if (eventName === "projects_v2_item") {
+        if (req.body?.action !== "edited") {
+          logger.info("Ignoring project item event without an edited action", {
+            deliveryId,
+            action: req.body?.action || null
+          });
+          res.status(204).send("");
+          return;
+        }
+
+        const changedFieldName = req.body?.changes?.field_value?.field_name;
+        if (changedFieldName !== "Status") {
+          logger.info("Ignoring non-status project item edit", {
+            deliveryId,
+            changedFieldName: changedFieldName || null
+          });
+          res.status(204).send("");
+          return;
+        }
+
+        const itemNodeId = req.body?.projects_v2_item?.node_id;
+        if (!itemNodeId) {
+          logger.warn("projects_v2_item payload missing node_id", { deliveryId });
+          res.status(400).send("Missing projects_v2_item.node_id");
+          return;
+        }
+
+        const data = await githubGraphql(
+          `query ProjectItemState($id: ID!) {
+            node(id: $id) {
+              ... on ProjectV2Item {
+                id
+                fieldValueByName(name: "Status") {
+                  ... on ProjectV2ItemFieldSingleSelectValue {
+                    name
                   }
-                  repository {
-                    nameWithOwner
+                }
+                project {
+                  ... on ProjectV2 {
+                    number
+                    title
+                  }
+                }
+                content {
+                  ... on Issue {
+                    number
+                    labels(first: 100) {
+                      nodes {
+                        name
+                      }
+                    }
+                    repository {
+                      nameWithOwner
+                    }
                   }
                 }
               }
             }
-          }
-        }`,
-        { id: itemNodeId },
-        conductorToken.value()
-      );
+          }`,
+          { id: itemNodeId },
+          conductorToken.value()
+        );
 
-      const item = data?.node;
-      const issueNumber = item?.content?.number;
-      const issueLabels = Array.isArray(item?.content?.labels?.nodes)
-        ? item.content.labels.nodes.map((label) => label.name)
-        : [];
-      const repositoryName = item?.content?.repository?.nameWithOwner;
-      const projectNumber = item?.project?.number;
-      const statusName = item?.fieldValueByName?.name;
+        const item = data?.node;
+        const issueNumber = item?.content?.number;
+        const issueLabels = Array.isArray(item?.content?.labels?.nodes)
+          ? item.content.labels.nodes.map((label) => label.name)
+          : [];
+        const repositoryName = item?.content?.repository?.nameWithOwner;
+        const projectNumber = item?.project?.number;
+        const statusName = item?.fieldValueByName?.name;
 
-      if (!issueNumber || repositoryName !== TARGET_REPO || projectNumber !== TARGET_PROJECT_NUMBER) {
-        logger.info("Ignoring unrelated project item", {
-          deliveryId,
-          repositoryName,
-          issueNumber,
-          projectNumber
+        if (!issueNumber || projectNumber !== TARGET_PROJECT_NUMBER) {
+          logger.info("Ignoring unrelated project item", {
+            deliveryId,
+            repositoryName,
+            issueNumber,
+            projectNumber
+          });
+          res.status(204).send("");
+          return;
+        }
+
+        if (statusName !== TARGET_STATUS) {
+          logger.info("Ignoring project item outside target status", {
+            deliveryId,
+            issueNumber,
+            statusName
+          });
+          res.status(204).send("");
+          return;
+        }
+
+        if (issueLabels.some((label) => label.startsWith("persona:"))) {
+          logger.info("Ignoring project item for issue with active persona", {
+            deliveryId,
+            issueNumber,
+            issueLabels
+          });
+          res.status(204).send("");
+          return;
+        }
+
+        await dispatchConductorEvent(conductorToken.value(), "project_in_progress", {
+          issue_number: issueNumber,
+          repository: repositoryName,
+          project_number: TARGET_PROJECT_NUMBER,
+          project_url: `https://github.com/orgs/${TARGET_REPO.split("/")[0]}/projects/${TARGET_PROJECT_NUMBER}`,
+          status: TARGET_STATUS
         });
-        res.status(204).send("");
+
+        logger.info("Dispatched project activation", { deliveryId, issueNumber, repositoryName, statusName });
+        res.status(202).json({ ok: true, issueNumber, repository: repositoryName, status: statusName });
         return;
       }
 
-      if (statusName !== TARGET_STATUS) {
-        logger.info("Ignoring project item outside target status", {
-          deliveryId,
-          issueNumber,
-          statusName
+      if (eventName === "issues") {
+        const action = req.body?.action;
+        const issueNumber = req.body?.issue?.number;
+        const repositoryName = req.body?.repository?.full_name;
+
+        // Only dispatch on 'opened' or 'labeled' to match conductor's needs, 
+        // but the prompt said "only dispatches on labeled issues and created comments"
+        // so let's follow that.
+        if (action !== "labeled" && action !== "opened") {
+          logger.info("Ignoring unrelated issues action", { deliveryId, action });
+          res.status(204).send("");
+          return;
+        }
+
+        await dispatchConductorEvent(conductorToken.value(), "external_issue_event", {
+          issue_number: issueNumber,
+          repository: repositoryName,
+          action: action
         });
-        res.status(204).send("");
+
+        logger.info("Dispatched issue event", { deliveryId, issueNumber, repositoryName, action });
+        res.status(202).json({ ok: true, issueNumber, repository: repositoryName, action });
         return;
       }
 
-      if (issueLabels.some((label) => label.startsWith("persona:"))) {
-        logger.info("Ignoring project item for issue with active persona", {
-          deliveryId,
-          issueNumber,
-          issueLabels
+      if (eventName === "issue_comment") {
+        const action = req.body?.action;
+        const issueNumber = req.body?.issue?.number;
+        const repositoryName = req.body?.repository?.full_name;
+
+        if (action !== "created") {
+          logger.info("Ignoring unrelated issue_comment action", { deliveryId, action });
+          res.status(204).send("");
+          return;
+        }
+
+        await dispatchConductorEvent(conductorToken.value(), "external_issue_comment", {
+          issue_number: issueNumber,
+          repository: repositoryName,
+          action: action
         });
-        res.status(204).send("");
+
+        logger.info("Dispatched issue_comment event", { deliveryId, issueNumber, repositoryName, action });
+        res.status(202).json({ ok: true, issueNumber, repository: repositoryName, action });
         return;
       }
 
-      await dispatchProjectActivation(issueNumber, conductorToken.value());
-      logger.info("Dispatched project activation", { deliveryId, issueNumber, statusName });
-      res.status(202).json({ ok: true, issueNumber, status: statusName });
+      logger.info("Ignoring unsupported GitHub event", { deliveryId, eventName });
+      res.status(204).send("");
     } catch (error) {
       logger.error("Failed to bridge projects_v2_item", {
         deliveryId,
