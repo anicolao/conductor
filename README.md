@@ -32,6 +32,12 @@ Project moves do not trigger GitHub Actions directly. Conductor uses an org-proj
 2. The bridge sends `repository_dispatch` with `event_type=project_in_progress`.
 3. The workflow starts and activates `persona: conductor` on the target issue.
 
+To keep stalled work from getting stranded, Conductor also runs a 5-minute recovery watchdog:
+
+1. Active runs add a workflow-owned `workflow: running` label to the issue they are handling.
+2. `Recover Stalled Items` scans the project for cards still in `In Progress` but missing that label.
+3. Any stalled item is re-dispatched to Conductor with an explicit recovery prompt so it can resume or declare completion.
+
 The bridge in this repository is deployed as a Firebase HTTPS function.
 
 See [PROJECTS_V2_INTEGRATION.md](PROJECTS_V2_INTEGRATION.md) for the exact dispatch contract and setup details.

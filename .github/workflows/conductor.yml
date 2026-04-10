@@ -1,5 +1,7 @@
 name: Conductor
 
+run-name: Conductor Issue #${{ github.event.issue.number || github.event.client_payload.issue_number || 'unknown' }}
+
 on:
   repository_dispatch:
     types: [project_in_progress]
@@ -13,6 +15,10 @@ permissions:
   issues: write
   pull-requests: write
 
+concurrency:
+  group: conductor-${{ github.event.issue.number || github.event.client_payload.issue_number || github.run_id }}
+  cancel-in-progress: false
+
 jobs:
   run-conductor:
     if: >
@@ -20,6 +26,34 @@ jobs:
       || (github.event.issue && (contains(join(github.event.issue.labels.*.name, '||'), 'persona: ') || contains(github.event.comment.body, '@conductor') || contains(github.event.issue.body, '@conductor')))
     runs-on: ubuntu-latest
     steps:
+      - name: Determine Issue Number
+        id: metadata
+        run: |
+          ISSUE_NUMBER=$(jq -r '.issue.number // .client_payload.issue_number // empty' "$GITHUB_EVENT_PATH")
+          echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+          echo "Issue: $ISSUE_NUMBER"
+
+      - name: Ensure Workflow Running Label Exists
+        env:
+          GH_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.metadata.outputs.issue_number }}
+        run: |
+          if [ -n "$ISSUE_NUMBER" ]; then
+            gh label create "workflow: running" \
+              --color "0e8a16" \
+              --description "Managed by conductor while a workflow run is active" \
+              >/dev/null 2>&1 || true
+          fi
+
+      - name: Mark Workflow Running
+        env:
+          GH_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.metadata.outputs.issue_number }}
+        run: |
+          if [ -n "$ISSUE_NUMBER" ]; then
+            gh issue edit "$ISSUE_NUMBER" --add-label "workflow: running"
+          fi
+
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
@@ -74,3 +108,13 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
         run: npm start
+
+      - name: Clear Workflow Running Label
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.metadata.outputs.issue_number }}
+        run: |
+          if [ -n "$ISSUE_NUMBER" ]; then
+            gh issue edit "$ISSUE_NUMBER" --remove-label "workflow: running" || true
+          fi

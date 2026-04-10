@@ -8,6 +8,7 @@
     "firebase:deploy": "npx --yes firebase-tools deploy --only functions",
     "firebase:serve": "npx --yes firebase-tools emulators:start --only functions",
     "handoff": "bash ./scripts/handoff.sh",
+    "recover:stalled-items": "node dist/recover.js",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

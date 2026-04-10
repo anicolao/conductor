@@ -20,6 +20,10 @@ interface GitHubEvent {
     project_number?: number;
     project_url?: string;
     status?: string;
+    persona?: 'conductor' | 'coder';
+    event_name?: string;
+    action?: string;
+    body?: string;
   };
 }
 
@@ -162,8 +166,8 @@ async function main() {
   const eventName = process.env.GITHUB_EVENT_NAME;
   let issueNumber = event.issue?.number ?? event.client_payload?.issue_number;
   let labels = event.issue?.labels.map(l => l.name) || [];
-  let issueBody = event.issue?.body || '';
-  let commentBody = event.comment?.body || '';
+  let issueBody = event.issue?.body || event.client_payload?.body || '';
+  let commentBody = event.comment?.body || (event.client_payload?.event_name === 'issue_comment' ? event.client_payload?.body || '' : '');
 
   if (!issueNumber) {
     console.error('No issue number found in event');
@@ -177,15 +181,22 @@ async function main() {
   }
 
   if (eventName === 'repository_dispatch' && !labels.some(label => label.startsWith('persona:'))) {
-    console.log(`repository_dispatch received for issue #${issueNumber}. Activating conductor persona.`);
-    activateConductorPersona(issueNumber);
-    labels.push('persona: conductor');
+    const targetPersona = event.client_payload?.persona === 'coder' ? 'coder' : 'conductor';
+    if (targetPersona === 'conductor') {
+      console.log(`repository_dispatch received for issue #${issueNumber}. Activating conductor persona.`);
+      activateConductorPersona(issueNumber);
+    } else {
+      console.log(`repository_dispatch received for issue #${issueNumber}. Continuing coder persona from recovery payload.`);
+    }
+    labels.push(`persona: ${targetPersona}`);
   }
 
   // 1. Determine Persona
   let persona: 'conductor' | 'coder' | null = null;
   
-  if (labels.includes('persona: coder')) {
+  if (event.client_payload?.persona === 'coder' || event.client_payload?.persona === 'conductor') {
+    persona = event.client_payload.persona;
+  } else if (labels.includes('persona: coder')) {
     persona = 'coder';
   } else if (labels.includes('persona: conductor')) {
     persona = 'conductor';
