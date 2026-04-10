@@ -225,6 +225,9 @@ ${commentBody}
   const verifiedRepo = verifyGitHubCli(repository, issueNumber);
   console.log(`Verified GitHub CLI access to ${verifiedRepo}`);
 
+  // Ensure downstream tools (like gh) use the correct repository
+  process.env.GITHUB_REPOSITORY = repository;
+
   const prompt = `${systemPrompt}\n\n${context}
 ---
 ENVIRONMENT:
@@ -243,7 +246,11 @@ ENVIRONMENT:
 
   console.log('Invoking Gemini CLI...');
   const childEnv = buildGeminiEnv();
-  const result = await runStreamingCommand('npx', args, childEnv);
+  
+  // The target repository is at the root (../ from .conductor/dist/src or ../ from .conductor if running via npm start)
+  // In Actions, GITHUB_WORKSPACE is the root.
+  const targetCwd = process.env.GITHUB_WORKSPACE || path.resolve(process.cwd(), '..');
+  const result = await runStreamingCommand('npx', args, childEnv, targetCwd);
 
   if (result.status !== 0) {
     console.error('Gemini CLI execution failed');

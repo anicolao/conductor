@@ -34,10 +34,11 @@ export function createLineForwarder(source: 'stdout' | 'stderr', onChunk: (forma
   };
 }
 
-export async function runStreamingCommand(command: string, args: string[], env: NodeJS.ProcessEnv): Promise<CommandResult> {
+export async function runStreamingCommand(command: string, args: string[], env: NodeJS.ProcessEnv, cwd?: string): Promise<CommandResult> {
   return await new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       env,
+      cwd,
       stdio: ['ignore', 'pipe', 'pipe']
     });
 

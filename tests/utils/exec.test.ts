@@ -57,5 +57,11 @@ describe('exec utility', () => {
       const result = await runStreamingCommand('false', [], process.env);
       expect(result.status).toBe(1);
     });
+
+    it('should support custom cwd', async () => {
+      const result = await runStreamingCommand('pwd', [], process.env, '/tmp');
+      expect(result.status).toBe(0);
+      expect(result.stdout.trim()).toBe('/tmp');
+    });
   });
 });

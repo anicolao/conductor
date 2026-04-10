@@ -115,6 +115,32 @@ exports.githubProjectsV2Webhook = onRequest(
       return;
     }
 
+    if (eventName === "issues" || eventName === "issue_comment") {
+      const action = req.body?.action;
+      const body = req.body?.comment?.body || req.body?.issue?.body || "";
+      const issueNumber = req.body?.issue?.number;
+      const repositoryName = req.body?.repository?.full_name;
+      const labels = req.body?.issue?.labels?.map(l => l.name) || [];
+
+      if (!issueNumber || !repositoryName) {
+        res.status(400).send("Missing issue number or repository");
+        return;
+      }
+
+      const hasPersona = labels.some(l => l.startsWith("persona:"));
+      const mentionsConductor = body.includes("@conductor");
+
+      if (hasPersona || mentionsConductor) {
+        await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value());
+        logger.info("Dispatched issue event", { deliveryId, eventName, action, repositoryName, issueNumber });
+        res.status(202).json({ ok: true, repository: repositoryName, issueNumber, eventName });
+        return;
+      }
+
+      res.status(204).send("");
+      return;
+    }
+
     if (eventName !== "projects_v2_item") {
       logger.info("Ignoring unsupported GitHub event", { deliveryId, eventName });
       res.status(204).send("");
