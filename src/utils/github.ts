@@ -15,9 +15,11 @@ export interface GitHubEvent {
     issue_number?: number;
     issue_url?: string;
     issue_node_id?: string;
+    project_item_id?: string;
     project_number?: number;
     project_url?: string;
     status?: string;
+    persona?: string;
     event_name?: string;
     action?: string;
     body?: string;

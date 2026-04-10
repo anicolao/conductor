@@ -1,3 +1,5 @@
+import fs from 'fs';
+
 import { describe, it, expect, vi } from 'vitest';
 import { formatStreamChunk, createLineForwarder, runStreamingCommand } from '../../src/utils/exec';
 
@@ -61,7 +63,7 @@ describe('exec utility', () => {
     it('should support custom cwd', async () => {
       const result = await runStreamingCommand('pwd', [], process.env, '/tmp');
       expect(result.status).toBe(0);
-      expect(result.stdout.trim()).toBe('/tmp');
+      expect(fs.realpathSync(result.stdout.trim())).toBe(fs.realpathSync('/tmp'));
     });
   });
 });
