@@ -154,7 +154,9 @@ async function main() {
     issueNodeId,
     labels,
     issueBody,
-    commentBody
+    commentBody,
+    projectNumber,
+    projectUrl
   } = extractEventData(event, process.env);
 
   if (!issueNumber) {
@@ -227,7 +229,7 @@ async function main() {
 Issue #${issueNumber}
 Repository: ${repository}
 Issue URL: ${issueUrl}
-Project: ${event.client_payload?.project_url || 'N/A'} (#${event.client_payload?.project_number || 'N/A'})
+Project: ${projectUrl || 'N/A'} (#${projectNumber || 'N/A'})
 Current Branch: ${currentBranch}
 Labels: ${labels.join(', ')}
 ---
