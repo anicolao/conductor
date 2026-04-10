@@ -19,7 +19,16 @@ if [ -z "$branch_name" ]; then
   exit 1
 fi
 
-issue_number="$(node -e "const fs=require('fs'); const event=JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')); if (!event.issue?.number) process.exit(1); process.stdout.write(String(event.issue.number));")"
+issue_number="$(node -e "
+const fs = require('fs');
+const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+const num = event.issue?.number || event.client_payload?.issue_number;
+if (!num) {
+  console.error('Could not find issue number in event');
+  process.exit(1);
+}
+process.stdout.write(String(num));
+")"
 
 existing_labels="$(gh issue view "$issue_number" --json labels --jq '.labels[].name')"
 
@@ -42,6 +51,16 @@ while IFS= read -r label; do
       ;;
   esac
 done <<< "$existing_labels"
+
+ensure_label_exists() {
+  local label="$1"
+  if ! gh label list --search "$label" | grep -q "^$label[[:space:]]"; then
+    gh label create "$label" --color "FFFFFF" --description "Conductor state label"
+  fi
+}
+
+ensure_label_exists "persona: $target"
+ensure_label_exists "branch: $branch_name"
 
 gh issue edit "$issue_number" \
   --add-label "persona: $target" \
