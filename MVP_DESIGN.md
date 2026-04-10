@@ -20,7 +20,7 @@ Conductor uses **GitHub Issue Labels** to maintain state across ephemeral GitHub
 
 1. **Persona Assignment**: The label `persona: <name>` (e.g., `persona: coder`) determines which persona is active.
 2. **Branch Tracking**: The label `branch: <name>` (e.g., `branch: feat/json-parser`) tells the framework which Git branch to checkout before executing the persona logic.
-3. **Execution**: The GitHub Action triggers on **issue creation**, **comments**, or **repository dispatches**. It does **not** trigger on label changes to prevent redundant or out-of-order execution (labels are updated before the handoff comment). It inspects the labels to set up the environment (checkout the right branch) and load the correct persona.
+3. **Execution**: The GitHub Action triggers on **issue creation**, **comments**, or **repository dispatches**. It inspects the labels to set up the environment (checkout the right branch) and load the correct persona.
 4. **Handoff**: A persona hands off by:
    - Setting the `persona:` label for the next agent.
    - Setting (or maintaining) the `branch:` label.
