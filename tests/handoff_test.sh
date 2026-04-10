@@ -11,6 +11,18 @@ trap 'rm -rf "$TEST_DIR"' EXIT
 export PATH="$TEST_DIR:$PATH"
 export GITHUB_EVENT_PATH="$TEST_DIR/event.json"
 export GITHUB_REPOSITORY="LLM-Orchestration/conductor"
+# Create a dummy git mock
+cat > "$TEST_DIR/git" <<EOF
+#!/usr/bin/env bash
+if [[ "\$*" == "branch --show-current" ]]; then
+  echo "test-branch"
+  exit 0
+fi
+exec git "\$@"
+EOF
+chmod +x "$TEST_DIR/git"
+
+branch_name="test-branch"
 
 # Create a dummy event.json with project info
 cat > "$GITHUB_EVENT_PATH" <<'EOF'
@@ -138,6 +150,61 @@ else
     cat "$TEST_DIR/stderr"
     exit 1
   fi
+fi
+
+# Test 4: Success with user project
+cat > "$GITHUB_EVENT_PATH" <<'EOF'
+{
+  "client_payload": {
+    "issue_number": 123,
+    "project_number": 2,
+    "project_url": "https://github.com/users/someuser/projects/2",
+    "issue_node_id": "I_123"
+  }
+}
+EOF
+cat > "$TEST_DIR/gh" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+  "issue view"*".labels[].name"*)
+    echo "persona: tester"
+    echo "branch: $branch_name"
+    ;;
+  "issue view"*)
+    echo '{"labels":[{"name":"persona: tester"}, {"name":"branch: $branch_name"}]}'
+    ;;
+  *"project item-list"*)
+    if [[ "\$*" == *"--owner someuser"* ]]; then
+      if [[ "\$*" == *".fieldValues"* ]]; then
+        echo "tester"
+      else
+        echo '{"id": "ITEM_USER_123"}'
+      fi
+    else
+      echo "Error: wrong owner" >&2
+      exit 1
+    fi
+    ;;
+  "project view"*)
+    echo '"PVT_USER_123"'
+    ;;
+  *"project field-list"*)
+    echo '{"fields": [{"name": "Persona", "id": "FIELD_P", "options": [{"name": "tester", "id": "OPT_TESTER"}]}]}'
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+EOF
+
+chmod +x "$TEST_DIR/gh"
+
+echo "Running handoff.sh (expecting success with user project)..."
+if bash scripts/handoff.sh tester < "$TEST_DIR/comment.md"; then
+  echo "Success: handoff.sh succeeded with user project"
+else
+  echo "Error: handoff.sh failed with user project"
+  exit 1
 fi
 
 echo "All handoff validation tests passed!"

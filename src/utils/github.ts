@@ -29,9 +29,11 @@ export function extractEventData(event: GitHubEvent, env: NodeJS.ProcessEnv) {
   const issueNumber = event.issue?.number ?? event.client_payload?.issue_number;
   const issueUrl = event.issue?.html_url || event.client_payload?.issue_url || '';
   const issueNodeId = event.issue?.node_id || event.client_payload?.issue_node_id || '';
-  const labels = event.issue?.labels.map(l => l.name) || [];
+  const labels = event.issue?.labels?.map(l => l.name) || [];
   const issueBody = event.issue?.body || event.client_payload?.body || '';
   const commentBody = event.comment?.body || event.client_payload?.body || '';
+  const projectNumber = event.client_payload?.project_number;
+  const projectUrl = event.client_payload?.project_url;
 
   return {
     repository,
@@ -40,6 +42,8 @@ export function extractEventData(event: GitHubEvent, env: NodeJS.ProcessEnv) {
     issueNodeId,
     labels,
     issueBody,
-    commentBody
+    commentBody,
+    projectNumber,
+    projectUrl
   };
 }

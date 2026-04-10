@@ -78,8 +78,8 @@ project_owner="$(node -e "
 const fs = require('fs');
 const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
 const url = event.client_payload?.project_url || '';
-const match = url.match(/github\.com\/orgs\/([^\/]+)\/projects/);
-process.stdout.write(match ? match[1] : '');
+const match = url.match(/github\.com\/(orgs|users)\/([^\/]+)\/projects/);
+process.stdout.write(match ? match[2] : '');
 ")"
 project_number="$(node -e "
 const fs = require('fs');
