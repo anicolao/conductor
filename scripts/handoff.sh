@@ -19,7 +19,7 @@ if [ -z "$branch_name" ]; then
   exit 1
 fi
 
-issue_number="$(node -e "const fs=require('fs'); const event=JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')); if (!event.issue?.number) process.exit(1); process.stdout.write(String(event.issue.number));")"
+issue_number="$(node -e "const fs=require('fs'); const event=JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')); const num = event.issue?.number || event.client_payload?.issue_number; if (!num) process.exit(1); process.stdout.write(String(num));")"
 
 existing_labels="$(gh issue view "$issue_number" --json labels --jq '.labels[].name')"
 
