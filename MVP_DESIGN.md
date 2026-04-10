@@ -29,11 +29,11 @@ Conductor uses **GitHub Issue Labels** to maintain state across ephemeral GitHub
 ## Workflow: Feature-to-PR
 
 ### 1. Initiation
-A **User** creates a GitHub Issue and describes a feature, mentioning `@conductor`.
+A **User** creates a GitHub Issue and describes a feature, mentioning `@conductor`, or moves an existing issue to **In Progress** on the project board (triggering a repository dispatch).
 > **User**: `@conductor` - I need a new utility to parse JSON logs in the `utils/` directory.
 
 ### 2. Planning & Delegation
-The **GitHub Action** triggers (on issue creation or comment). Finding no `persona:` label but seeing the `@conductor` mention, it checks out `main` and invokes Gemini CLI as the **@conductor**.
+The **GitHub Action** triggers (on issue creation, comment, or repository dispatch). Finding no `persona:` label but seeing the `@conductor` mention (or receiving a dispatch), it checks out `main` and invokes Gemini CLI as the **@conductor**.
 - `@conductor` creates a new branch `feat/json-parser`.
 - **Handoff**: `@conductor` adds labels `persona: coder` and `branch: feat/json-parser`, then comments with instructions.
 
