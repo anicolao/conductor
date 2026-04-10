@@ -7,13 +7,17 @@ describe('extractEventData', () => {
       issue: {
         number: 123,
         labels: [{ name: 'persona: coder' }],
-        body: 'issue body'
+        body: 'issue body',
+        html_url: 'https://github.com/owner/repo/issues/123',
+        node_id: 'I_123'
       }
     };
     const env = { GITHUB_REPOSITORY: 'owner/repo' };
     const result = extractEventData(event, env);
     expect(result.repository).toBe('owner/repo');
     expect(result.issueNumber).toBe(123);
+    expect(result.issueUrl).toBe('https://github.com/owner/repo/issues/123');
+    expect(result.issueNodeId).toBe('I_123');
     expect(result.labels).toContain('persona: coder');
     expect(result.issueBody).toBe('issue body');
   });
@@ -23,6 +27,8 @@ describe('extractEventData', () => {
       client_payload: {
         repository: 'other/repo',
         issue_number: 456,
+        issue_url: 'https://github.com/other/repo/issues/456',
+        issue_node_id: 'I_456',
         status: 'In Progress'
       }
     };
@@ -30,6 +36,8 @@ describe('extractEventData', () => {
     const result = extractEventData(event, env);
     expect(result.repository).toBe('other/repo');
     expect(result.issueNumber).toBe(456);
+    expect(result.issueUrl).toBe('https://github.com/other/repo/issues/456');
+    expect(result.issueNodeId).toBe('I_456');
     expect(result.labels).toEqual([]);
   });
 

@@ -142,6 +142,8 @@ async function main() {
   let {
     repository,
     issueNumber,
+    issueUrl,
+    issueNodeId,
     labels,
     issueBody,
     commentBody
@@ -206,6 +208,9 @@ async function main() {
   // 4. Prepare Context
   const context = `
 Issue #${issueNumber}
+Repository: ${repository}
+Issue URL: ${issueUrl}
+Project: ${event.client_payload?.project_url || 'N/A'} (#${event.client_payload?.project_number || 'N/A'})
 Current Branch: ${currentBranch}
 Labels: ${labels.join(', ')}
 ---

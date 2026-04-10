@@ -59,7 +59,7 @@ async function githubGraphql(query, variables, token) {
   return body.data;
 }
 
-async function dispatchProjectActivation(repository, issueNumber, token, eventName = null, action = null, body = null) {
+async function dispatchProjectActivation(repository, issueNumber, token, eventName = null, action = null, body = null, issueUrl = null, issueNodeId = null, projectNumber = null, projectUrl = null) {
   const response = await fetch(`https://api.github.com/repos/${TARGET_REPO}/dispatches`, {
     method: "POST",
     headers: {
@@ -73,8 +73,10 @@ async function dispatchProjectActivation(repository, issueNumber, token, eventNa
       client_payload: {
         repository: repository,
         issue_number: issueNumber,
-        project_number: TARGET_PROJECT_NUMBER,
-        project_url: "https://github.com/orgs/LLM-Orchestration/projects/1",
+        issue_url: issueUrl,
+        issue_node_id: issueNodeId,
+        project_number: projectNumber || TARGET_PROJECT_NUMBER,
+        project_url: projectUrl || `https://github.com/orgs/${TARGET_REPO.split('/')[0]}/projects/${projectNumber || TARGET_PROJECT_NUMBER}`,
         status: TARGET_STATUS,
         event_name: eventName,
         action: action,
@@ -144,6 +146,8 @@ exports.githubProjectsV2Webhook = onRequest(
 
       const body = req.body?.comment?.body || req.body?.issue?.body || "";
       const issueNumber = req.body?.issue?.number;
+      const issueUrl = req.body?.issue?.html_url;
+      const issueNodeId = req.body?.issue?.node_id;
       const repositoryName = req.body?.repository?.full_name;
       const labels = req.body?.issue?.labels?.map(l => l.name) || [];
 
@@ -156,7 +160,7 @@ exports.githubProjectsV2Webhook = onRequest(
       const mentionsConductor = body.includes("@conductor");
 
       if (hasPersona || mentionsConductor) {
-        await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value(), eventName, action, body);
+        await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value(), eventName, action, body, issueUrl, issueNodeId);
         logger.info("Dispatched issue event", { deliveryId, eventName, action, repositoryName, issueNumber });
         res.status(202).json({ ok: true, repository: repositoryName, issueNumber, eventName });
         return;
@@ -213,12 +217,15 @@ exports.githubProjectsV2Webhook = onRequest(
                 ... on ProjectV2 {
                   number
                   title
+                  url
                 }
               }
               content {
                 ... on Issue {
                   number
                   body
+                  url
+                  id
                   labels(first: 100) {
                     nodes {
                       name
@@ -239,19 +246,21 @@ exports.githubProjectsV2Webhook = onRequest(
       const item = data?.node;
       const issueNumber = item?.content?.number;
       const issueBody = item?.content?.body;
+      const issueUrl = item?.content?.url;
+      const issueNodeId = item?.content?.id;
       const issueLabels = Array.isArray(item?.content?.labels?.nodes)
         ? item.content.labels.nodes.map((label) => label.name)
         : [];
       const repositoryName = item?.content?.repository?.nameWithOwner;
       const projectNumber = item?.project?.number;
+      const projectUrl = item?.project?.url;
       const statusName = item?.fieldValueByName?.name;
 
-      if (!issueNumber || !repositoryName || projectNumber !== TARGET_PROJECT_NUMBER) {
+      if (!issueNumber || !repositoryName) {
         logger.info("Ignoring unrelated project item", {
           deliveryId,
           repositoryName,
-          issueNumber,
-          projectNumber
+          issueNumber
         });
         res.status(204).send("");
         return;
@@ -277,9 +286,9 @@ exports.githubProjectsV2Webhook = onRequest(
         return;
       }
 
-      await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value(), eventName, req.body?.action, issueBody);
-      logger.info("Dispatched project activation", { deliveryId, repositoryName, issueNumber, statusName });
-      res.status(202).json({ ok: true, repository: repositoryName, issueNumber, status: statusName });
+      await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value(), eventName, req.body?.action, issueBody, issueUrl, issueNodeId, projectNumber, projectUrl);
+      logger.info("Dispatched project activation", { deliveryId, repositoryName, issueNumber, statusName, projectNumber });
+      res.status(202).json({ ok: true, repository: repositoryName, issueNumber, status: statusName, projectNumber });
     } catch (error) {
       logger.error("Failed to bridge projects_v2_item", {
         deliveryId,
