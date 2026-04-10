@@ -149,3 +149,25 @@ The current local `gh` token and repo secret were refreshed with:
 - `labeled` events are explicitly excluded from the workflow configuration to prevent redundant or recursive runs when agents update state.
 - The project itself is for centralized visibility and control.
 - The webhook bridge is what converts project activity into a workflow event.
+
+## Cross-Repository Orchestration
+
+The Conductor is designed to be a central orchestrator for an entire organization. It can be triggered by events from any repository and will automatically checkout the target repository to perform its work.
+
+### How it Works
+
+1.  **Trigger**: An event occurs in any repository (e.g., an issue is moved to "In Progress" in an org-level project, or `@conductor` is mentioned in an issue comment).
+2.  **Bridge**: The Firebase Bridge function receives the org-level webhook and dispatches a `repository_dispatch` event to the central `LLM-Orchestration/conductor` repository.
+3.  **Workflow**: The Conductor workflow starts and:
+    *   Determines the target repository and issue number from the payload.
+    *   Performs a **Dual Checkout**:
+        *   Target Repo is checked out to `.` (the root).
+        *   Conductor Repo is checked out to `.conductor/`.
+    *   The Conductor logic runs from `.conductor/` but executes the Gemini CLI with the working directory set to the root (`.`), where the target repo resides.
+4.  **Handoff**: The agents use the handoff script located at `.conductor/scripts/handoff.sh`, which explicitly targets the target repository using the `-R` flag.
+
+### Deployment Notes
+
+*   **GitHub Token**: The `CONDUCTOR_TOKEN` secret in the central repository must have `write` access to all repositories it is expected to orchestrate.
+*   **Webhook**: The GitHub App or Webhook must be configured at the **Organization** level to receive events from all repositories.
+*   **Standard Labels**: All repositories should use the same `persona:` and `branch:` label conventions for seamless orchestration.

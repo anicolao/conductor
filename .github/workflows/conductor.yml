@@ -22,35 +22,51 @@ jobs:
       || (github.event.issue && (contains(join(github.event.issue.labels.*.name, '||'), 'persona: ') || contains(github.event.comment.body, '@conductor') || contains(github.event.issue.body, '@conductor')))
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Determine Target Metadata
+        id: metadata
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            ISSUE_NUMBER=$(jq -r '.client_payload.issue_number // empty' "$GITHUB_EVENT_PATH")
+            REPO=$(jq -r '.client_payload.repository // "${{ github.repository }}"' "$GITHUB_EVENT_PATH")
+          else
+            ISSUE_NUMBER="${{ github.event.issue.number }}"
+            REPO="${{ github.repository }}"
+          fi
+          echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+          echo "repository=$REPO" >> $GITHUB_OUTPUT
+          echo "Target Repo: $REPO, Issue: $ISSUE_NUMBER"
+
+      - name: Checkout Target Repo
         uses: actions/checkout@v4
         with:
+          repository: ${{ steps.metadata.outputs.repository }}
           fetch-depth: 0
           token: ${{ secrets.CONDUCTOR_TOKEN }}
+          path: '.'
+
+      - name: Checkout Conductor Repo
+        uses: actions/checkout@v4
+        with:
+          repository: LLM-Orchestration/conductor
+          fetch-depth: 0
+          token: ${{ secrets.CONDUCTOR_TOKEN }}
+          path: '.conductor'
 
       - name: Determine Branch
         id: branch
         env:
           GH_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
+          REPO: ${{ steps.metadata.outputs.repository }}
+          ISSUE_NUMBER: ${{ steps.metadata.outputs.issue_number }}
         run: |
-          BRANCH=""
-          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            ISSUE_NUMBER=$(jq -r '.client_payload.issue_number // empty' "$GITHUB_EVENT_PATH")
-            REPO=$(jq -r '.client_payload.repository // "${{ github.repository }}"' "$GITHUB_EVENT_PATH")
-            if [ -n "$ISSUE_NUMBER" ]; then
-              BRANCH=$(gh api "repos/$REPO/issues/$ISSUE_NUMBER" --jq '.labels[].name | select(startswith("branch:"))' 2>/dev/null | cut -d':' -f2- | xargs || true)
-            fi
-          else
-            BRANCH=$(echo '${{ toJson(github.event.issue.labels) }}' | jq -r '.[] | select(.name | startswith("branch:")) | .name' | cut -d':' -f2- | xargs)
-          fi
-
+          BRANCH=$(gh api "repos/$REPO/issues/$ISSUE_NUMBER" --jq '.labels[].name | select(startswith("branch:"))' 2>/dev/null | cut -d':' -f2- | xargs || true)
           if [ -z "$BRANCH" ]; then
             BRANCH="main"
           fi
           echo "branch=$BRANCH" >> $GITHUB_OUTPUT
           echo "Selected branch: $BRANCH"
 
-      - name: Switch to Branch
+      - name: Switch Target Repo to Branch
         run: |
           BRANCH=${{ steps.branch.outputs.branch }}
           if [ "$BRANCH" != "main" ]; then
@@ -62,18 +78,23 @@ jobs:
         with:
           node-version: 24
           cache: 'npm'
+          cache-dependency-path: .conductor/package-lock.json
 
       - name: Install Dependencies
+        working-directory: .conductor
         run: npm install
 
       - name: Build
+        working-directory: .conductor
         run: npm run build
 
       - name: Run Conductor
+        working-directory: .conductor
         env:
           CONDUCTOR_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
           GH_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GITHUB_REPOSITORY: ${{ steps.metadata.outputs.repository }}
         run: npm start
