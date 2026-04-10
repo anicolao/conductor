@@ -19,18 +19,34 @@ if [ -z "$branch_name" ]; then
   exit 1
 fi
 
-issue_number="$(node -e "const fs=require('fs'); const event=JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')); const num = event.issue?.number || event.client_payload?.issue_number; if (!num) process.exit(1); process.stdout.write(String(num));")"
+issue_number="$(node -e "
+const fs = require('fs');
+const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+const num = event.issue?.number || event.client_payload?.issue_number;
+if (!num) {
+  console.error('Could not find issue number in event');
+  process.exit(1);
+}
+process.stdout.write(String(num));
+")"
 
 existing_labels="$(gh issue view "$issue_number" --json labels --jq '.labels[].name')"
 
 body_file="$(mktemp)"
 trap 'rm -f "$body_file"' EXIT
-cat > "$body_file"
 
-if [ ! -s "$body_file" ]; then
+# Capture stdin to a temporary file to check if it's empty
+stdin_capture="$(mktemp)"
+cat > "$stdin_capture"
+if [ ! -s "$stdin_capture" ]; then
   echo "Comment body must be provided on stdin" >&2
+  rm -f "$stdin_capture"
   exit 1
 fi
+
+echo " @conductor" > "$body_file"
+cat "$stdin_capture" >> "$body_file"
+rm -f "$stdin_capture"
 
 while IFS= read -r label; do
   case "$label" in
