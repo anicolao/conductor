@@ -120,6 +120,25 @@ exports.githubProjectsV2Webhook = onRequest(
       return;
     }
 
+    if (req.body?.action !== "edited") {
+      logger.info("Ignoring project item event without an edited action", {
+        deliveryId,
+        action: req.body?.action || null
+      });
+      res.status(204).send("");
+      return;
+    }
+
+    const changedFieldName = req.body?.changes?.field_value?.field_name;
+    if (changedFieldName !== "Status") {
+      logger.info("Ignoring non-status project item edit", {
+        deliveryId,
+        changedFieldName: changedFieldName || null
+      });
+      res.status(204).send("");
+      return;
+    }
+
     const itemNodeId = req.body?.projects_v2_item?.node_id;
     if (!itemNodeId) {
       logger.warn("projects_v2_item payload missing node_id", { deliveryId });
@@ -147,6 +166,11 @@ exports.githubProjectsV2Webhook = onRequest(
               content {
                 ... on Issue {
                   number
+                  labels(first: 100) {
+                    nodes {
+                      name
+                    }
+                  }
                   repository {
                     nameWithOwner
                   }
@@ -161,6 +185,9 @@ exports.githubProjectsV2Webhook = onRequest(
 
       const item = data?.node;
       const issueNumber = item?.content?.number;
+      const issueLabels = Array.isArray(item?.content?.labels?.nodes)
+        ? item.content.labels.nodes.map((label) => label.name)
+        : [];
       const repositoryName = item?.content?.repository?.nameWithOwner;
       const projectNumber = item?.project?.number;
       const statusName = item?.fieldValueByName?.name;
@@ -181,6 +208,16 @@ exports.githubProjectsV2Webhook = onRequest(
           deliveryId,
           issueNumber,
           statusName
+        });
+        res.status(204).send("");
+        return;
+      }
+
+      if (issueLabels.some((label) => label.startsWith("persona:"))) {
+        logger.info("Ignoring project item for issue with active persona", {
+          deliveryId,
+          issueNumber,
+          issueLabels
         });
         res.status(204).send("");
         return;
