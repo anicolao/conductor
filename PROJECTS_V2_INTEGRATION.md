@@ -1,60 +1,116 @@
-# Design Document: GitHub Projects V2 Integration
+# Projects V2 Integration
 
-## Overview
-Currently, Conductor is triggered by issue comments or new issues mentioning `@conductor`. This document proposes an integration with GitHub Projects V2 where dragging an issue into the "In Progress" column automatically initiates the Conductor workflow.
+## Current Setup
 
-## Objectives
-- Seamlessly trigger `@conductor` when an issue is prioritized in a Project.
-- Maintain the label-based state management system.
-- Support user-level projects (specifically `https://github.com/users/anicolao/projects/1`).
+Conductor now lives at `LLM-Orchestration/conductor` and the shared project board is:
 
-## Proposed Changes
+- Organization: `LLM-Orchestration`
+- Project: `AI Orchestration`
+- URL: `https://github.com/orgs/LLM-Orchestration/projects/1`
 
-### 1. GitHub Actions Workflow Update
-We will update `.github/workflows/conductor.yml` to handle `project_item` events.
+The repository is linked to that organization-owned project so repository issues can be added to it directly.
+
+## Why The Old Design Failed
+
+GitHub Actions does not support `project_item` as a workflow trigger, and personal user-level Projects V2 do not provide the webhook path needed for event-driven automation.
+
+That means this does not work:
 
 ```yaml
 on:
   project_item:
     types: [edited, created]
+```
+
+The workflow file can still load, but no Actions run will ever be created from that trigger.
+
+## Implemented Architecture
+
+The working design is:
+
+1. A Projects V2 item in the organization project moves to `In Progress`.
+2. An organization-level webhook or GitHub App receives the `projects_v2_item` event.
+3. That bridge sends a `repository_dispatch` event to `LLM-Orchestration/conductor`.
+4. The Conductor workflow starts from `repository_dispatch`.
+5. `src/index.ts` resolves the live issue state and activates `persona: conductor` if no persona is already active.
+
+## Workflow Trigger
+
+The workflow now listens for:
+
+```yaml
+on:
+  repository_dispatch:
+    types: [project_in_progress]
   issue_comment:
     types: [created]
   issues:
-    types: [opened, labeled]
+    types: [opened]
 ```
 
-### 2. Trigger Logic (in Workflow)
-The workflow job will be updated with a more flexible `if` condition or a preliminary step to detect the "In Progress" move.
+The dispatch contract is:
 
-```yaml
-    if: >
-      github.event.issue && (contains(github.event.comment.body, '@conductor') || contains(github.event.issue.body, '@conductor') || contains(github.event.issue.labels.*.name, 'persona:'))
-      || (github.event_name == 'project_item' && github.event.action == 'edited' && github.event.changes.field_value.field_name == 'Status')
+```json
+{
+  "event_type": "project_in_progress",
+  "client_payload": {
+    "issue_number": 38,
+    "project_number": 1,
+    "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1",
+    "status": "In Progress"
+  }
+}
 ```
 
-### 3. Source Code Modifications (`src/index.ts`)
-The `src/index.ts` entry point currently expects `github.event.issue`. We will:
-- Update the `GitHubEvent` interface to handle `project_item` payloads.
-- Implement a resolver that, given a `project_item` event, uses the GitHub CLI to find the corresponding issue number.
-- If the event is a valid "In Progress" move, it will automatically activate the `@conductor` persona.
+## Bridge Requirements
 
-### 4. State Management Integration
-When a `project_item` move to "In Progress" is detected:
-1. The system will check if a `persona:` label already exists.
-2. If not, it will apply `persona: conductor` to the issue.
-3. It will proceed with the standard `@conductor` planning phase.
+The webhook bridge can be a GitHub App handler, a small HTTP service, or a serverless function. It only needs to do three things:
 
-## Technical Details: Project V2 Payload
-When a field is edited in Projects V2, the `project_item` event payload includes:
-- `project_item.content_node_id`: The GraphQL ID of the issue.
-- `project_item.content_type`: Must be `Issue`.
-- `changes.field_value.field_name`: The name of the field that changed (e.g., `Status`).
-- We will need to fetch the current value of the field to confirm it is "In Progress" using `gh project item-list`.
+1. Verify the GitHub webhook signature.
+2. Detect that the item belongs to the `AI Orchestration` project and its status became `In Progress`.
+3. Call:
 
-## Required Permissions
-The `CONDUCTOR_TOKEN` will need `read:project` scope to inspect project field values and `write:issues` to apply labels.
+```bash
+curl -X POST \
+  -H "Accept: application/vnd.github+json" \
+  -H "Authorization: Bearer $CONDUCTOR_TOKEN" \
+  https://api.github.com/repos/LLM-Orchestration/conductor/dispatches \
+  -d '{
+    "event_type": "project_in_progress",
+    "client_payload": {
+      "issue_number": 38,
+      "project_number": 1,
+      "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1",
+      "status": "In Progress"
+    }
+  }'
+```
 
-## Verification Plan
-1. **Manual Test**: Move an issue to "In Progress" in the specified project.
-2. **Observation**: Confirm the GitHub Action triggers and the issue receives the `persona: conductor` label.
-3. **End-to-End**: Verify `@conductor` responds with a plan as if it had been mentioned.
+## Required Token Permissions
+
+`CONDUCTOR_TOKEN` must be able to:
+
+- read and write repository contents as needed by the agents
+- update workflows
+- read and write Projects V2
+- edit issues and labels
+
+The current local `gh` token and repo secret were refreshed with:
+
+- `repo`
+- `workflow`
+- `project`
+- `read:org`
+
+## Operator Flow
+
+1. Add an issue from `LLM-Orchestration/conductor` to the `AI Orchestration` project.
+2. Move it to `In Progress`.
+3. The webhook bridge dispatches `project_in_progress`.
+4. Conductor activates on that issue and continues with the normal persona handoff flow.
+
+## Notes
+
+- `repository_dispatch` is the only GitHub-native workflow trigger in this chain.
+- The project itself is for centralized visibility and control.
+- The webhook bridge is what converts project activity into a workflow event.

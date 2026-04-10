@@ -20,6 +20,20 @@ This MVP invokes the official Gemini CLI through `npx` in headless mode.
 - For GitHub Actions, set the repository secret `GEMINI_API_KEY`.
 - For local runs, copy `.env.example` to `.env` and set `GEMINI_API_KEY`.
 
+## Projects V2 Setup
+
+The live shared board is the organization-owned project at:
+
+- `https://github.com/orgs/LLM-Orchestration/projects/1`
+
+Project moves do not trigger GitHub Actions directly. Conductor uses an org-project bridge:
+
+1. An organization webhook or GitHub App observes `projects_v2_item`.
+2. The bridge sends `repository_dispatch` with `event_type=project_in_progress`.
+3. The workflow starts and activates `persona: conductor` on the target issue.
+
+See [PROJECTS_V2_INTEGRATION.md](PROJECTS_V2_INTEGRATION.md) for the exact dispatch contract and setup details.
+
 ## Licensing
 
 This project is licensed under the GPLv3 License - see the [LICENSE](LICENSE) file for details.

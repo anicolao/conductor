@@ -1,8 +1,8 @@
 name: Conductor
 
 on:
-  project_item:
-    types: [edited, created]
+  repository_dispatch:
+    types: [project_in_progress]
   issue_comment:
     types: [created]
   issues:
@@ -16,8 +16,8 @@ permissions:
 jobs:
   run-conductor:
     if: >
-      (github.event.issue && (contains(github.event.issue.labels.*.name, 'persona:') || contains(github.event.comment.body, '@conductor') || contains(github.event.issue.body, '@conductor')))
-      || (github.event_name == 'project_item' && github.event.action == 'edited' && github.event.changes.field_value.field_name == 'Status')
+      github.event_name == 'repository_dispatch'
+      || (github.event.issue && (contains(github.event.issue.labels.*.name, 'persona:') || contains(github.event.comment.body, '@conductor') || contains(github.event.issue.body, '@conductor')))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -28,9 +28,19 @@ jobs:
 
       - name: Determine Branch
         id: branch
+        env:
+          GH_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
         run: |
-          # Extract branch from labels like "branch: feat/xyz"
-          BRANCH=$(echo '${{ toJson(github.event.issue.labels) }}' | jq -r '.[] | select(.name | startswith("branch:")) | .name' | cut -d':' -f2 | xargs)
+          BRANCH=""
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            ISSUE_NUMBER=$(jq -r '.client_payload.issue_number // empty' "$GITHUB_EVENT_PATH")
+            if [ -n "$ISSUE_NUMBER" ]; then
+              BRANCH=$(gh api "repos/${{ github.repository }}/issues/$ISSUE_NUMBER" --jq '.labels[].name | select(startswith("branch:"))' 2>/dev/null | cut -d':' -f2- | xargs || true)
+            fi
+          else
+            BRANCH=$(echo '${{ toJson(github.event.issue.labels) }}' | jq -r '.[] | select(.name | startswith("branch:")) | .name' | cut -d':' -f2- | xargs)
+          fi
+
           if [ -z "$BRANCH" ]; then
             BRANCH="main"
           fi

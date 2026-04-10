@@ -15,16 +15,12 @@ interface GitHubEvent {
   comment?: {
     body: string;
   };
-  project_item?: {
-    content_node_id: string;
-    content_type: string;
-    node_id: string;
+  client_payload?: {
+    issue_number?: number;
+    project_number?: number;
+    project_url?: string;
+    status?: string;
   };
-  changes?: {
-    field_value?: {
-      field_name: string;
-    }
-  }
 }
 
 function verifyGitHubCli(issueNumber: number): string {
@@ -118,6 +114,41 @@ function buildGeminiEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
+function loadIssueState(issueNumber: number): { labels: string[]; body: string } | null {
+  const repository = process.env.GITHUB_REPOSITORY;
+  if (!repository) {
+    return null;
+  }
+
+  const issueData = spawnSync('gh', ['api', `repos/${repository}/issues/${issueNumber}`], {
+    encoding: 'utf8',
+    env: process.env
+  });
+
+  if (issueData.status !== 0 || !issueData.stdout.trim()) {
+    return null;
+  }
+
+  const parsed = JSON.parse(issueData.stdout);
+  return {
+    labels: Array.isArray(parsed.labels) ? parsed.labels.map((label: { name: string }) => label.name) : [],
+    body: parsed.body || ''
+  };
+}
+
+function activateConductorPersona(issueNumber: number): void {
+  const result = spawnSync('gh', ['issue', 'edit', String(issueNumber), '--add-label', 'persona: conductor'], {
+    encoding: 'utf8',
+    env: process.env
+  });
+
+  if (result.status !== 0) {
+    const details = (result.stderr || result.stdout || 'No gh output captured').trim();
+    console.error(`Failed to activate conductor persona on issue #${issueNumber}`);
+    if (details) process.stderr.write(`${details}\n`);
+  }
+}
+
 async function main() {
   dotenv.config();
 
@@ -128,59 +159,27 @@ async function main() {
   }
 
   const event: GitHubEvent = JSON.parse(fs.readFileSync(eventPath, 'utf8'));
-  let issueNumber = event.issue?.number;
+  const eventName = process.env.GITHUB_EVENT_NAME;
+  let issueNumber = event.issue?.number ?? event.client_payload?.issue_number;
   let labels = event.issue?.labels.map(l => l.name) || [];
   let issueBody = event.issue?.body || '';
   let commentBody = event.comment?.body || '';
 
-  if (!issueNumber && event.project_item && event.project_item.content_type === 'Issue') {
-    // Handle Project V2 Item event
-    console.log('Detected project_item event. Resolving issue...');
-    const nodeId = event.project_item.content_node_id;
-    
-    // Fetch issue details
-    const issueData = spawnSync('gh', ['api', 'graphql', '-f', `query=query($id: ID!) { node(id: $id) { ... on Issue { number body labels(first: 100) { nodes { name } } } } }`, '-f', `id=${nodeId}`], {
-      encoding: 'utf8',
-      env: process.env
-    });
-
-    if (issueData.status === 0) {
-      const parsed = JSON.parse(issueData.stdout);
-      if (parsed.data?.node) {
-        issueNumber = parsed.data.node.number;
-        labels = parsed.data.node.labels.nodes.map((n: any) => n.name);
-        issueBody = parsed.data.node.body;
-      }
-    }
-
-    if (issueNumber && event.action === 'edited' && event.changes?.field_value?.field_name === 'Status') {
-      // Check if the new status is "In Progress"
-      const itemNodeId = event.project_item.node_id;
-      const statusData = spawnSync('gh', ['api', 'graphql', '-f', `query=query($id: ID!) { node(id: $id) { ... on ProjectV2Item { fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } } } } }`, '-f', `id=${itemNodeId}`], {
-        encoding: 'utf8',
-        env: process.env
-      });
-
-      if (statusData.status === 0) {
-        const parsedStatus = JSON.parse(statusData.stdout);
-        const statusName = parsedStatus.data?.node?.fieldValueByName?.name;
-        console.log(`Project item status: ${statusName}`);
-        if (statusName === 'In Progress') {
-          if (!labels.includes('persona: conductor') && !labels.includes('persona: coder')) {
-            console.log('Status moved to In Progress. Activating conductor persona.');
-            spawnSync('gh', ['issue', 'edit', String(issueNumber), '--add-label', 'persona: conductor'], {
-              env: process.env
-            });
-            labels.push('persona: conductor');
-          }
-        }
-      }
-    }
-  }
-
   if (!issueNumber) {
     console.error('No issue number found in event');
     process.exit(0);
+  }
+
+  const liveIssueState = loadIssueState(issueNumber);
+  if (liveIssueState) {
+    labels = liveIssueState.labels;
+    issueBody = liveIssueState.body;
+  }
+
+  if (eventName === 'repository_dispatch' && !labels.some(label => label.startsWith('persona:'))) {
+    console.log(`repository_dispatch received for issue #${issueNumber}. Activating conductor persona.`);
+    activateConductorPersona(issueNumber);
+    labels.push('persona: conductor');
   }
 
   // 1. Determine Persona
