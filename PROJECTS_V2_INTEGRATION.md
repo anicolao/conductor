@@ -144,5 +144,6 @@ The current local `gh` token and repo secret were refreshed with:
 ## Notes
 
 - `repository_dispatch` is the only GitHub-native workflow trigger in this chain.
+- `labeled` events are explicitly excluded from the workflow configuration to prevent redundant or recursive runs when agents update state.
 - The project itself is for centralized visibility and control.
 - The webhook bridge is what converts project activity into a workflow event.
