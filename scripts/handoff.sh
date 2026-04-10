@@ -102,7 +102,7 @@ if [ -n "$project_number" ]; then
   fi
 
   echo "Finding project item for issue node ID: $issue_node_id in project $project_number"
-  item_data=$(gh project item-list "$project_number" --owner "$project_owner" --format json --jq ".items[] | select(.content.id == \"$issue_node_id\")")
+  item_data=$(gh project item-list "$project_number" --owner "$project_owner" --format json --jq ".items[] | select(.content.id == \"$issue_node_id\")" | head -n 1)
   
   if [ -z "$item_data" ]; then
     echo "Error: Could not find project item for issue node ID $issue_node_id in project $project_number" >&2
@@ -119,14 +119,14 @@ if [ -n "$project_number" ]; then
 
   echo "Resolving Persona field and option IDs..."
   fields_json=$(gh project field-list "$project_number" --owner "$project_owner" --format json)
-  field_id=$(echo "$fields_json" | jq -r ".fields[] | select(.name == \"Persona\") | .id")
+  field_id=$(echo "$fields_json" | jq -r ".fields[] | select(.name == \"Persona\") | .id" | head -n 1)
   
   if [ -z "$field_id" ] || [ "$field_id" == "null" ]; then
     echo "Error: Could not find 'Persona' field in project $project_number" >&2
     exit 1
   fi
 
-  option_id=$(echo "$fields_json" | jq -r ".fields[] | select(.name == \"Persona\") | .options[] | select(.name == \"$target\") | .id")
+  option_id=$(echo "$fields_json" | jq -r ".fields[] | select(.name == \"Persona\") | .options[] | select(.name == \"$target\") | .id" | head -n 1)
   
   if [ -z "$option_id" ] || [ "$option_id" == "null" ]; then
     echo "Error: Could not find option ID for persona '$target' in 'Persona' field" >&2
@@ -136,22 +136,25 @@ if [ -n "$project_number" ]; then
   echo "Updating Project V2 item $item_id Persona to $target ($option_id)"
   gh project item-edit --id "$item_id" --project-id "$project_id" --field-id "$field_id" --single-select-option-id "$option_id" > /dev/null
 
-  # Verify Project V2 update
-  echo "Verifying Project V2 update..."
+  # Verify Project V2 update with retries
+  echo "Verifying Project V2 Persona update via readback..."
   project_verified=0
   for i in 1 2 3 4 5; do
-    current_persona=$(gh project item-list "$project_number" --owner "$project_owner" --format json --jq ".items[] | select(.id == \"$item_id\") | .fieldValues[] | select(.field.name == \"Persona\") | .name" 2>/dev/null || true)
+    # Use item-list with a query for the specific item to be efficient
+    current_persona=$(gh project item-list "$project_number" --owner "$project_owner" --format json --jq ".items[] | select(.id == \"$item_id\") | .fieldValues[] | select(.field.name == \"Persona\") | .name // empty" 2>/dev/null | head -n 1)
+    
     if [ "$current_persona" == "$target" ]; then
       project_verified=1
-      echo "Project V2 update verified."
+      echo "Project V2 update verified: Persona is now '$target'"
       break
     fi
-    echo "Attempt $i: Project V2 Persona is '$current_persona', waiting for '$target'..."
+    
+    echo "Attempt $i: Project V2 Persona is '${current_persona:-<unset>}', waiting for '$target'..."
     sleep 2
   done
 
   if [ "$project_verified" -ne 1 ]; then
-    echo "Error: Failed to verify Project V2 Persona update to '$target' for item $item_id" >&2
+    echo "Error: Failed to verify Project V2 Persona update to '$target' for item $item_id within 10 seconds" >&2
     exit 1
   fi
 fi
