@@ -41,19 +41,17 @@ To support more granular control over which agent is active, the project board u
 - **Field Name**: `Persona`
 - **Options**: `conductor`, `coder`
 
-When a handoff occurs (e.g., from Conductor to Coder), the `handoff.sh` script updates this field. The Firebase bridge detects the change and dispatches a new `repository_dispatch` event, ensuring the next agent starts its work immediately.
+When a handoff occurs (e.g., from Conductor to Coder), the `handoff.sh` script updates this field. The Firebase bridge receives the `projects_v2_item` event for this change and dispatches a new `repository_dispatch` event, ensuring the next agent starts its work immediately.
 
 ## Workflow Trigger
 
-The workflow is now centralized to only listen for `repository_dispatch`. All other events (issue creation, comments) are handled by the bridge, which then dispatches to this repository. This centralizes the logic and prevents duplicate runs for issues in the `conductor` repository.
+The workflow is now centralized to only listen for `repository_dispatch`. The bridge ONLY dispatches based on `projects_v2_item` events.
 
 ```yaml
 on:
   repository_dispatch:
     types: [project_in_progress]
 ```
-
-All `issues` and `issue_comment` events are now bridged through the Firebase function to prevent duplicate runs and event loops.
 
 The dispatch contract is:
 
@@ -68,9 +66,7 @@ The dispatch contract is:
     "project_number": 1,
     "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1",
     "status": "In Progress",
-    "persona": "conductor",
-    "event_name": "issue_comment",
-    "action": "created"
+    "persona": "conductor"
   }
 }
 ```
@@ -80,9 +76,11 @@ The dispatch contract is:
 The webhook bridge in this repository is a Firebase HTTPS function named `githubProjectsV2Webhook`. It now performs several optimizations:
 
 1. **Verify Webhook Signature**: Ensures events come from GitHub.
-2. **Filter Actions**: Only dispatches for `issues:opened` and `issue_comment:created`.
+2. **Filter Actions**: Only dispatches for `projects_v2_item:edited` and `projects_v2_item:created`.
 3. **Filter Senders**: Ignores events from bots to prevent feedback loops.
-4. **Enrich Payload**: Includes `event_name`, `action`, the event `body`, `issue_url`, and `issue_node_id` in the `repository_dispatch` sent to Conductor.
+4. **Trigger Logic**:
+   - If `status` changes to `In Progress`, dispatch.
+   - If `Persona` changes and `status` is `In Progress`, dispatch.
 5. **Call**:
 
 ```bash
@@ -100,9 +98,7 @@ curl -X POST \
       "project_number": 1,
       "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1",
       "status": "In Progress",
-      "event_name": "issue_comment",
-      "action": "created",
-      "body": "@conductor please help"
+      "persona": "conductor"
     }
   }'
 ```
@@ -157,22 +153,24 @@ The current local `gh` token and repo secret were refreshed with:
 
 ## Operator Flow
 
-The Conductor can be triggered in two ways:
+The Conductor is triggered by Project V2 activity:
 
-### 1. Project-Based (Orchestration)
+### 1. Starting Orchestration
 1. Add an issue from any repository in the `LLM-Orchestration` organization to the `AI Orchestration` project.
 2. Move it to `In Progress`.
 3. The webhook bridge dispatches `project_in_progress` to the `conductor` repository.
 4. Conductor activates on that issue in its respective repository.
 
-### 2. Comment-Based (Direct Interaction)
-1. Mention `@conductor` in a comment on any issue in an orchestrated repository.
-2. The webhook bridge detects the mention and dispatches `project_in_progress` with `event_name: issue_comment`.
-3. Conductor activates and takes over the issue.
+### 2. Continuing Orchestration (Handoff)
+1. When an agent finishes its task, it uses `handoff.sh` to update the `Persona` field in the project.
+2. The webhook bridge detects the `Persona` field change and dispatches a new `repository_dispatch`.
+3. The next agent (e.g., `coder`) starts its work.
+
+### Audit Trail
+- Comments on issues are used for the audit trail and human-in-the-loop feedback, but they do not currently trigger the workflow directly. The live webhook is only subscribed to `projects_v2_item`.
 
 ### Loop Prevention
 - The bridge explicitly ignores events from bot accounts (senders with `type: Bot` or login ending in `[bot]`).
-- The bridge only dispatches for specific actions (`issues:opened` and `issue_comment:created`).
 - The Conductor workflow no longer listens directly to `issues` or `issue_comment` events, centralizing all triggers through the bridge.
 
 ## Notes

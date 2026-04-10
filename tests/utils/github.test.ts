@@ -58,7 +58,6 @@ describe('extractEventData', () => {
       client_payload: {
         repository: 'other/repo',
         issue_number: 789,
-        event_name: 'issue_comment',
         body: 'comment from payload'
       }
     };
@@ -70,18 +69,17 @@ describe('extractEventData', () => {
     expect(result.commentBody).toBe('comment from payload');
   });
 
-  it('should extract issueBody but not commentBody from enriched repository_dispatch for issues', () => {
+  it('should extract body into both if only body is present', () => {
     const event: GitHubEvent = {
       client_payload: {
         repository: 'other/repo',
         issue_number: 789,
-        event_name: 'issues',
-        body: 'issue body from payload'
+        body: 'body from payload'
       }
     };
     const env = { GITHUB_REPOSITORY: 'owner/repo' };
     const result = extractEventData(event, env);
-    expect(result.issueBody).toBe('issue body from payload');
-    expect(result.commentBody).toBe('');
+    expect(result.issueBody).toBe('body from payload');
+    expect(result.commentBody).toBe('body from payload');
   });
 });

@@ -97,7 +97,7 @@ function buildGeminiEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
-function loadIssueState(repository: string, issueNumber: number): { labels: string[]; body: string } | null {
+function loadIssueState(repository: string, issueNumber: number): { labels: string[]; body: string; latestComment: string } | null {
   const issueData = spawnSync('gh', ['api', `repos/${repository}/issues/${issueNumber}`], {
     encoding: 'utf8',
     env: process.env
@@ -108,9 +108,17 @@ function loadIssueState(repository: string, issueNumber: number): { labels: stri
   }
 
   const parsed = JSON.parse(issueData.stdout);
+
+  // Fetch latest comment
+  const commentsData = spawnSync('gh', ['api', `repos/${repository}/issues/${issueNumber}/comments`, '--jq', '.[-1].body'], {
+    encoding: 'utf8',
+    env: process.env
+  });
+
   return {
     labels: Array.isArray(parsed.labels) ? parsed.labels.map((label: { name: string }) => label.name) : [],
-    body: parsed.body || ''
+    body: parsed.body || '',
+    latestComment: commentsData.status === 0 ? commentsData.stdout.trim() : ''
   };
 }
 
@@ -163,6 +171,9 @@ async function main() {
   if (liveIssueState) {
     labels = liveIssueState.labels;
     issueBody = liveIssueState.body;
+    if (!commentBody) {
+      commentBody = liveIssueState.latestComment;
+    }
   }
 
   if (eventName === 'repository_dispatch' && !labels.some(label => label.startsWith('persona:'))) {

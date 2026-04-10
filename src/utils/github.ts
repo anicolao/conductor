@@ -20,8 +20,6 @@ export interface GitHubEvent {
     project_url?: string;
     status?: string;
     persona?: string;
-    event_name?: string;
-    action?: string;
     body?: string;
   };
 }
@@ -33,7 +31,7 @@ export function extractEventData(event: GitHubEvent, env: NodeJS.ProcessEnv) {
   const issueNodeId = event.issue?.node_id || event.client_payload?.issue_node_id || '';
   const labels = event.issue?.labels.map(l => l.name) || [];
   const issueBody = event.issue?.body || event.client_payload?.body || '';
-  const commentBody = event.comment?.body || (event.client_payload?.event_name === 'issue_comment' ? event.client_payload?.body : '') || '';
+  const commentBody = event.comment?.body || event.client_payload?.body || '';
 
   return {
     repository,

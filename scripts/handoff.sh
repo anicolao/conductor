@@ -79,12 +79,12 @@ const fs = require('fs');
 const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
 const url = event.client_payload?.project_url || '';
 const match = url.match(/github\.com\/orgs\/([^\/]+)\/projects/);
-process.stdout.write(match ? match[1] : 'LLM-Orchestration');
+process.stdout.write(match ? match[1] : '');
 ")"
 project_number="$(node -e "
 const fs = require('fs');
 const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
-process.stdout.write(String(event.client_payload?.project_number || '1'));
+process.stdout.write(String(event.client_payload?.project_number || ''));
 ")"
 issue_node_id="$(node -e "
 const fs = require('fs');
@@ -92,34 +92,67 @@ const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'))
 process.stdout.write(event.issue?.node_id || event.client_payload?.issue_node_id || '');
 ")"
 
-if [ -n "$issue_node_id" ] && [ -n "$project_number" ]; then
+if [ -n "$project_number" ]; then
+  if [ -z "$issue_node_id" ]; then
+    echo "Error: project_number provided but issue_node_id is missing" >&2
+    exit 1
+  fi
+  if [ -z "$project_owner" ]; then
+    project_owner="LLM-Orchestration"
+  fi
+
   echo "Finding project item for issue node ID: $issue_node_id in project $project_number"
-  item_data=$(gh project item-list "$project_number" --owner "$project_owner" --format json --jq ".items[] | select(.content.id == \"$issue_node_id\")" 2>/dev/null || true)
+  item_data=$(gh project item-list "$project_number" --owner "$project_owner" --format json --jq ".items[] | select(.content.id == \"$issue_node_id\")")
   
-  if [ -n "$item_data" ]; then
-    item_id=$(echo "$item_data" | jq -r '.id')
-    project_id=$(gh project view "$project_number" --owner "$project_owner" --format json --jq '.id' 2>/dev/null || true)
-    
-    if [ -n "$project_id" ]; then
-      echo "Resolving Persona field and option IDs..."
-      fields_json=$(gh project field-list "$project_number" --owner "$project_owner" --format json)
-      field_id=$(echo "$fields_json" | jq -r ".fields[] | select(.name == \"Persona\") | .id")
-      
-      if [ -n "$field_id" ] && [ "$field_id" != "null" ]; then
-        option_id=$(echo "$fields_json" | jq -r ".fields[] | select(.name == \"Persona\") | .options[] | select(.name == \"$target\") | .id")
-        
-        if [ -n "$option_id" ] && [ "$option_id" != "null" ]; then
-          echo "Updating Project V2 item $item_id Persona to $target ($option_id)"
-          gh project item-edit --id "$item_id" --project-id "$project_id" --field-id "$field_id" --single-select-option-id "$option_id" > /dev/null
-        else
-          echo "Warning: Could not find option ID for persona '$target' in 'Persona' field"
-        fi
-      else
-        echo "Warning: Could not find 'Persona' field in project $project_number"
-      fi
+  if [ -z "$item_data" ]; then
+    echo "Error: Could not find project item for issue node ID $issue_node_id in project $project_number" >&2
+    exit 1
+  fi
+
+  item_id=$(echo "$item_data" | jq -r '.id')
+  project_id=$(gh project view "$project_number" --owner "$project_owner" --format json --jq '.id')
+  
+  if [ -z "$project_id" ] || [ "$project_id" == "null" ]; then
+    echo "Error: Could not resolve project ID for project $project_number" >&2
+    exit 1
+  fi
+
+  echo "Resolving Persona field and option IDs..."
+  fields_json=$(gh project field-list "$project_number" --owner "$project_owner" --format json)
+  field_id=$(echo "$fields_json" | jq -r ".fields[] | select(.name == \"Persona\") | .id")
+  
+  if [ -z "$field_id" ] || [ "$field_id" == "null" ]; then
+    echo "Error: Could not find 'Persona' field in project $project_number" >&2
+    exit 1
+  fi
+
+  option_id=$(echo "$fields_json" | jq -r ".fields[] | select(.name == \"Persona\") | .options[] | select(.name == \"$target\") | .id")
+  
+  if [ -z "$option_id" ] || [ "$option_id" == "null" ]; then
+    echo "Error: Could not find option ID for persona '$target' in 'Persona' field" >&2
+    exit 1
+  fi
+
+  echo "Updating Project V2 item $item_id Persona to $target ($option_id)"
+  gh project item-edit --id "$item_id" --project-id "$project_id" --field-id "$field_id" --single-select-option-id "$option_id" > /dev/null
+
+  # Verify Project V2 update
+  echo "Verifying Project V2 update..."
+  project_verified=0
+  for i in 1 2 3 4 5; do
+    current_persona=$(gh project item-list "$project_number" --owner "$project_owner" --format json --jq ".items[] | select(.id == \"$item_id\") | .fieldValues[] | select(.field.name == \"Persona\") | .name" 2>/dev/null || true)
+    if [ "$current_persona" == "$target" ]; then
+      project_verified=1
+      echo "Project V2 update verified."
+      break
     fi
-  else
-    echo "Warning: Could not find project item for issue node ID $issue_node_id"
+    echo "Attempt $i: Project V2 Persona is '$current_persona', waiting for '$target'..."
+    sleep 2
+  done
+
+  if [ "$project_verified" -ne 1 ]; then
+    echo "Error: Failed to verify Project V2 Persona update to '$target' for item $item_id" >&2
+    exit 1
   fi
 fi
 
