@@ -97,7 +97,13 @@ function buildGeminiEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
-function loadIssueState(repository: string, issueNumber: number): { labels: string[]; body: string; latestComment: string; htmlUrl: string; nodeId: string } | null {
+function loadIssueState(repository: string, issueNumber: number): { 
+  labels: string[]; 
+  body: string; 
+  latestComment: string;
+  htmlUrl: string;
+  nodeId: string;
+} | null {
   const issueData = spawnSync('gh', ['api', `repos/${repository}/issues/${issueNumber}`], {
     encoding: 'utf8',
     env: process.env
@@ -231,6 +237,7 @@ async function main() {
 Issue #${issueNumber}
 Repository: ${repository}
 Issue URL: ${issueUrl}
+Issue Node ID: ${issueNodeId}
 Project: ${projectUrl || 'N/A'} (#${projectNumber || 'N/A'})
 Current Branch: ${currentBranch}
 Labels: ${labels.join(', ')}
