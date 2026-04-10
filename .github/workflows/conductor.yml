@@ -17,7 +17,7 @@ jobs:
   run-conductor:
     if: >
       github.event_name == 'repository_dispatch'
-      || (github.event.issue && (contains(github.event.issue.labels.*.name, 'persona:') || contains(github.event.comment.body, '@conductor') || contains(github.event.issue.body, '@conductor')))
+      || (github.event.issue && (contains(join(github.event.issue.labels.*.name, '||'), 'persona: ') || contains(github.event.comment.body, '@conductor') || contains(github.event.issue.body, '@conductor')))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code

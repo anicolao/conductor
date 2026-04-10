@@ -21,7 +21,11 @@ fi
 
 issue_number="$(node -e "const fs=require('fs'); const event=JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8')); if (!event.issue?.number) process.exit(1); process.stdout.write(String(event.issue.number));")"
 
-existing_labels="$(gh issue view "$issue_number" --json labels --jq '.labels[].name')"
+current_labels() {
+  gh issue view "$issue_number" --json labels --jq '.labels[].name'
+}
+
+existing_labels="$(current_labels)"
 
 body_file="$(mktemp)"
 trap 'rm -f "$body_file"' EXIT
@@ -46,5 +50,20 @@ done <<< "$existing_labels"
 gh issue edit "$issue_number" \
   --add-label "persona: $target" \
   --add-label "branch: $branch_name"
+
+verified=0
+for _ in 1 2 3 4 5; do
+  labels_after="$(current_labels)"
+  if grep -Fqx "persona: $target" <<< "$labels_after" && grep -Fqx "branch: $branch_name" <<< "$labels_after"; then
+    verified=1
+    break
+  fi
+  sleep 1
+done
+
+if [ "$verified" -ne 1 ]; then
+  echo "Failed to verify handoff labels on issue $issue_number before posting comment" >&2
+  exit 1
+fi
 
 gh issue comment "$issue_number" --body-file "$body_file"
