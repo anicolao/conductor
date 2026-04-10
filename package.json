@@ -5,14 +5,20 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
+    "check": "npm run build",
     "firebase:deploy": "npx --yes firebase-tools deploy --only functions",
     "firebase:serve": "npx --yes firebase-tools emulators:start --only functions",
     "handoff": "bash ./scripts/handoff.sh",
+    "hook:pre-commit": "bash ./scripts/pre-commit.sh",
+    "hook:pre-push": "bash ./scripts/pre-push.sh",
+    "hooks:install": "bash ./scripts/install-hooks.sh",
     "start": "node dist/index.js",
+    "prepare": "npm run hooks:install",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint . --ext .ts",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "validate": "npm run build && npm run test"
   },
   "dependencies": {
     "@octokit/rest": "^20.0.0",
