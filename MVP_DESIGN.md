@@ -20,7 +20,7 @@ Conductor uses **GitHub Issue Labels** to maintain state across ephemeral GitHub
 
 1. **Persona Assignment**: The label `persona: <name>` (e.g., `persona: coder`) determines which persona is active.
 2. **Branch Tracking**: The label `branch: <name>` (e.g., `branch: feat/json-parser`) tells the framework which Git branch to checkout before executing the persona logic.
-3. **Execution**: The GitHub Action triggers **only** when a new comment is added. It inspects the labels to set up the environment (checkout the right branch) and load the correct persona.
+3. **Execution**: The GitHub Action triggers on **issue creation**, **comments**, or **repository dispatches**. It does **not** trigger on label changes to prevent redundant or out-of-order execution (labels are updated before the handoff comment). It inspects the labels to set up the environment (checkout the right branch) and load the correct persona.
 4. **Handoff**: A persona hands off by:
    - Setting the `persona:` label for the next agent.
    - Setting (or maintaining) the `branch:` label.
@@ -33,18 +33,18 @@ A **User** creates a GitHub Issue and describes a feature, mentioning `@conducto
 > **User**: `@conductor` - I need a new utility to parse JSON logs in the `utils/` directory.
 
 ### 2. Planning & Delegation
-The **GitHub Action** triggers. Finding no `persona:` label but seeing the `@conductor` mention, it checks out `main` and invokes Gemini CLI as the **@conductor**.
+The **GitHub Action** triggers (on issue creation or comment). Finding no `persona:` label but seeing the `@conductor` mention, it checks out `main` and invokes Gemini CLI as the **@conductor**.
 - `@conductor` creates a new branch `feat/json-parser`.
 - **Handoff**: `@conductor` adds labels `persona: coder` and `branch: feat/json-parser`, then comments with instructions.
 
 ### 3. Implementation
-The **GitHub Action** triggers. It sees `branch: feat/json-parser`, checks it out, and invokes Gemini CLI as the **@coder**.
+The **GitHub Action** triggers (on `@conductor`'s comment). It sees `branch: feat/json-parser`, checks it out, and invokes Gemini CLI as the **@coder**.
 - `@coder` performs the implementation and tests.
 - `@coder` commits and pushes changes to the branch.
 - **Handoff**: `@coder` sets the label back to `persona: conductor` and comments that work is ready.
 
 ### 4. Verification & PR
-The **GitHub Action** triggers, checks out `feat/json-parser`, and invokes Gemini CLI as the **@conductor**.
+The **GitHub Action** triggers (on `@coder`'s comment), checks out `feat/json-parser`, and invokes Gemini CLI as the **@conductor**.
 - `@conductor` runs tests and reviews the code.
 - If verified: `@conductor` opens a Pull Request via `gh` and removes the `persona:` and `branch:` labels.
 
