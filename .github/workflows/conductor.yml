@@ -1,5 +1,7 @@
 name: Conductor
 
+run-name: Conductor [${{ github.event.client_payload.repository || github.repository }}] Issue #${{ github.event.client_payload.issue_number || github.event.issue.number }}
+
 on:
   repository_dispatch:
     types: [project_in_progress]
@@ -34,8 +36,9 @@ jobs:
           BRANCH=""
           if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
             ISSUE_NUMBER=$(jq -r '.client_payload.issue_number // empty' "$GITHUB_EVENT_PATH")
+            REPO=$(jq -r '.client_payload.repository // "${{ github.repository }}"' "$GITHUB_EVENT_PATH")
             if [ -n "$ISSUE_NUMBER" ]; then
-              BRANCH=$(gh api "repos/${{ github.repository }}/issues/$ISSUE_NUMBER" --jq '.labels[].name | select(startswith("branch:"))' 2>/dev/null | cut -d':' -f2- | xargs || true)
+              BRANCH=$(gh api "repos/$REPO/issues/$ISSUE_NUMBER" --jq '.labels[].name | select(startswith("branch:"))' 2>/dev/null | cut -d':' -f2- | xargs || true)
             fi
           else
             BRANCH=$(echo '${{ toJson(github.event.issue.labels) }}' | jq -r '.[] | select(.name | startswith("branch:")) | .name' | cut -d':' -f2- | xargs)

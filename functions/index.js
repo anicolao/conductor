@@ -59,7 +59,7 @@ async function githubGraphql(query, variables, token) {
   return body.data;
 }
 
-async function dispatchProjectActivation(issueNumber, token) {
+async function dispatchProjectActivation(repository, issueNumber, token) {
   const response = await fetch(`https://api.github.com/repos/${TARGET_REPO}/dispatches`, {
     method: "POST",
     headers: {
@@ -71,6 +71,7 @@ async function dispatchProjectActivation(issueNumber, token) {
     body: JSON.stringify({
       event_type: "project_in_progress",
       client_payload: {
+        repository: repository,
         issue_number: issueNumber,
         project_number: TARGET_PROJECT_NUMBER,
         project_url: "https://github.com/orgs/LLM-Orchestration/projects/1",
@@ -192,7 +193,7 @@ exports.githubProjectsV2Webhook = onRequest(
       const projectNumber = item?.project?.number;
       const statusName = item?.fieldValueByName?.name;
 
-      if (!issueNumber || repositoryName !== TARGET_REPO || projectNumber !== TARGET_PROJECT_NUMBER) {
+      if (!issueNumber || !repositoryName || projectNumber !== TARGET_PROJECT_NUMBER) {
         logger.info("Ignoring unrelated project item", {
           deliveryId,
           repositoryName,
@@ -223,9 +224,9 @@ exports.githubProjectsV2Webhook = onRequest(
         return;
       }
 
-      await dispatchProjectActivation(issueNumber, conductorToken.value());
-      logger.info("Dispatched project activation", { deliveryId, issueNumber, statusName });
-      res.status(202).json({ ok: true, issueNumber, status: statusName });
+      await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value());
+      logger.info("Dispatched project activation", { deliveryId, repositoryName, issueNumber, statusName });
+      res.status(202).json({ ok: true, repository: repositoryName, issueNumber, status: statusName });
     } catch (error) {
       logger.error("Failed to bridge projects_v2_item", {
         deliveryId,

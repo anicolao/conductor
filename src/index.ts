@@ -4,27 +4,10 @@ import { spawn, spawnSync } from 'child_process';
 import dotenv from 'dotenv';
 
 import { CommandResult, runStreamingCommand } from './utils/exec';
+import { GitHubEvent, extractEventData } from './utils/github';
 
-interface GitHubEvent {
-  action?: string;
-  issue?: {
-    number: number;
-    labels: { name: string }[];
-    body: string;
-  };
-  comment?: {
-    body: string;
-  };
-  client_payload?: {
-    issue_number?: number;
-    project_number?: number;
-    project_url?: string;
-    status?: string;
-  };
-}
-
-function verifyGitHubCli(issueNumber: number): string {
-  const repoCheck = spawnSync('gh', ['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'], {
+function verifyGitHubCli(repository: string, issueNumber: number): string {
+  const repoCheck = spawnSync('gh', ['repo', 'view', repository, '--json', 'nameWithOwner', '--jq', '.nameWithOwner'], {
     encoding: 'utf8',
     env: process.env
   });
@@ -37,12 +20,12 @@ function verifyGitHubCli(issueNumber: number): string {
 
     const failureDetails = (repoCheck.stderr || repoCheck.stdout || authStatus.stderr || authStatus.stdout || 'No gh output captured').trim();
 
-    console.error('GitHub CLI preflight failed.');
+    console.error(`GitHub CLI preflight failed for ${repository}.`);
     if (failureDetails) process.stderr.write(`${failureDetails}\n`);
 
     const body = `### ❌ GitHub CLI Preflight Failed
 
-Issue #${issueNumber} could not verify \`gh\` access before invoking Gemini.
+Issue #${issueNumber} could not verify \`gh\` access to \`${repository}\` before invoking Gemini.
 
 <details>
 <summary>Preflight output</summary>
@@ -54,7 +37,7 @@ ${failureDetails}
 
 *Automated report by Conductor*`;
 
-    spawnSync('gh', ['issue', 'comment', String(issueNumber), '--body', body], {
+    spawnSync('gh', ['issue', 'comment', String(issueNumber), '-R', repository, '--body', body], {
       stdio: 'inherit',
       env: process.env
     });
@@ -114,12 +97,7 @@ function buildGeminiEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
-function loadIssueState(issueNumber: number): { labels: string[]; body: string } | null {
-  const repository = process.env.GITHUB_REPOSITORY;
-  if (!repository) {
-    return null;
-  }
-
+function loadIssueState(repository: string, issueNumber: number): { labels: string[]; body: string } | null {
   const issueData = spawnSync('gh', ['api', `repos/${repository}/issues/${issueNumber}`], {
     encoding: 'utf8',
     env: process.env
@@ -136,15 +114,15 @@ function loadIssueState(issueNumber: number): { labels: string[]; body: string }
   };
 }
 
-function activateConductorPersona(issueNumber: number): void {
-  const result = spawnSync('gh', ['issue', 'edit', String(issueNumber), '--add-label', 'persona: conductor'], {
+function activateConductorPersona(repository: string, issueNumber: number): void {
+  const result = spawnSync('gh', ['issue', 'edit', String(issueNumber), '-R', repository, '--add-label', 'persona: conductor'], {
     encoding: 'utf8',
     env: process.env
   });
 
   if (result.status !== 0) {
     const details = (result.stderr || result.stdout || 'No gh output captured').trim();
-    console.error(`Failed to activate conductor persona on issue #${issueNumber}`);
+    console.error(`Failed to activate conductor persona on issue #${issueNumber} in ${repository}`);
     if (details) process.stderr.write(`${details}\n`);
   }
 }
@@ -160,25 +138,34 @@ async function main() {
 
   const event: GitHubEvent = JSON.parse(fs.readFileSync(eventPath, 'utf8'));
   const eventName = process.env.GITHUB_EVENT_NAME;
-  let issueNumber = event.issue?.number ?? event.client_payload?.issue_number;
-  let labels = event.issue?.labels.map(l => l.name) || [];
-  let issueBody = event.issue?.body || '';
-  let commentBody = event.comment?.body || '';
+  
+  let {
+    repository,
+    issueNumber,
+    labels,
+    issueBody,
+    commentBody
+  } = extractEventData(event, process.env);
 
   if (!issueNumber) {
     console.error('No issue number found in event');
     process.exit(0);
   }
 
-  const liveIssueState = loadIssueState(issueNumber);
+  if (!repository) {
+    console.error('No repository found in event');
+    process.exit(1);
+  }
+
+  const liveIssueState = loadIssueState(repository, issueNumber);
   if (liveIssueState) {
     labels = liveIssueState.labels;
     issueBody = liveIssueState.body;
   }
 
   if (eventName === 'repository_dispatch' && !labels.some(label => label.startsWith('persona:'))) {
-    console.log(`repository_dispatch received for issue #${issueNumber}. Activating conductor persona.`);
-    activateConductorPersona(issueNumber);
+    console.log(`repository_dispatch received for issue #${issueNumber} in ${repository}. Activating conductor persona.`);
+    activateConductorPersona(repository, issueNumber);
     labels.push('persona: conductor');
   }
 
@@ -235,7 +222,7 @@ ${commentBody}
     process.exit(1);
   }
 
-  const verifiedRepo = verifyGitHubCli(issueNumber);
+  const verifiedRepo = verifyGitHubCli(repository, issueNumber);
   console.log(`Verified GitHub CLI access to ${verifiedRepo}`);
 
   const prompt = `${systemPrompt}\n\n${context}
@@ -280,7 +267,7 @@ ${snippet}
 *Automated report by Conductor*`;
 
     console.log('Posting failure comment to GitHub...');
-    spawnSync('gh', ['issue', 'comment', String(issueNumber), '--body', body], {
+    spawnSync('gh', ['issue', 'comment', String(issueNumber), '-R', repository, '--body', body], {
       stdio: 'inherit',
       env: childEnv
     });
