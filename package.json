@@ -5,6 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
+    "firebase:deploy": "npx --yes firebase-tools deploy --only functions",
+    "firebase:serve": "npx --yes firebase-tools emulators:start --only functions",
     "handoff": "bash ./scripts/handoff.sh",
     "start": "node dist/index.js",
     "test": "vitest run",
