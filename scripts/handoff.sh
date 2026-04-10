@@ -56,18 +56,20 @@ if [ ! -s "$body_file" ]; then
   exit 1
 fi
 
+edit_args=()
 while IFS= read -r label; do
   case "$label" in
     "persona: "*)
-      gh issue edit "$issue_number" -R "$target_repo" --remove-label "$label"
+      edit_args+=(--remove-label "$label")
       ;;
     "branch: "*)
-      gh issue edit "$issue_number" -R "$target_repo" --remove-label "$label"
+      edit_args+=(--remove-label "$label")
       ;;
   esac
 done <<< "$existing_labels"
 
 gh issue edit "$issue_number" -R "$target_repo" \
+  "${edit_args[@]}" \
   --add-label "persona: $target" \
   --add-label "branch: $branch_name"
 

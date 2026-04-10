@@ -36,16 +36,12 @@ The working design is:
 
 ## Workflow Trigger
 
-The workflow now listens for:
+The workflow now listens *only* for `repository_dispatch`. All other events (issue creation, comments) are handled by the bridge, which then dispatches to this repository. This centralizes the logic and prevents duplicate runs for issues in the `conductor` repository.
 
 ```yaml
 on:
   repository_dispatch:
     types: [project_in_progress]
-  issue_comment:
-    types: [created]
-  issues:
-    types: [opened]
 ```
 
 The dispatch contract is:
@@ -58,18 +54,25 @@ The dispatch contract is:
     "issue_number": 38,
     "project_number": 1,
     "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1",
-    "status": "In Progress"
+    "status": "In Progress",
+    "event_name": "issue_comment",
+    "action": "created"
   }
 }
 ```
 
 ## Bridge Requirements
 
-The webhook bridge in this repository is a Firebase HTTPS function named `githubProjectsV2Webhook`. It does three things:
+The webhook bridge in this repository is a Firebase HTTPS function named `githubProjectsV2Webhook`. It does:
 
 1. Verify the GitHub webhook signature.
-2. Detect that the item belongs to the `AI Orchestration` project and its status became `In Progress`.
-3. Call:
+2. Filter events:
+   - `projects_v2_item`: detects when an item moves to `In Progress`.
+   - `issues`: only `opened` actions.
+   - `issue_comment`: only `created` actions.
+3. Ignore events from bots to prevent orchestration loops.
+4. Detect if an issue has an active `persona:` or mentions `@conductor`.
+5. Call:
 
 ```bash
 curl -X POST \
