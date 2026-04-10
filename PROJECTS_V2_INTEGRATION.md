@@ -54,6 +54,8 @@ The dispatch contract is:
   "client_payload": {
     "repository": "LLM-Orchestration/conductor",
     "issue_number": 38,
+    "issue_url": "https://github.com/LLM-Orchestration/conductor/issues/38",
+    "issue_node_id": "I_kwDOK7z8z852Y8-Y",
     "project_number": 1,
     "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1",
     "status": "In Progress",
@@ -70,7 +72,7 @@ The webhook bridge in this repository is a Firebase HTTPS function named `github
 1. **Verify Webhook Signature**: Ensures events come from GitHub.
 2. **Filter Actions**: Only dispatches for `issues:opened` and `issue_comment:created`.
 3. **Filter Senders**: Ignores events from bots to prevent feedback loops.
-4. **Enrich Payload**: Includes `event_name`, `action`, and the event `body` in the `repository_dispatch` sent to Conductor.
+4. **Enrich Payload**: Includes `event_name`, `action`, the event `body`, `issue_url`, and `issue_node_id` in the `repository_dispatch` sent to Conductor.
 5. **Call**:
 
 ```bash
@@ -83,6 +85,8 @@ curl -X POST \
     "client_payload": {
       "repository": "LLM-Orchestration/conductor",
       "issue_number": 38,
+      "issue_url": "https://github.com/LLM-Orchestration/conductor/issues/38",
+      "issue_node_id": "I_kwDOK7z8z852Y8-Y",
       "project_number": 1,
       "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1",
       "status": "In Progress",
