@@ -60,10 +60,14 @@ edit_args=()
 while IFS= read -r label; do
   case "$label" in
     "persona: "*)
-      edit_args+=(--remove-label "$label")
+      if [ "$label" != "persona: $target" ]; then
+        edit_args+=(--remove-label "$label")
+      fi
       ;;
     "branch: "*)
-      edit_args+=(--remove-label "$label")
+      if [ "$label" != "branch: $branch_name" ]; then
+        edit_args+=(--remove-label "$label")
+      fi
       ;;
   esac
 done <<< "$existing_labels"
