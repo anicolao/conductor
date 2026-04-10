@@ -59,7 +59,7 @@ async function githubGraphql(query, variables, token) {
   return body.data;
 }
 
-async function dispatchProjectActivation(repository, issueNumber, token, eventName, action) {
+async function dispatchProjectActivation(repository, issueNumber, token, eventName = null, action = null, body = null) {
   const response = await fetch(`https://api.github.com/repos/${TARGET_REPO}/dispatches`, {
     method: "POST",
     headers: {
@@ -77,7 +77,8 @@ async function dispatchProjectActivation(repository, issueNumber, token, eventNa
         project_url: "https://github.com/orgs/LLM-Orchestration/projects/1",
         status: TARGET_STATUS,
         event_name: eventName,
-        action: action
+        action: action,
+        body: body
       }
     })
   });
@@ -119,25 +120,16 @@ exports.githubProjectsV2Webhook = onRequest(
 
     if (eventName === "issues" || eventName === "issue_comment") {
       const action = req.body?.action;
-      const body = req.body?.comment?.body || req.body?.issue?.body || "";
-      const issueNumber = req.body?.issue?.number;
-      const repositoryName = req.body?.repository?.full_name;
-      const labels = req.body?.issue?.labels?.map(l => l.name) || [];
       const sender = req.body?.sender;
 
-      if (!issueNumber || !repositoryName) {
-        res.status(400).send("Missing issue number or repository");
-        return;
-      }
-
-      // 1. Ignore events from bots to prevent loops
+      // Filter: Ignore bots to prevent orchestration loops
       if (sender?.type === "Bot" || sender?.login?.endsWith("[bot]")) {
-        logger.info("Ignoring bot event", { deliveryId, eventName, action, sender: sender.login });
+        logger.info("Ignoring event from bot sender", { deliveryId, sender: sender?.login });
         res.status(204).send("");
         return;
       }
 
-      // 2. Filter actions: only 'opened' for issues and 'created' for issue_comment.
+      // Filter actions: only 'opened' for issues and 'created' for issue_comment.
       // This prevents dispatches from label changes (handoffs) which cause duplicate runs.
       if (eventName === "issues" && action !== "opened") {
         logger.info("Ignoring non-opened issue event", { deliveryId, action });
@@ -150,11 +142,21 @@ exports.githubProjectsV2Webhook = onRequest(
         return;
       }
 
+      const body = req.body?.comment?.body || req.body?.issue?.body || "";
+      const issueNumber = req.body?.issue?.number;
+      const repositoryName = req.body?.repository?.full_name;
+      const labels = req.body?.issue?.labels?.map(l => l.name) || [];
+
+      if (!issueNumber || !repositoryName) {
+        res.status(400).send("Missing issue number or repository");
+        return;
+      }
+
       const hasPersona = labels.some(l => l.startsWith("persona:"));
       const mentionsConductor = body.includes("@conductor");
 
       if (hasPersona || mentionsConductor) {
-        await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value(), eventName, action);
+        await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value(), eventName, action, body);
         logger.info("Dispatched issue event", { deliveryId, eventName, action, repositoryName, issueNumber });
         res.status(202).json({ ok: true, repository: repositoryName, issueNumber, eventName });
         return;
@@ -216,6 +218,7 @@ exports.githubProjectsV2Webhook = onRequest(
               content {
                 ... on Issue {
                   number
+                  body
                   labels(first: 100) {
                     nodes {
                       name
@@ -235,6 +238,7 @@ exports.githubProjectsV2Webhook = onRequest(
 
       const item = data?.node;
       const issueNumber = item?.content?.number;
+      const issueBody = item?.content?.body;
       const issueLabels = Array.isArray(item?.content?.labels?.nodes)
         ? item.content.labels.nodes.map((label) => label.name)
         : [];
@@ -273,7 +277,7 @@ exports.githubProjectsV2Webhook = onRequest(
         return;
       }
 
-      await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value());
+      await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value(), eventName, req.body?.action, issueBody);
       logger.info("Dispatched project activation", { deliveryId, repositoryName, issueNumber, statusName });
       res.status(202).json({ ok: true, repository: repositoryName, issueNumber, status: statusName });
     } catch (error) {

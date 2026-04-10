@@ -44,4 +44,36 @@ describe('extractEventData', () => {
     expect(result.repository).toBe('owner/repo');
     expect(result.issueNumber).toBe(456);
   });
+
+  it('should extract body and commentBody from enriched repository_dispatch', () => {
+    const event: GitHubEvent = {
+      client_payload: {
+        repository: 'other/repo',
+        issue_number: 789,
+        event_name: 'issue_comment',
+        body: 'comment from payload'
+      }
+    };
+    const env = { GITHUB_REPOSITORY: 'owner/repo' };
+    const result = extractEventData(event, env);
+    expect(result.repository).toBe('other/repo');
+    expect(result.issueNumber).toBe(789);
+    expect(result.issueBody).toBe('comment from payload'); // issueBody gets it as fallback
+    expect(result.commentBody).toBe('comment from payload');
+  });
+
+  it('should extract issueBody but not commentBody from enriched repository_dispatch for issues', () => {
+    const event: GitHubEvent = {
+      client_payload: {
+        repository: 'other/repo',
+        issue_number: 789,
+        event_name: 'issues',
+        body: 'issue body from payload'
+      }
+    };
+    const env = { GITHUB_REPOSITORY: 'owner/repo' };
+    const result = extractEventData(event, env);
+    expect(result.issueBody).toBe('issue body from payload');
+    expect(result.commentBody).toBe('');
+  });
 });
