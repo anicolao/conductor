@@ -58,7 +58,7 @@ fi
 
 # Ensure branch label exists in the repository
 branch_label="branch: $branch_name"
-if ! gh label list -R "$repository" --search "$branch_label" | grep -q "^$branch_label"; then
+if ! gh label list -R "$repository" --json name --jq '.[].name' | grep -Fqx "$branch_label"; then
   echo "Creating missing label: $branch_label"
   gh label create "$branch_label" -R "$repository" --color FFFFFF --description "Active branch for this issue" || true
 fi
@@ -78,26 +78,15 @@ while IFS= read -r label; do
 done <<< "$existing_labels"
 
 echo "Updating labels on ${repository}#${issue_number}..."
-gh issue edit "$issue_number" -R "$repository" \
-  "${remove_labels[@]}" \
-  --add-label "persona: $target" \
-  --add-label "$branch_label"
-
-# Verification
-verified=0
-for i in 1 2 3 4 5; do
-  labels_after="$(current_labels)"
-  if grep -Fqx "persona: $target" <<< "$labels_after" && grep -Fqx "$branch_label" <<< "$labels_after"; then
-    verified=1
-    break
-  fi
-  echo "Waiting for label propagation (attempt $i)..."
-  sleep 1
-done
-
-if [ "$verified" -ne 1 ]; then
-  echo "Failed to verify handoff labels on issue ${repository}#${issue_number} before posting comment" >&2
-  exit 1
+if [ ${#remove_labels[@]} -gt 0 ]; then
+  gh issue edit "$issue_number" -R "$repository" \
+    "${remove_labels[@]}" \
+    --add-label "persona: $target" \
+    --add-label "$branch_label"
+else
+  gh issue edit "$issue_number" -R "$repository" \
+    --add-label "persona: $target" \
+    --add-label "$branch_label"
 fi
 
 echo "Posting comment to ${repository}#${issue_number}..."
