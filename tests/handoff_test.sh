@@ -412,5 +412,63 @@ else
   exit 1
 fi
 
+# Test 9: conductor-verify.sh is skipped when handing off to human even if it would fail
+# We mock conductor-verify.sh to fail
+mkdir -p "$TEST_DIR/scripts"
+cat > "$TEST_DIR/scripts/conductor-verify.sh" <<EOF
+#!/usr/bin/env bash
+echo "Conductor verification failed!" >&2
+exit 1
+EOF
+chmod +x "$TEST_DIR/scripts/conductor-verify.sh"
+
+# We need to run handoff.sh from a directory where ./scripts/conductor-verify.sh is the mock
+# OR we can just rely on the fact that handoff.sh looks for it.
+# Actually, handoff.sh uses ./scripts/conductor-verify.sh relative to CWD.
+# tests/handoff_test.sh runs from repo root.
+# So I should probably mock it in the REAL scripts directory or change CWD.
+# Better: Create a sub-repo or just mock it and run from $TEST_DIR.
+
+# Let's just create a temporary scripts dir in TEST_DIR and run from there
+cp scripts/handoff.sh "$TEST_DIR/handoff.sh"
+# We need to make sure handoff.sh can still find node etc if needed, but it should be fine.
+
+echo "Running handoff.sh human with failing conductor-verify.sh (expecting success as it should be skipped)..."
+# We need to set up the environment again for this sub-run if we change DIR
+(
+  cd "$TEST_DIR"
+  # Mock gh again for this specific test
+  cat > "$TEST_DIR/gh" <<EOF2
+#!/usr/bin/env bash
+case "\$*" in
+  "issue view"*".labels[].name"*)
+    if [ -f "$TEST_DIR/labels_removed_t9" ]; then
+      echo "branch: test-branch"
+    else
+      echo "persona: conductor"
+      echo "branch: test-branch"
+    fi
+    ;;
+  "issue edit"*)
+    touch "$TEST_DIR/labels_removed_t9"
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+EOF2
+  chmod +x "$TEST_DIR/gh"
+  rm -f "$TEST_DIR/labels_removed_t9"
+  
+  bash handoff.sh human < comment.md
+)
+if [ $? -eq 0 ]; then
+  echo "Success: conductor-verify.sh was skipped for human target"
+else
+  echo "Error: handoff.sh failed for human target with failing conductor-verify.sh"
+  exit 1
+fi
+
 echo "All handoff validation tests passed!"
 exit 0
