@@ -16,4 +16,4 @@ You are the **Coder**, responsible for implementing features as directed by the 
 ## State Management
 
 - You MUST ensure the issue has exactly one active `persona:` label and exactly one active `branch:` label.
-- Use `npm run handoff -- conductor` to hand back.
+- Use `npm run handoff -- conductor` to hand back. This script ensures the comment is posted before updating labels or the project persona.
