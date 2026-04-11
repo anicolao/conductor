@@ -10,7 +10,6 @@ import {
 
 const ORG_LOGIN = process.env.CONDUCTOR_PROJECT_OWNER || 'LLM-Orchestration';
 const PROJECT_NUMBER = Number(process.env.CONDUCTOR_PROJECT_NUMBER || '1');
-const TARGET_STATUS = 'In Progress';
 const TARGET_REPO = process.env.CONDUCTOR_REPO || 'LLM-Orchestration/conductor';
 const WORKFLOW_FILE = process.env.CONDUCTOR_WORKFLOW_FILE || 'conductor.yml';
 const DEFAULT_MAX_RETRIES = Number(process.env.CONDUCTOR_RECOVERY_MAX_RETRIES || '5');
@@ -173,7 +172,6 @@ async function loadProjectItems(token: string): Promise<ProjectIssueItem[]> {
                 ... on Issue {
                   id
                   number
-                  url
                   repository {
                     nameWithOwner
                   }
@@ -204,15 +202,13 @@ async function loadProjectItems(token: string): Promise<ProjectIssueItem[]> {
     for (const node of project.items.nodes) {
       const repository = node.content?.repository?.nameWithOwner;
       const issueNumber = node.content?.number;
-      const issueUrl = node.content?.url;
       const issueNodeId = node.content?.id;
       const status = node.status?.name;
-      if (!repository || !issueNumber || !issueUrl || !issueNodeId || !status) continue;
+      if (!repository || !issueNumber || !issueNodeId || !status) continue;
 
       items.push({
         repository,
         issueNumber,
-        issueUrl,
         issueNodeId,
         projectNumber: PROJECT_NUMBER,
         projectUrl: project.url,
@@ -249,11 +245,9 @@ async function dispatchRecovery(item: ProjectIssueItem, token: string): Promise<
         client_payload: {
           repository: item.repository,
           issue_number: item.issueNumber,
-          issue_url: item.issueUrl,
           issue_node_id: item.issueNodeId,
           project_number: item.projectNumber,
           project_url: item.projectUrl,
-          status: TARGET_STATUS,
           persona: normalizePersona(item.persona),
           event_name: 'schedule',
           action: 'recover_orphaned_in_progress'

@@ -59,7 +59,7 @@ async function githubGraphql(query, variables, token) {
   return body.data;
 }
 
-async function dispatchProjectActivation(repository, issueNumber, token, eventName = null, action = null, body = null, issueUrl = null, issueNodeId = null, projectNumber = null, projectUrl = null, persona = null) {
+async function dispatchProjectActivation(repository, issueNumber, token, eventName = null, action = null, issueNodeId = null, projectNumber = null, projectUrl = null, persona = null) {
   const response = await fetch(`https://api.github.com/repos/${TARGET_REPO}/dispatches`, {
     method: "POST",
     headers: {
@@ -73,15 +73,12 @@ async function dispatchProjectActivation(repository, issueNumber, token, eventNa
       client_payload: {
         repository: repository,
         issue_number: issueNumber,
-        issue_url: issueUrl,
         issue_node_id: issueNodeId,
         project_number: projectNumber,
         project_url: projectUrl,
-        status: TARGET_STATUS,
         persona: persona,
         event_name: eventName,
-        action: action,
-        body: body
+        action: action
       }
     })
   });
@@ -188,8 +185,6 @@ exports.githubProjectsV2Webhook = onRequest(
               content {
                 ... on Issue {
                   number
-                  body
-                  url
                   id
                   labels(first: 100) {
                     nodes {
@@ -210,12 +205,7 @@ exports.githubProjectsV2Webhook = onRequest(
 
       const item = data?.node;
       const issueNumber = item?.content?.number;
-      const issueBody = item?.content?.body;
-      const issueUrl = item?.content?.url;
       const issueNodeId = item?.content?.id;
-      const issueLabels = Array.isArray(item?.content?.labels?.nodes)
-        ? item.content.labels.nodes.map((label) => label.name)
-        : [];
       const repositoryName = item?.content?.repository?.nameWithOwner;
       const projectNumber = item?.project?.number;
       const projectUrl = item?.project?.url;
@@ -271,7 +261,7 @@ exports.githubProjectsV2Webhook = onRequest(
         return;
       }
 
-      await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value(), eventName, action, issueBody, issueUrl, issueNodeId, projectNumber, projectUrl, personaName);
+      await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value(), eventName, action, issueNodeId, projectNumber, projectUrl, personaName);
       logger.info("Dispatched project activation", { deliveryId, repositoryName, issueNumber, statusName, personaName, projectNumber });
       res.status(202).json({ ok: true, repository: repositoryName, issueNumber, status: statusName, persona: personaName, projectNumber });
     } catch (error) {

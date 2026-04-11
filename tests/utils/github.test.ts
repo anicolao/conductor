@@ -27,16 +27,14 @@ describe('extractEventData', () => {
       client_payload: {
         repository: 'other/repo',
         issue_number: 456,
-        issue_url: 'https://github.com/other/repo/issues/456',
-        issue_node_id: 'I_456',
-        status: 'In Progress'
+        issue_node_id: 'I_456'
       }
     };
     const env = { GITHUB_REPOSITORY: 'owner/repo' };
     const result = extractEventData(event, env);
     expect(result.repository).toBe('other/repo');
     expect(result.issueNumber).toBe(456);
-    expect(result.issueUrl).toBe('https://github.com/other/repo/issues/456');
+    expect(result.issueUrl).toBe('');
     expect(result.issueNodeId).toBe('I_456');
     expect(result.labels).toEqual([]);
   });
@@ -53,33 +51,18 @@ describe('extractEventData', () => {
     expect(result.issueNumber).toBe(456);
   });
 
-  it('should extract body and commentBody from enriched repository_dispatch', () => {
+  it('should not infer body or commentBody from repository_dispatch payload', () => {
     const event: GitHubEvent = {
       client_payload: {
         repository: 'other/repo',
-        issue_number: 789,
-        body: 'comment from payload'
+        issue_number: 789
       }
     };
     const env = { GITHUB_REPOSITORY: 'owner/repo' };
     const result = extractEventData(event, env);
     expect(result.repository).toBe('other/repo');
     expect(result.issueNumber).toBe(789);
-    expect(result.issueBody).toBe('comment from payload'); // issueBody gets it as fallback
-    expect(result.commentBody).toBe('comment from payload');
-  });
-
-  it('should extract body into both if only body is present', () => {
-    const event: GitHubEvent = {
-      client_payload: {
-        repository: 'other/repo',
-        issue_number: 789,
-        body: 'body from payload'
-      }
-    };
-    const env = { GITHUB_REPOSITORY: 'owner/repo' };
-    const result = extractEventData(event, env);
-    expect(result.issueBody).toBe('body from payload');
-    expect(result.commentBody).toBe('body from payload');
+    expect(result.issueBody).toBe('');
+    expect(result.commentBody).toBe('');
   });
 });
