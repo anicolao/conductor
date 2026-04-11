@@ -143,6 +143,28 @@ function activatePersonaLabel(repository: string, issueNumber: number, persona: 
   }
 }
 
+function postPickupNote(repository: string, issueNumber: number, persona: string, branch: string): void {
+  const body = `Conductor has picked up this task and is starting work (Persona: **${persona}**, Branch: \`${branch}\`).`;
+  
+  console.log(`Posting pickup note to issue #${issueNumber} in ${repository}...`);
+  
+  try {
+    const result = spawnSync('gh', ['issue', 'comment', String(issueNumber), '-R', repository, '--body', body], {
+      stdio: 'inherit',
+      env: process.env
+    });
+
+    if (result.error || result.status !== 0) {
+      console.error(`Failed to post pickup note to issue #${issueNumber} in ${repository}`);
+      if (result.error) console.error(result.error.message);
+    } else {
+      console.log('Pickup note posted successfully.');
+    }
+  } catch (err) {
+    console.error(`Error attempting to post pickup note: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 async function main() {
   dotenv.config();
 
@@ -225,6 +247,9 @@ async function main() {
   const currentBranch = branchLabel ? branchLabel.split(':')[1].trim() : 'main';
 
   console.log(`Activating persona: ${persona} on branch: ${currentBranch}`);
+
+  // Post pickup note (non-critical)
+  postPickupNote(repository, issueNumber, persona, currentBranch);
 
   // 3. Load Prompt
   const promptPath = path.join(__dirname, '..', 'prompts', `${persona}.md`);
