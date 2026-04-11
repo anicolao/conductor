@@ -102,10 +102,12 @@ if [ -n "$project_number" ]; then
     exit 1
   fi
   if [ -z "$project_owner" ]; then
-    project_owner="LLM-Orchestration"
+    echo "Error: project_number provided but project_owner could not be determined from project_url" >&2
+    exit 1
   fi
 
   echo "Finding project item for issue node ID: $issue_node_id in project $project_number"
+
   item_data=$(gh project item-list "$project_number" --owner "$project_owner" --limit 1000 --format json --jq ".items[] | select(.content.id == \"$issue_node_id\")" | head -n 1)
   
   if [ -z "$item_data" ]; then

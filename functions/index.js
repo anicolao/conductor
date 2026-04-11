@@ -10,7 +10,6 @@ const githubWebhookSecret = defineSecret("GITHUB_WEBHOOK_SECRET");
 const conductorToken = defineSecret("CONDUCTOR_TOKEN");
 
 const TARGET_REPO = "LLM-Orchestration/conductor";
-const TARGET_PROJECT_NUMBER = 1;
 const TARGET_STATUS = "In Progress";
 
 function timingSafeEqualHex(a, b) {

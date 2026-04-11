@@ -291,5 +291,30 @@ else
   fi
 fi
 
+# Test 7: Fail because project_number provided but project_url is missing
+cat > "$GITHUB_EVENT_PATH" <<'EOF'
+{
+  "client_payload": {
+    "issue_number": 123,
+    "project_number": 1,
+    "issue_node_id": "I_123"
+  }
+}
+EOF
+
+echo "Running handoff.sh (expecting failure due to missing project_owner)..."
+if bash scripts/handoff.sh coder < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
+  echo "Error: handoff.sh should have failed but exited with 0"
+  exit 1
+else
+  if grep -q "Error: project_number provided but project_owner could not be determined from project_url" "$TEST_DIR/stderr"; then
+    echo "Success: handoff.sh failed with correct error message"
+  else
+    echo "Error: handoff.sh failed but with wrong message"
+    cat "$TEST_DIR/stderr"
+    exit 1
+  fi
+fi
+
 echo "All handoff validation tests passed!"
 exit 0
