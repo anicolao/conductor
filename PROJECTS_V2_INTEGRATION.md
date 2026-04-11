@@ -170,6 +170,12 @@ The Conductor is triggered by Project V2 activity:
 2. The webhook bridge detects the `Persona` field change and dispatches a new `repository_dispatch`.
 3. The next agent (e.g., `coder`) starts its work.
 
+### 3. Recovering Orphaned Items
+1. A scheduled workflow in `LLM-Orchestration/conductor` runs every 5 minutes.
+2. It scans Project `#1` for items still in `In Progress`.
+3. If an item has no non-completed Conductor workflow run targeting that repository/issue, it re-dispatches `project_in_progress` for that item.
+4. This allows stalled items to be reactivated without manual project churn.
+
 ### Audit Trail
 - Comments on issues are used for the audit trail and human-in-the-loop feedback, but they do not currently trigger the workflow directly. The live webhook is only subscribed to `projects_v2_item`.
 

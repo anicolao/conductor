@@ -1,0 +1,35 @@
+name: Recover Orphaned In Progress Items
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recover-orphaned-items:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Scan Project and Re-dispatch Orphans
+        env:
+          CONDUCTOR_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
+          GH_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
+        run: npm run recover:orphans

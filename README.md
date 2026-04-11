@@ -40,6 +40,8 @@ Current Firebase bridge project:
 
 - `llm-orch-conductor-bridge`
 
+The repository also includes a scheduled recovery workflow that scans the shared project every 5 minutes for `In Progress` items with no non-completed Conductor run and re-dispatches them.
+
 ## Licensing
 
 This project is licensed under the GPLv3 License - see the [LICENSE](LICENSE) file for details.
