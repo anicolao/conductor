@@ -38,7 +38,7 @@ describe('recover utils', () => {
     const item: ProjectIssueItem = {
       repository: 'LLM-Orchestration/conductor',
       issueNumber: 53,
-      issueUrl: 'https://github.com/LLM-Orchestration/conductor/issues/53',
+      issueNodeId: 'I_53',
       projectNumber: 1,
       projectUrl: 'https://github.com/orgs/LLM-Orchestration/projects/1',
       status: 'In Progress',
@@ -55,7 +55,7 @@ describe('recover utils', () => {
       {
         repository: 'LLM-Orchestration/conductor',
         issueNumber: 53,
-        issueUrl: 'https://github.com/LLM-Orchestration/conductor/issues/53',
+        issueNodeId: 'I_53',
         projectNumber: 1,
         projectUrl: 'https://github.com/orgs/LLM-Orchestration/projects/1',
         status: 'In Progress',
@@ -64,7 +64,7 @@ describe('recover utils', () => {
       {
         repository: 'LLM-Orchestration/conductor',
         issueNumber: 54,
-        issueUrl: 'https://github.com/LLM-Orchestration/conductor/issues/54',
+        issueNodeId: 'I_54',
         projectNumber: 1,
         projectUrl: 'https://github.com/orgs/LLM-Orchestration/projects/1',
         status: 'Done',
@@ -81,7 +81,7 @@ describe('recover utils', () => {
     const item: ProjectIssueItem = {
       repository: 'LLM-Orchestration/conductor',
       issueNumber: 53,
-      issueUrl: 'https://github.com/LLM-Orchestration/conductor/issues/53',
+      issueNodeId: 'I_53',
       projectNumber: 1,
       projectUrl: 'https://github.com/orgs/LLM-Orchestration/projects/1',
       status: 'In Progress',
