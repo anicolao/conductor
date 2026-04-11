@@ -65,7 +65,7 @@ if bash scripts/handoff.sh coder < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr";
   echo "Error: handoff.sh should have failed but exited with 0"
   exit 1
 else
-  if grep -q "Error: Could not find project item for issue node ID I_123 in project 1" "$TEST_DIR/stderr"; then
+  if grep -q "Error: Could not find project item for issue node ID I_123 in project 1 (owner: LLM-Orchestration)" "$TEST_DIR/stderr"; then
     echo "Success: handoff.sh failed with correct error message"
   else
     echo "Error: handoff.sh failed but with wrong message"

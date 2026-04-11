@@ -109,7 +109,7 @@ if [ -n "$project_number" ]; then
   item_data=$(gh project item-list "$project_number" --owner "$project_owner" --limit 1000 --format json --jq ".items[] | select(.content.id == \"$issue_node_id\")" | head -n 1)
   
   if [ -z "$item_data" ]; then
-    echo "Error: Could not find project item for issue node ID $issue_node_id in project $project_number" >&2
+    echo "Error: Could not find project item for issue node ID $issue_node_id in project $project_number (owner: $project_owner)" >&2
     exit 1
   fi
 
