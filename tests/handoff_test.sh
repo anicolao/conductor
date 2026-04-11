@@ -14,11 +14,24 @@ export GITHUB_REPOSITORY="LLM-Orchestration/conductor"
 # Create a dummy git mock
 cat > "$TEST_DIR/git" <<EOF
 #!/usr/bin/env bash
-if [[ "\$*" == "branch --show-current" ]]; then
-  echo "test-branch"
-  exit 0
-fi
-exec git "\$@"
+case "\$*" in
+  "branch --show-current")
+    echo "test-branch"
+    exit 0
+    ;;
+  "status --porcelain -- src functions tests")
+    exit 0
+    ;;
+  "rev-parse --verify main")
+    exit 0
+    ;;
+  "diff --name-only main...test-branch -- src functions tests")
+    exit 0
+    ;;
+  *)
+    exec git "\$@"
+    ;;
+esac
 EOF
 chmod +x "$TEST_DIR/git"
 

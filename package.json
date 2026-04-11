@@ -11,6 +11,7 @@
     "recover:orphans": "node dist/recover-orphans.js",
     "recover:orphans:dry-run": "node dist/recover-orphans.js --dry-run",
     "handoff": "bash ./scripts/handoff.sh",
+    "verify:conductor": "bash ./scripts/conductor-verify.sh",
     "hook:pre-commit": "bash ./scripts/pre-commit.sh",
     "hook:pre-push": "bash ./scripts/pre-push.sh",
     "hooks:install": "bash ./scripts/install-hooks.sh",
