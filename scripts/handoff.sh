@@ -14,7 +14,17 @@ fi
 target="$1"
 branch_name="$(git branch --show-current)"
 
+# In CI (Actions), git branch --show-current might be empty due to detached HEAD.
 if [ -z "$branch_name" ]; then
+  branch_name="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-}}"
+fi
+
+# Fallback to rev-parse if still empty
+if [ -z "$branch_name" ]; then
+  branch_name="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
+fi
+
+if [ -z "$branch_name" ] || [ "$branch_name" = "HEAD" ]; then
   echo "Could not determine current branch" >&2
   exit 1
 fi

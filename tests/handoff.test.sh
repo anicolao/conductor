@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Mock directory for gh
+# Mock directory for gh and git
 MOCK_DIR="$(mktemp -d)"
 trap 'rm -rf "$MOCK_DIR"' EXIT
 
@@ -20,6 +20,23 @@ cat > "$GITHUB_EVENT_PATH" <<EOF
   }
 }
 EOF
+
+# Create a dummy git mock
+cat > "$MOCK_DIR/git" <<'EOF'
+#!/usr/bin/env bash
+if [[ "$*" == "branch --show-current" ]]; then
+  echo "recover-cross-repo-orchestration"
+  exit 0
+fi
+if [[ "$*" == "rev-parse --abbrev-ref HEAD" ]]; then
+  echo "recover-cross-repo-orchestration"
+  exit 0
+fi
+# Fallback to real git for other commands if needed, 
+# but for tests we should avoid depending on the real repo state.
+exit 0
+EOF
+chmod +x "$MOCK_DIR/git"
 
 # Create the mock gh command
 cat > "$MOCK_DIR/gh" <<'EOF'
