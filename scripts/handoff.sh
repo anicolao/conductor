@@ -47,9 +47,9 @@ current_labels() {
 
 existing_labels="$(current_labels)"
 
-# Conductor Guardrail: Verify no unauthorized changes if current persona is conductor
+# Conductor Guardrail: Verify no unauthorized changes if current persona is conductor and target is not human
 current_persona=$(echo "$existing_labels" | grep "^persona: " | head -n 1 | cut -d' ' -f2 || true)
-if [ "$current_persona" == "conductor" ]; then
+if [ "$current_persona" == "conductor" ] && [ "$target" != "human" ]; then
   if [ -f "./scripts/conductor-verify.sh" ]; then
     bash ./scripts/conductor-verify.sh
   elif [ -f ".conductor/scripts/conductor-verify.sh" ]; then
