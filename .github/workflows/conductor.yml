@@ -1,10 +1,10 @@
 name: Conductor
 
-run-name: Conductor for ${{ github.event.client_payload.repository || github.repository }} #${{ github.event.client_payload.issue_number || github.event.issue.number }}
+run-name: Conductor [${{ github.event.client_payload.persona || 'orchestrator' }}] for ${{ github.event.client_payload.repository || github.repository }} #${{ github.event.client_payload.issue_number || github.event.issue.number }}
 
 on:
   repository_dispatch:
-    types: [project_in_progress, external_issue_event, external_issue_comment]
+    types: [project_in_progress]
 
 permissions:
   contents: write

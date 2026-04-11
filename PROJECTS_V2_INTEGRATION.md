@@ -28,23 +28,23 @@ The workflow file can still load, but no Actions run will ever be created from t
 
 The working design is:
 
-1. A Projects V2 item in the organization project moves to `In Progress`, OR an issue is labeled/opened, OR a comment is created.
+1. A Projects V2 item in the organization project moves to `In Progress`, OR the `Persona` field is edited.
 2. An organization-level webhook receives the event and forwards it to the Bridge (Firebase function).
 3. The bridge performs filtering (ignores bots, filters actions) and sends a `repository_dispatch` event to `LLM-Orchestration/conductor`.
 4. The Conductor workflow starts from `repository_dispatch`.
-5. `src/index.ts` resolves the live issue state and activates `persona: conductor` if no persona is already active. It supports issues in any repository as specified in the dispatch payload.
+5. `src/index.ts` resolves the live issue state and activates the requested persona. It supports issues in any repository as specified in the dispatch payload.
 
 ## Workflow Trigger
 
-The workflow now listens exclusively for `repository_dispatch` to prevent duplicate runs and centralize event processing:
+The workflow now listens exclusively for `repository_dispatch` with the `project_in_progress` type:
 
 ```yaml
 on:
   repository_dispatch:
-    types: [project_in_progress, external_issue_event, external_issue_comment]
+    types: [project_in_progress]
 ```
 
-The dispatch payload includes the target repository:
+The dispatch payload includes enriched metadata:
 
 ```json
 {
@@ -54,7 +54,9 @@ The dispatch payload includes the target repository:
     "repository": "owner/repo",
     "project_number": 1,
     "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1",
-    "status": "In Progress"
+    "status": "In Progress",
+    "item_id": "PVTI_lADOB0m...",
+    "persona": "coder"
   }
 }
 ```
@@ -66,10 +68,10 @@ The webhook bridge in this repository is a Firebase HTTPS function named `github
 1. Verifies the GitHub webhook signature.
 2. Filters out events from Bot accounts.
 3. Detects specific event types:
-   - `projects_v2_item`: status changes to `In Progress`.
-   - `issues`: `labeled` or `opened`.
-   - `issue_comment`: `created`.
-4. Dispatches to `LLM-Orchestration/conductor` with enriched metadata (repository name and issue number).
+   - `projects_v2_item`: 
+     - Triggered when the `Status` field is changed to `In Progress` (starts orchestration).
+     - Triggered when the `Persona` field is edited while the status is `In Progress` (continues orchestration).
+4. Dispatches to `LLM-Orchestration/conductor` with enriched metadata (repository name, issue number, item ID, and project number).
 
 ## Firebase Deployment
 
@@ -121,10 +123,11 @@ The current local `gh` token and repo secret were refreshed with:
 
 ## Operator Flow
 
-1. Add an issue from `LLM-Orchestration/conductor` to the `AI Orchestration` project.
+1. Add an issue from any repository in the organization to the `AI Orchestration` project.
 2. Move it to `In Progress`.
 3. The webhook bridge dispatches `project_in_progress`.
 4. Conductor activates on that issue and continues with the normal persona handoff flow.
+5. The `scripts/handoff.sh` script updates the `Persona` field in the project as its final step, which triggers the next persona's run.
 
 ## Notes
 

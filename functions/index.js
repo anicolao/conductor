@@ -128,8 +128,8 @@ exports.githubProjectsV2Webhook = onRequest(
         }
 
         const changedFieldName = req.body?.changes?.field_value?.field_name;
-        if (changedFieldName !== "Status") {
-          logger.info("Ignoring non-status project item edit", {
+        if (changedFieldName !== "Status" && changedFieldName !== "Persona") {
+          logger.info("Ignoring non-target project item edit", {
             deliveryId,
             changedFieldName: changedFieldName || null
           });
@@ -149,9 +149,14 @@ exports.githubProjectsV2Webhook = onRequest(
             node(id: $id) {
               ... on ProjectV2Item {
                 id
-                fieldValueByName(name: "Status") {
+                status: fieldValueByName(name: "Status") {
                   ... on ProjectV2ItemFieldSingleSelectValue {
                     name
+                  }
+                }
+                persona: fieldValueByName(name: "Persona") {
+                  ... on ProjectV2ItemFieldTextValue {
+                    text
                   }
                 }
                 project {
@@ -187,7 +192,8 @@ exports.githubProjectsV2Webhook = onRequest(
           : [];
         const repositoryName = item?.content?.repository?.nameWithOwner;
         const projectNumber = item?.project?.number;
-        const statusName = item?.fieldValueByName?.name;
+        const statusName = item?.status?.name;
+        const personaValue = item?.persona?.text;
 
         if (!issueNumber || projectNumber !== TARGET_PROJECT_NUMBER) {
           logger.info("Ignoring unrelated project item", {
@@ -210,73 +216,32 @@ exports.githubProjectsV2Webhook = onRequest(
           return;
         }
 
-        if (issueLabels.some((label) => label.startsWith("persona:"))) {
-          logger.info("Ignoring project item for issue with active persona", {
-            deliveryId,
-            issueNumber,
-            issueLabels
-          });
-          res.status(204).send("");
-          return;
+        // If Persona field was edited, we dispatch even if labels exist (to continue orchestration).
+        // If Status field was edited to "In Progress", we only dispatch if no persona label exists (to start orchestration).
+        if (changedFieldName === "Status") {
+          if (issueLabels.some((label) => label.startsWith("persona:"))) {
+            logger.info("Ignoring Status change for issue with active persona", {
+              deliveryId,
+              issueNumber,
+              issueLabels
+            });
+            res.status(204).send("");
+            return;
+          }
         }
 
         await dispatchConductorEvent(conductorToken.value(), "project_in_progress", {
           issue_number: issueNumber,
           repository: repositoryName,
-          project_number: TARGET_PROJECT_NUMBER,
-          project_url: `https://github.com/orgs/${TARGET_REPO.split("/")[0]}/projects/${TARGET_PROJECT_NUMBER}`,
-          status: TARGET_STATUS
+          project_number: projectNumber,
+          project_url: `https://github.com/orgs/${TARGET_REPO.split("/")[0]}/projects/${projectNumber}`,
+          status: TARGET_STATUS,
+          item_id: itemNodeId,
+          persona: personaValue
         });
 
-        logger.info("Dispatched project activation", { deliveryId, issueNumber, repositoryName, statusName });
-        res.status(202).json({ ok: true, issueNumber, repository: repositoryName, status: statusName });
-        return;
-      }
-
-      if (eventName === "issues") {
-        const action = req.body?.action;
-        const issueNumber = req.body?.issue?.number;
-        const repositoryName = req.body?.repository?.full_name;
-
-        // Only dispatch on 'opened' or 'labeled' to match conductor's needs, 
-        // but the prompt said "only dispatches on labeled issues and created comments"
-        // so let's follow that.
-        if (action !== "labeled" && action !== "opened") {
-          logger.info("Ignoring unrelated issues action", { deliveryId, action });
-          res.status(204).send("");
-          return;
-        }
-
-        await dispatchConductorEvent(conductorToken.value(), "external_issue_event", {
-          issue_number: issueNumber,
-          repository: repositoryName,
-          action: action
-        });
-
-        logger.info("Dispatched issue event", { deliveryId, issueNumber, repositoryName, action });
-        res.status(202).json({ ok: true, issueNumber, repository: repositoryName, action });
-        return;
-      }
-
-      if (eventName === "issue_comment") {
-        const action = req.body?.action;
-        const issueNumber = req.body?.issue?.number;
-        const repositoryName = req.body?.repository?.full_name;
-
-        if (action !== "created") {
-          logger.info("Ignoring unrelated issue_comment action", { deliveryId, action });
-          res.status(204).send("");
-          return;
-        }
-
-        await dispatchConductorEvent(conductorToken.value(), "external_issue_comment", {
-          issue_number: issueNumber,
-          repository: repositoryName,
-          action: action
-        });
-
-        logger.info("Dispatched issue_comment event", { deliveryId, issueNumber, repositoryName, action });
-        res.status(202).json({ ok: true, issueNumber, repository: repositoryName, action });
+        logger.info("Dispatched project activation", { deliveryId, issueNumber, repositoryName, statusName, changedFieldName });
+        res.status(202).json({ ok: true, issueNumber, repository: repositoryName, status: statusName, changedFieldName });
         return;
       }
 
