@@ -78,12 +78,14 @@ The dispatch contract is:
 The webhook bridge in this repository is a Firebase HTTPS function named `githubProjectsV2Webhook`. It now performs several optimizations:
 
 1. **Verify Webhook Signature**: Ensures events come from GitHub.
-2. **Filter Actions**: Only dispatches for `projects_v2_item:edited` and `projects_v2_item:created`.
-3. **Filter Senders**: Ignores events from bots to prevent feedback loops.
-4. **Trigger Logic**:
+2. **Filter Projects**: Only dispatches for Project #1 (AI Orchestration).
+3. **Filter Actions**: Only dispatches for `projects_v2_item:edited` and `projects_v2_item:created`.
+4. **Filter Senders**: Ignores events from bots to prevent feedback loops.
+5. **Trigger Logic**:
+   - If an item is created with status `In Progress`, dispatch.
    - If `status` changes to `In Progress`, dispatch.
    - If `Persona` changes and `status` is `In Progress`, dispatch.
-5. **Call**:
+6. **Call**:
 
 ```bash
 curl -X POST \

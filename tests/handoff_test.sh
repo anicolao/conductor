@@ -50,6 +50,7 @@ case "$*" in
     ;;
   *"project item-list"*)
     # Return empty string to simulate item not found after jq filter
+    # Note: handoff.sh uses --jq, so gh CLI would return nothing if select() matches nothing.
     echo ""
     ;;
   "project view"*)
@@ -86,7 +87,7 @@ case "$*" in
     echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: test-branch"}]}'
     ;;
   *"project item-list"*)
-    echo '{"id": "ITEM_123"}'
+    echo '{"id": "ITEM_123", "content": {"id": "I_123"}}'
     ;;
   "project view"*)
     echo '"PVT_kwDOA123"'
@@ -123,12 +124,14 @@ case "$*" in
     echo "branch: test-branch"
     echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: test-branch"}]}'
     ;;
-  *"project item-list"*".fieldValues"*)
-    # Verification readback: return wrong persona
-    echo "conductor"
-    ;;
   *"project item-list"*)
-    echo '{"id": "ITEM_123"}'
+    # Verification readback or item finding
+    # Note: handoff.sh uses --jq, so we return the unwrapped persona name or item object
+    if [[ "$*" == *".persona"* ]]; then
+      echo "conductor"
+    else
+      echo '{"id": "ITEM_123", "persona": "conductor"}'
+    fi
     ;;
   "project view"*)
     echo '"PVT_kwDOA123"'
@@ -181,10 +184,10 @@ case "\$*" in
     ;;
   *"project item-list"*)
     if [[ "\$*" == *"--owner someuser"* ]]; then
-      if [[ "\$*" == *".fieldValues"* ]]; then
+      if [[ "\$*" == *".persona"* ]]; then
         echo "tester"
       else
-        echo '{"id": "ITEM_USER_123"}'
+        echo '{"id": "ITEM_USER_123", "persona": "tester", "content": {"number": 123, "repository": "LLM-Orchestration/conductor"}}'
       fi
     else
       echo "Error: wrong owner" >&2
@@ -262,22 +265,39 @@ else
   exit 1
 fi
 
-# Test 6: Fail because project_number provided but issue_node_id is missing
+# Test 6: Success with fallback when issue_node_id is missing
 cat > "$GITHUB_EVENT_PATH" <<'EOF'
 {
   "client_payload": {
     "issue_number": 123,
-    "project_number": 1
+    "project_number": 1,
+    "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1"
   }
 }
 EOF
-cat > "$TEST_DIR/gh" <<'EOF'
+cat > "$TEST_DIR/gh" <<EOF
 #!/usr/bin/env bash
-case "$*" in
-  "issue view"*)
+case "\$*" in
+  "issue view"*".labels[].name"*)
     echo "persona: coder"
-    echo "branch: test-branch"
-    echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: test-branch"}]}'
+    echo "branch: $branch_name"
+    ;;
+  "issue view"*)
+    echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: $branch_name"}]}'
+    ;;
+  *"project item-list"*)
+    # Return success by finding item via issue number and repository
+    if [[ "\$*" == *".persona"* ]]; then
+      echo "coder"
+    else
+      echo '{"id": "ITEM_123", "persona": "coder", "content": {"number": 123, "repository": "LLM-Orchestration/conductor"}}'
+    fi
+    ;;
+  "project view"*)
+    echo '"PVT_kwDOA123"'
+    ;;
+  *"project field-list"*)
+    echo '{"fields": [{"name": "Persona", "id": "FIELD_P", "options": [{"name": "coder", "id": "OPT_CODER"}]}]}'
     ;;
   *)
     exit 0
@@ -285,18 +305,21 @@ case "$*" in
 esac
 EOF
 
-echo "Running handoff.sh (expecting failure due to missing issue_node_id)..."
+chmod +x "$TEST_DIR/gh"
+
+echo "Running handoff.sh (expecting success with fallback for missing issue_node_id)..."
 if bash scripts/handoff.sh coder < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
-  echo "Error: handoff.sh should have failed but exited with 0"
-  exit 1
-else
-  if grep -q "Error: project_number provided but issue_node_id is missing" "$TEST_DIR/stderr"; then
-    echo "Success: handoff.sh failed with correct error message"
+  if grep -q "Warning: issue_node_id is missing, will attempt to find project item by issue number and repository" "$TEST_DIR/stderr"; then
+    echo "Success: handoff.sh succeeded with fallback warning"
   else
-    echo "Error: handoff.sh failed but with wrong message"
+    echo "Error: handoff.sh succeeded but missing expected warning"
     cat "$TEST_DIR/stderr"
     exit 1
   fi
+else
+  echo "Error: handoff.sh should have succeeded with fallback"
+  cat "$TEST_DIR/stderr"
+  exit 1
 fi
 
 # Test 7: Fail because project_number provided but project_url is missing
