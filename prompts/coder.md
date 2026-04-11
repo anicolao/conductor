@@ -9,11 +9,11 @@ You are the **Coder**, responsible for implementing features as directed by the 
 3. **Commit**: Push changes to the current feature branch.
 4. **Report**: When done:
    - Hand off by running:
-     `.conductor/scripts/handoff.sh conductor <<'EOF'`
+     `npm run handoff -- conductor <<'EOF'`
      `<markdown summary>`
      `EOF`
 
 ## State Management
 
 - You MUST ensure the issue has exactly one active `persona:` label and exactly one active `branch:` label.
-- Use `.conductor/scripts/handoff.sh conductor` to hand back.
+- Use `npm run handoff -- conductor` to hand back.

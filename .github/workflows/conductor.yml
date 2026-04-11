@@ -1,6 +1,6 @@
 name: Conductor
 
-run-name: Conductor [${{ github.event.client_payload.repository || github.repository }}] Issue #${{ github.event.client_payload.issue_number || github.event.issue.number }} - Persona: ${{ github.event.client_payload.persona || 'unknown' }} - Event: ${{ github.event.client_payload.event_name || github.event_name }}${{ github.event.client_payload.action && format(' ({0})', github.event.client_payload.action) || '' }}
+run-name: Conductor [${{ github.event.client_payload.persona || 'orchestrator' }}] for ${{ github.event.client_payload.repository || github.repository }} #${{ github.event.client_payload.issue_number || github.event.issue.number }}
 
 on:
   repository_dispatch:
@@ -13,50 +13,38 @@ permissions:
 
 jobs:
   run-conductor:
-    # No longer filtering by labels/mentions here because the bridge already does it.
-    # This prevents duplicate runs for the conductor repo itself.
     runs-on: ubuntu-latest
     steps:
-      - name: Determine Target Metadata
-        id: metadata
-        run: |
-          ISSUE_NUMBER=$(jq -r '.client_payload.issue_number // empty' "$GITHUB_EVENT_PATH")
-          REPO=$(jq -r '.client_payload.repository // "${{ github.repository }}"' "$GITHUB_EVENT_PATH")
-          echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
-          echo "repository=$REPO" >> $GITHUB_OUTPUT
-          echo "Target Repo: $REPO, Issue: $ISSUE_NUMBER"
-
-      - name: Checkout Target Repo
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          repository: ${{ steps.metadata.outputs.repository }}
           fetch-depth: 0
           token: ${{ secrets.CONDUCTOR_TOKEN }}
-          path: '.'
-
-      - name: Checkout Conductor Repo
-        uses: actions/checkout@v4
-        with:
-          repository: LLM-Orchestration/conductor
-          fetch-depth: 0
-          token: ${{ secrets.CONDUCTOR_TOKEN }}
-          path: '.conductor'
 
       - name: Determine Branch
         id: branch
         env:
           GH_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
-          REPO: ${{ steps.metadata.outputs.repository }}
-          ISSUE_NUMBER: ${{ steps.metadata.outputs.issue_number }}
         run: |
-          BRANCH=$(gh api "repos/$REPO/issues/$ISSUE_NUMBER" --jq '.labels[].name | select(startswith("branch:"))' 2>/dev/null | cut -d':' -f2- | xargs || true)
+          BRANCH=""
+          ISSUE_NUMBER=$(jq -r '.client_payload.issue_number // empty' "$GITHUB_EVENT_PATH")
+          REPOSITORY=$(jq -r '.client_payload.repository // empty' "$GITHUB_EVENT_PATH")
+          
+          if [ -z "$REPOSITORY" ]; then
+            REPOSITORY="${{ github.repository }}"
+          fi
+
+          if [ -n "$ISSUE_NUMBER" ]; then
+            BRANCH=$(gh api "repos/$REPOSITORY/issues/$ISSUE_NUMBER" --jq '.labels[].name | select(startswith("branch:"))' 2>/dev/null | cut -d':' -f2- | xargs || true)
+          fi
+
           if [ -z "$BRANCH" ]; then
             BRANCH="main"
           fi
           echo "branch=$BRANCH" >> $GITHUB_OUTPUT
           echo "Selected branch: $BRANCH"
 
-      - name: Switch Target Repo to Branch
+      - name: Switch to Branch
         run: |
           BRANCH=${{ steps.branch.outputs.branch }}
           if [ "$BRANCH" != "main" ]; then
@@ -68,23 +56,18 @@ jobs:
         with:
           node-version: 24
           cache: 'npm'
-          cache-dependency-path: .conductor/package-lock.json
 
       - name: Install Dependencies
-        working-directory: .conductor
         run: npm install
 
       - name: Build
-        working-directory: .conductor
         run: npm run build
 
       - name: Run Conductor
-        working-directory: .conductor
         env:
           CONDUCTOR_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
           GH_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
-          GITHUB_REPOSITORY: ${{ steps.metadata.outputs.repository }}
         run: npm start

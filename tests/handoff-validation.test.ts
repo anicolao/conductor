@@ -4,7 +4,7 @@ import path from 'path';
 
 describe('handoff script validation', () => {
   it('should pass all handoff validation tests', async () => {
-    const scriptPath = path.resolve(__dirname, './handoff_test.sh');
+    const scriptPath = path.resolve(__dirname, './handoff.test.sh');
     const result = await runStreamingCommand('bash', [scriptPath], process.env);
     
     if (result.status !== 0) {

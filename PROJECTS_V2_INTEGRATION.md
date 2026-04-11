@@ -28,24 +28,15 @@ The workflow file can still load, but no Actions run will ever be created from t
 
 The working design is:
 
-1. A Projects V2 item in the organization project moves to `In Progress`.
-2. An organization-level webhook or GitHub App receives the `projects_v2_item` event.
-3. That bridge sends a `repository_dispatch` event to `LLM-Orchestration/conductor`.
+1. A Projects V2 item in the organization project moves to `In Progress`, OR the `Persona` field is edited.
+2. An organization-level webhook receives the event and forwards it to the Bridge (Firebase function).
+3. The bridge performs filtering (ignores bots, filters actions) and sends a `repository_dispatch` event to `LLM-Orchestration/conductor`.
 4. The Conductor workflow starts from `repository_dispatch`.
-5. `src/index.ts` resolves the live issue state and activates the persona specified in the Project V2 `Persona` field (defaulting to `conductor` if not set).
-
-### The Persona Field
-
-To support more granular control over which agent is active, the project board uses a custom single-select field named **Persona**.
-
-- **Field Name**: `Persona`
-- **Options**: `conductor`, `coder`
-
-When a handoff occurs (e.g., from Conductor to Coder), the `handoff.sh` script updates this field. The Firebase bridge receives the `projects_v2_item` event for this change and dispatches a new `repository_dispatch` event, ensuring the next agent starts its work immediately.
+5. `src/index.ts` resolves the live issue state and activates the requested persona. It supports issues in any repository as specified in the dispatch payload.
 
 ## Workflow Trigger
 
-The workflow is now centralized to only listen for `repository_dispatch`. The bridge ONLY dispatches based on `projects_v2_item` events.
+The workflow now listens exclusively for `repository_dispatch` with the `project_in_progress` type:
 
 ```yaml
 on:
@@ -53,59 +44,34 @@ on:
     types: [project_in_progress]
 ```
 
-The dispatch contract is:
+The dispatch payload includes enriched metadata:
 
 ```json
 {
   "event_type": "project_in_progress",
   "client_payload": {
-    "repository": "LLM-Orchestration/conductor",
     "issue_number": 38,
-    "issue_url": "https://github.com/LLM-Orchestration/conductor/issues/38",
-    "issue_node_id": "I_kwDOK7z8z852Y8-Y",
+    "repository": "owner/repo",
     "project_number": 1,
     "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1",
     "status": "In Progress",
-    "persona": "conductor",
-    "event_name": "projects_v2_item",
-    "action": "edited"
+    "item_id": "PVTI_lADOB0m...",
+    "persona": "coder"
   }
 }
 ```
 
 ## Bridge Requirements
 
-The webhook bridge in this repository is a Firebase HTTPS function named `githubProjectsV2Webhook`. It now performs several optimizations:
+The webhook bridge in this repository is a Firebase HTTPS function named `githubProjectsV2Webhook`. It:
 
-1. **Verify Webhook Signature**: Ensures events come from GitHub.
-2. **Filter Actions**: Only dispatches for `projects_v2_item:edited` and `projects_v2_item:created`.
-3. **Filter Senders**: Ignores events from bots to prevent feedback loops.
-4. **Trigger Logic**:
-   - If `status` changes to `In Progress`, dispatch.
-   - If `Persona` changes and `status` is `In Progress`, dispatch.
-5. **Call**:
-
-```bash
-curl -X POST \
-  -H "Accept: application/vnd.github+json" \
-  -H "Authorization: Bearer $CONDUCTOR_TOKEN" \
-  https://api.github.com/repos/LLM-Orchestration/conductor/dispatches \
-  -d '{
-    "event_type": "project_in_progress",
-    "client_payload": {
-      "repository": "LLM-Orchestration/conductor",
-      "issue_number": 38,
-      "issue_url": "https://github.com/LLM-Orchestration/conductor/issues/38",
-      "issue_node_id": "I_kwDOK7z8z852Y8-Y",
-      "project_number": 1,
-      "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1",
-      "status": "In Progress",
-      "persona": "conductor",
-      "event_name": "projects_v2_item",
-      "action": "edited"
-    }
-  }'
-```
+1. Verifies the GitHub webhook signature.
+2. Filters out events from Bot accounts.
+3. Detects specific event types:
+   - `projects_v2_item`: 
+     - Triggered when the `Status` field is changed to `In Progress` (starts orchestration).
+     - Triggered when the `Persona` field is edited while the status is `In Progress` (continues orchestration).
+4. Dispatches to `LLM-Orchestration/conductor` with enriched metadata (repository name, issue number, item ID, and project number).
 
 ## Firebase Deployment
 
@@ -157,25 +123,11 @@ The current local `gh` token and repo secret were refreshed with:
 
 ## Operator Flow
 
-The Conductor is triggered by Project V2 activity:
-
-### 1. Starting Orchestration
-1. Add an issue from any repository in the `LLM-Orchestration` organization to the `AI Orchestration` project.
+1. Add an issue from any repository in the organization to the `AI Orchestration` project.
 2. Move it to `In Progress`.
-3. The webhook bridge dispatches `project_in_progress` to the `conductor` repository.
-4. Conductor activates on that issue in its respective repository.
-
-### 2. Continuing Orchestration (Handoff)
-1. When an agent finishes its task, it uses `handoff.sh` to update the `Persona` field in the project.
-2. The webhook bridge detects the `Persona` field change and dispatches a new `repository_dispatch`.
-3. The next agent (e.g., `coder`) starts its work.
-
-### Audit Trail
-- Comments on issues are used for the audit trail and human-in-the-loop feedback, but they do not currently trigger the workflow directly. The live webhook is only subscribed to `projects_v2_item`.
-
-### Loop Prevention
-- The bridge explicitly ignores events from bot accounts (senders with `type: Bot` or login ending in `[bot]`).
-- The Conductor workflow no longer listens directly to `issues` or `issue_comment` events, centralizing all triggers through the bridge.
+3. The webhook bridge dispatches `project_in_progress`.
+4. Conductor activates on that issue and continues with the normal persona handoff flow.
+5. The `scripts/handoff.sh` script updates the `Persona` field in the project as its final step, which triggers the next persona's run.
 
 ## Notes
 
@@ -183,25 +135,3 @@ The Conductor is triggered by Project V2 activity:
 - `labeled` events are explicitly excluded from the workflow configuration to prevent redundant or recursive runs when agents update state.
 - The project itself is for centralized visibility and control.
 - The webhook bridge is what converts project activity into a workflow event.
-
-## Cross-Repository Orchestration
-
-The Conductor is designed to be a central orchestrator for an entire organization. It can be triggered by events from any repository and will automatically checkout the target repository to perform its work.
-
-### How it Works
-
-1.  **Trigger**: An event occurs in any repository (e.g., an issue is moved to "In Progress" in an org-level project, or `@conductor` is mentioned in an issue comment).
-2.  **Bridge**: The Firebase Bridge function receives the org-level webhook and dispatches a `repository_dispatch` event to the central `LLM-Orchestration/conductor` repository.
-3.  **Workflow**: The Conductor workflow starts and:
-    *   Determines the target repository and issue number from the payload.
-    *   Performs a **Dual Checkout**:
-        *   Target Repo is checked out to `.` (the root).
-        *   Conductor Repo is checked out to `.conductor/`.
-    *   The Conductor logic runs from `.conductor/` but executes the Gemini CLI with the working directory set to the root (`.`), where the target repo resides.
-4.  **Handoff**: The agents use the handoff script located at `.conductor/scripts/handoff.sh`, which explicitly targets the target repository using the `-R` flag.
-
-### Deployment Notes
-
-*   **GitHub Token**: The `CONDUCTOR_TOKEN` secret in the central repository must have `write` access to all repositories it is expected to orchestrate.
-*   **Webhook**: The GitHub App or Webhook must be configured at the **Organization** level to receive events from all repositories.
-*   **Standard Labels**: All repositories should use the same `persona:` and `branch:` label conventions for seamless orchestration.
