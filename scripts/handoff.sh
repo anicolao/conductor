@@ -77,6 +77,23 @@ gh issue edit "$issue_number" -R "$target_repo" \
   --add-label "persona: $target" \
   --add-label "branch: $branch_name"
 
+verified=0
+for _ in 1 2 3 4 5; do
+  labels_after="$(current_labels)"
+  if grep -Fqx "persona: $target" <<< "$labels_after" && grep -Fqx "branch: $branch_name" <<< "$labels_after"; then
+    verified=1
+    break
+  fi
+  sleep 1
+done
+
+if [ "$verified" -ne 1 ]; then
+  echo "Failed to verify handoff labels on issue $issue_number in $target_repo before posting comment" >&2
+  exit 1
+fi
+
+gh issue comment "$issue_number" -R "$target_repo" --body-file "$body_file"
+
 # Update Project V2 Persona field if project info is available
 project_owner="$(node -e "
 const fs = require('fs');
@@ -165,19 +182,3 @@ if [ -n "$project_number" ]; then
   fi
 fi
 
-verified=0
-for _ in 1 2 3 4 5; do
-  labels_after="$(current_labels)"
-  if grep -Fqx "persona: $target" <<< "$labels_after" && grep -Fqx "branch: $branch_name" <<< "$labels_after"; then
-    verified=1
-    break
-  fi
-  sleep 1
-done
-
-if [ "$verified" -ne 1 ]; then
-  echo "Failed to verify handoff labels on issue $issue_number in $target_repo before posting comment" >&2
-  exit 1
-fi
-
-gh issue comment "$issue_number" -R "$target_repo" --body-file "$body_file"

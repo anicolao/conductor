@@ -44,7 +44,9 @@ cat > "$TEST_DIR/gh" <<'EOF'
 #!/usr/bin/env bash
 case "$*" in
   "issue view"*)
-    echo '{"labels":[]}'
+    echo "persona: coder"
+    echo "branch: test-branch"
+    echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: test-branch"}]}'
     ;;
   *"project item-list"*)
     # Return empty string to simulate item not found after jq filter
@@ -79,7 +81,9 @@ cat > "$TEST_DIR/gh" <<'EOF'
 #!/usr/bin/env bash
 case "$*" in
   "issue view"*)
-    echo '{"labels":[]}'
+    echo "persona: coder"
+    echo "branch: test-branch"
+    echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: test-branch"}]}'
     ;;
   *"project item-list"*)
     echo '{"id": "ITEM_123"}'
@@ -115,7 +119,9 @@ cat > "$TEST_DIR/gh" <<'EOF'
 #!/usr/bin/env bash
 case "$*" in
   "issue view"*)
-    echo '{"labels":[]}'
+    echo "persona: coder"
+    echo "branch: test-branch"
+    echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: test-branch"}]}'
     ;;
   *"project item-list"*".fieldValues"*)
     # Verification readback: return wrong persona
@@ -269,7 +275,9 @@ cat > "$TEST_DIR/gh" <<'EOF'
 #!/usr/bin/env bash
 case "$*" in
   "issue view"*)
-    echo '{"labels":[]}'
+    echo "persona: coder"
+    echo "branch: test-branch"
+    echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: test-branch"}]}'
     ;;
   *)
     exit 0

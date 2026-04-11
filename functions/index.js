@@ -120,56 +120,6 @@ exports.githubProjectsV2Webhook = onRequest(
       return;
     }
 
-    if (eventName === "issues" || eventName === "issue_comment") {
-      const action = req.body?.action;
-      const sender = req.body?.sender;
-
-      // Filter: Ignore bots to prevent orchestration loops
-      if (sender?.type === "Bot" || sender?.login?.endsWith("[bot]")) {
-        logger.info("Ignoring event from bot sender", { deliveryId, sender: sender?.login });
-        res.status(204).send("");
-        return;
-      }
-
-      // Filter actions: only 'opened' for issues and 'created' for issue_comment.
-      // This prevents dispatches from label changes (handoffs) which cause duplicate runs.
-      if (eventName === "issues" && action !== "opened") {
-        logger.info("Ignoring non-opened issue event", { deliveryId, action });
-        res.status(204).send("");
-        return;
-      }
-      if (eventName === "issue_comment" && action !== "created") {
-        logger.info("Ignoring non-created comment event", { deliveryId, action });
-        res.status(204).send("");
-        return;
-      }
-
-      const body = req.body?.comment?.body || req.body?.issue?.body || "";
-      const issueNumber = req.body?.issue?.number;
-      const issueUrl = req.body?.issue?.html_url;
-      const issueNodeId = req.body?.issue?.node_id;
-      const repositoryName = req.body?.repository?.full_name;
-      const labels = req.body?.issue?.labels?.map(l => l.name) || [];
-
-      if (!issueNumber || !repositoryName) {
-        res.status(400).send("Missing issue number or repository");
-        return;
-      }
-
-      const personaLabel = labels.find(l => l.startsWith("persona:"));
-      const persona = personaLabel ? personaLabel.split(":")[1].trim() : (body.includes("@conductor") ? "conductor" : null);
-
-      if (persona) {
-        await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value(), eventName, action, body, issueUrl, issueNodeId, null, null, persona);
-        logger.info("Dispatched issue event", { deliveryId, eventName, action, repositoryName, issueNumber, persona });
-        res.status(202).json({ ok: true, repository: repositoryName, issueNumber, eventName, persona });
-        return;
-      }
-
-      res.status(204).send("");
-      return;
-    }
-
     if (eventName !== "projects_v2_item") {
       logger.info("Ignoring unsupported GitHub event", { deliveryId, eventName });
       res.status(204).send("");
