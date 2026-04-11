@@ -360,5 +360,57 @@ else
   fi
 fi
 
+# Test 8: Success for 'human' target (removes persona labels, preserves branch)
+cat > "$GITHUB_EVENT_PATH" <<'EOF'
+{
+  "client_payload": {
+    "issue_number": 789,
+    "repository": "LLM-Orchestration/conductor",
+    "project_number": 1,
+    "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1"
+  }
+}
+EOF
+cat > "$TEST_DIR/gh" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+  "issue view"*".labels[].name"*)
+    if [ -f "$TEST_DIR/labels_removed" ]; then
+      echo "branch: $branch_name"
+    else
+      echo "persona: conductor"
+      echo "branch: $branch_name"
+    fi
+    ;;
+  "issue edit"*)
+    if [[ "\$*" == *"--remove-label persona: conductor"* ]] && [[ "\$*" == *"--add-label branch: $branch_name"* ]] && [[ "\$*" != *"--add-label persona:"* ]]; then
+      touch "$TEST_DIR/labels_removed"
+      exit 0
+    else
+      echo "Error: wrong labels in issue edit for human target" >&2
+      echo "Args: \$*" >&2
+      exit 1
+    fi
+    ;;
+  "project"*)
+    echo "Error: Project commands should not be called for human target" >&2
+    exit 1
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+EOF
+chmod +x "$TEST_DIR/gh"
+rm -f "$TEST_DIR/labels_removed"
+
+echo "Running handoff.sh human (expecting success, persona label removed, branch preserved, no project updates)..."
+if bash scripts/handoff.sh human < "$TEST_DIR/comment.md"; then
+  echo "Success: handoff.sh human succeeded correctly"
+else
+  echo "Error: handoff.sh human failed"
+  exit 1
+fi
+
 echo "All handoff validation tests passed!"
 exit 0
