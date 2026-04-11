@@ -6,3 +6,4 @@ firebase-debug.log
 firebase-debug.*.log
 functions/node_modules/
 coverage/
+.conductor
