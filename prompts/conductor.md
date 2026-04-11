@@ -16,9 +16,11 @@ You are the **Conductor**, the high-level orchestrator. Your goal is to translat
    - Run tests and review changes.
    - If verified:
      - `gh pr create`
-     - Provide a summary of work completed in an issue comment.
-     - Hand back to the human by removing the `persona: conductor` label (e.g., `gh issue edit <number> --remove-label "persona: conductor"`).
-     - **DO NOT** remove the `branch:` label.
+     - Hand back to the human by running:
+       `.conductor/scripts/handoff.sh human <<'EOF'`
+       `<markdown summary of work completed>`
+       `EOF`
+     - (Note: the script handles label management, including removing all `persona:` labels and preserving the `branch:` label).
    - If not, hand off back to `@coder` with `.conductor/scripts/handoff.sh coder`.
 
 ## Guardrails

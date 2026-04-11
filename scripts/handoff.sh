@@ -72,7 +72,7 @@ edit_args=()
 while IFS= read -r label; do
   case "$label" in
     "persona: "*)
-      if [ "$label" != "persona: $target" ]; then
+      if [ "$target" == "human" ] || [ "$label" != "persona: $target" ]; then
         edit_args+=(--remove-label "$label")
       fi
       ;;
@@ -84,17 +84,30 @@ while IFS= read -r label; do
   esac
 done <<< "$existing_labels"
 
-gh issue edit "$issue_number" -R "$target_repo" \
-  "${edit_args[@]}" \
-  --add-label "persona: $target" \
-  --add-label "branch: $branch_name"
+if [ "$target" == "human" ]; then
+  gh issue edit "$issue_number" -R "$target_repo" \
+    "${edit_args[@]}" \
+    --add-label "branch: $branch_name"
+else
+  gh issue edit "$issue_number" -R "$target_repo" \
+    "${edit_args[@]}" \
+    --add-label "persona: $target" \
+    --add-label "branch: $branch_name"
+fi
 
 verified=0
 for _ in 1 2 3 4 5; do
   labels_after="$(current_labels)"
-  if grep -Fqx "persona: $target" <<< "$labels_after" && grep -Fqx "branch: $branch_name" <<< "$labels_after"; then
-    verified=1
-    break
+  if [ "$target" == "human" ]; then
+    if ! grep -Fq "persona: " <<< "$labels_after" && grep -Fqx "branch: $branch_name" <<< "$labels_after"; then
+      verified=1
+      break
+    fi
+  else
+    if grep -Fqx "persona: $target" <<< "$labels_after" && grep -Fqx "branch: $branch_name" <<< "$labels_after"; then
+      verified=1
+      break
+    fi
   fi
   sleep 1
 done
@@ -125,7 +138,7 @@ const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'))
 process.stdout.write(event.issue?.node_id || event.client_payload?.issue_node_id || '');
 ")"
 
-if [ -n "$project_number" ]; then
+if [ -n "$project_number" ] && [ "$target" != "human" ]; then
   if [ -z "$issue_node_id" ]; then
     echo "Warning: issue_node_id is missing, will attempt to find project item by issue number and repository" >&2
   fi
