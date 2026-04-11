@@ -115,17 +115,16 @@ process.stdout.write(event.issue?.node_id || event.client_payload?.issue_node_id
 
 if [ -n "$project_number" ]; then
   if [ -z "$issue_node_id" ]; then
-    echo "Error: project_number provided but issue_node_id is missing" >&2
-    exit 1
+    echo "Warning: issue_node_id is missing, will attempt to find project item by issue number and repository" >&2
   fi
   if [ -z "$project_owner" ]; then
     echo "Error: project_number provided but project_owner could not be determined from project_url" >&2
     exit 1
   fi
 
-  echo "Finding project item for issue node ID: $issue_node_id in project $project_number"
+  echo "Finding project item for issue $issue_number in repository $target_repo in project $project_number"
 
-  item_data=$(gh project item-list "$project_number" --owner "$project_owner" --limit 1000 --format json --jq ".items[] | select(.content.id == \"$issue_node_id\")" | head -n 1)
+  item_data=$(gh project item-list "$project_number" --owner "$project_owner" --limit 1000 --format json --jq ".items[] | select((.content.number == $issue_number and .content.repository == \"$target_repo\") or .content.id == \"$issue_node_id\")" | head -n 1)
   
   if [ -z "$item_data" ]; then
     echo "Error: Could not find project item for issue node ID $issue_node_id in project $project_number (owner: $project_owner)" >&2
@@ -164,7 +163,7 @@ if [ -n "$project_number" ]; then
   project_verified=0
   for i in 1 2 3 4 5; do
     # Use item-list with a query for the specific item to be efficient
-    current_persona=$(gh project item-list "$project_number" --owner "$project_owner" --limit 1000 --format json --jq ".items[] | select(.id == \"$item_id\") | .fieldValues[] | select(.field.name == \"Persona\") | .name // empty" 2>/dev/null | head -n 1)
+    current_persona=$(gh project item-list "$project_number" --owner "$project_owner" --limit 1000 --format json --jq ".items[] | select(.id == \"$item_id\") | .persona // empty" 2>/dev/null | head -n 1)
     
     if [ "$current_persona" == "$target" ]; then
       project_verified=1

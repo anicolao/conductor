@@ -38,6 +38,7 @@ interface ProjectItemsQuery {
           status?: { name?: string | null } | null;
           persona?: { name?: string | null } | null;
           content?: {
+            id?: string | null;
             number?: number | null;
             url?: string | null;
             repository?: { nameWithOwner?: string | null } | null;
@@ -170,6 +171,7 @@ async function loadProjectItems(token: string): Promise<ProjectIssueItem[]> {
               }
               content {
                 ... on Issue {
+                  id
                   number
                   url
                   repository {
@@ -203,13 +205,15 @@ async function loadProjectItems(token: string): Promise<ProjectIssueItem[]> {
       const repository = node.content?.repository?.nameWithOwner;
       const issueNumber = node.content?.number;
       const issueUrl = node.content?.url;
+      const issueNodeId = node.content?.id;
       const status = node.status?.name;
-      if (!repository || !issueNumber || !issueUrl || !status) continue;
+      if (!repository || !issueNumber || !issueUrl || !issueNodeId || !status) continue;
 
       items.push({
         repository,
         issueNumber,
         issueUrl,
+        issueNodeId,
         projectNumber: PROJECT_NUMBER,
         projectUrl: project.url,
         status,
@@ -246,6 +250,7 @@ async function dispatchRecovery(item: ProjectIssueItem, token: string): Promise<
           repository: item.repository,
           issue_number: item.issueNumber,
           issue_url: item.issueUrl,
+          issue_node_id: item.issueNodeId,
           project_number: item.projectNumber,
           project_url: item.projectUrl,
           status: TARGET_STATUS,

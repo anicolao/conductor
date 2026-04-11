@@ -2,6 +2,7 @@ export interface ProjectIssueItem {
   repository: string;
   issueNumber: number;
   issueUrl: string;
+  issueNodeId: string;
   projectNumber: number;
   projectUrl: string;
   status: string;
