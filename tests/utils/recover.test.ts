@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  countRecoveryAttempts,
   findOrphanedItems,
   hasActiveRun,
+  isRecoveryRun,
   normalizePersona,
   parseRunTarget,
   ProjectIssueItem
@@ -18,6 +20,18 @@ describe('recover utils', () => {
 
   it('returns null for non-conductor titles', () => {
     expect(parseRunTarget('CI run')).toBeNull();
+  });
+
+  it('detects watchdog recovery-triggered runs from their title', () => {
+    expect(isRecoveryRun({
+      status: 'completed',
+      display_title: 'Conductor [LLM-Orchestration/conductor] Issue #53 - Persona: coder - Event: schedule (recover_orphaned_in_progress)'
+    })).toBe(true);
+
+    expect(isRecoveryRun({
+      status: 'completed',
+      display_title: 'Conductor [LLM-Orchestration/conductor] Issue #53 - Persona: coder - Event: repository_dispatch'
+    })).toBe(false);
   });
 
   it('detects an active run for a matching issue', () => {
@@ -61,6 +75,25 @@ describe('recover utils', () => {
     expect(findOrphanedItems(items, [
       { status: 'in_progress', display_title: 'Conductor [LLM-Orchestration/conductor] Issue #54 - Persona: conductor - Event: repository_dispatch' }
     ])).toEqual([items[0]]);
+  });
+
+  it('counts only retry-mechanism attempts for the matching issue', () => {
+    const item: ProjectIssueItem = {
+      repository: 'LLM-Orchestration/conductor',
+      issueNumber: 53,
+      issueUrl: 'https://github.com/LLM-Orchestration/conductor/issues/53',
+      projectNumber: 1,
+      projectUrl: 'https://github.com/orgs/LLM-Orchestration/projects/1',
+      status: 'In Progress',
+      persona: 'coder'
+    };
+
+    expect(countRecoveryAttempts(item, [
+      { status: 'completed', display_title: 'Conductor [LLM-Orchestration/conductor] Issue #53 - Persona: coder - Event: schedule (recover_orphaned_in_progress)' },
+      { status: 'queued', display_title: 'Conductor [LLM-Orchestration/conductor] Issue #53 - Persona: coder - Event: schedule (recover_orphaned_in_progress)' },
+      { status: 'completed', display_title: 'Conductor [LLM-Orchestration/conductor] Issue #53 - Persona: coder - Event: repository_dispatch' },
+      { status: 'completed', display_title: 'Conductor [LLM-Orchestration/conductor] Issue #99 - Persona: coder - Event: schedule (recover_orphaned_in_progress)' }
+    ])).toBe(2);
   });
 
   it('defaults missing or unknown persona to conductor', () => {

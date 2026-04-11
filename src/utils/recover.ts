@@ -19,6 +19,7 @@ export interface RunTarget {
 }
 
 const CONDUCTOR_RUN_TITLE = /^Conductor \[(.+)\] Issue #(\d+)\b/;
+const RECOVERY_RUN_SUFFIX = 'Event: schedule (recover_orphaned_in_progress)';
 
 export function parseRunTarget(displayTitle?: string | null): RunTarget | null {
   if (!displayTitle) return null;
@@ -36,6 +37,10 @@ export function normalizePersona(persona?: string | null): 'conductor' | 'coder'
   return persona === 'coder' ? 'coder' : 'conductor';
 }
 
+export function isRecoveryRun(run: ConductorWorkflowRun): boolean {
+  return typeof run.display_title === 'string' && run.display_title.includes(RECOVERY_RUN_SUFFIX);
+}
+
 export function hasActiveRun(item: ProjectIssueItem, runs: ConductorWorkflowRun[]): boolean {
   return runs.some(run => {
     if (run.status === 'completed') return false;
@@ -43,6 +48,15 @@ export function hasActiveRun(item: ProjectIssueItem, runs: ConductorWorkflowRun[
     const target = parseRunTarget(run.display_title);
     return target?.repository === item.repository && target.issueNumber === item.issueNumber;
   });
+}
+
+export function countRecoveryAttempts(item: ProjectIssueItem, runs: ConductorWorkflowRun[]): number {
+  return runs.filter(run => {
+    if (!isRecoveryRun(run)) return false;
+
+    const target = parseRunTarget(run.display_title);
+    return target?.repository === item.repository && target.issueNumber === item.issueNumber;
+  }).length;
 }
 
 export function findOrphanedItems(items: ProjectIssueItem[], runs: ConductorWorkflowRun[]): ProjectIssueItem[] {
