@@ -127,7 +127,7 @@ case "$*" in
   *"project item-list"*)
     # Verification readback or item finding
     # Note: handoff.sh uses --jq, so we return the unwrapped persona name or item object
-    if [[ "$*" == *".fieldValues"* ]]; then
+    if [[ "$*" == *".persona"* ]]; then
       echo "conductor"
     else
       echo '{"id": "ITEM_123", "persona": "conductor"}'
@@ -184,7 +184,7 @@ case "\$*" in
     ;;
   *"project item-list"*)
     if [[ "\$*" == *"--owner someuser"* ]]; then
-      if [[ "\$*" == *".fieldValues"* ]]; then
+      if [[ "\$*" == *".persona"* ]]; then
         echo "tester"
       else
         echo '{"id": "ITEM_USER_123", "persona": "tester", "content": {"number": 123, "repository": "LLM-Orchestration/conductor"}}'
@@ -287,7 +287,7 @@ case "\$*" in
     ;;
   *"project item-list"*)
     # Return success by finding item via issue number and repository
-    if [[ "\$*" == *".fieldValues"* ]]; then
+    if [[ "\$*" == *".persona"* ]]; then
       echo "coder"
     else
       echo '{"id": "ITEM_123", "persona": "coder", "content": {"number": 123, "repository": "LLM-Orchestration/conductor"}}'

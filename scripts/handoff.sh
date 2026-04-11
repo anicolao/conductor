@@ -163,7 +163,7 @@ if [ -n "$project_number" ]; then
   project_verified=0
   for i in 1 2 3 4 5; do
     # Use item-list with a query for the specific item to be efficient
-    current_persona=$(gh project item-list "$project_number" --owner "$project_owner" --limit 1000 --format json --jq ".items[] | select(.id == \"$item_id\") | .fieldValues[] | select(.field.name == \"Persona\") | .name // empty" 2>/dev/null | head -n 1)
+    current_persona=$(gh project item-list "$project_number" --owner "$project_owner" --limit 1000 --format json --jq ".items[] | select(.id == \"$item_id\") | .persona // empty" 2>/dev/null | head -n 1)
     
     if [ "$current_persona" == "$target" ]; then
       project_verified=1
