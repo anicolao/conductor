@@ -11,6 +11,7 @@ const conductorToken = defineSecret("CONDUCTOR_TOKEN");
 
 const TARGET_REPO = "LLM-Orchestration/conductor";
 const TARGET_STATUS = "In Progress";
+const TARGET_PROJECT_NUMBER = 1;
 
 function timingSafeEqualHex(a, b) {
   const aBuffer = Buffer.from(a, "utf8");
@@ -126,17 +127,26 @@ exports.githubProjectsV2Webhook = onRequest(
       return;
     }
 
-    if (req.body?.action !== "edited") {
-      logger.info("Ignoring project item event without an edited action", {
+    const action = req.body?.action;
+    if (action !== "edited" && action !== "created") {
+      logger.info("Ignoring project item event with unsupported action", {
         deliveryId,
-        action: req.body?.action || null
+        action: action || null
       });
       res.status(204).send("");
       return;
     }
 
+    const senderType = req.body?.sender?.type;
+    const senderLogin = req.body?.sender?.login || "";
+    if (senderType === "Bot" || senderLogin.endsWith("[bot]")) {
+      logger.info("Ignoring bot event", { deliveryId, senderLogin });
+      res.status(204).send("");
+      return;
+    }
+
     const changedFieldName = req.body?.changes?.field_value?.field_name;
-    if (changedFieldName !== "Status" && changedFieldName !== "Persona") {
+    if (action === "edited" && changedFieldName !== "Status" && changedFieldName !== "Persona") {
       logger.info("Ignoring non-status/persona project item edit", {
         deliveryId,
         changedFieldName: changedFieldName || null
@@ -222,14 +232,27 @@ exports.githubProjectsV2Webhook = onRequest(
         return;
       }
 
-      // Trigger if Status is "In Progress" OR if Persona was changed
-      const isStatusTrigger = changedFieldName === "Status" && statusName === TARGET_STATUS;
-      const isPersonaTrigger = changedFieldName === "Persona";
+      if (projectNumber !== TARGET_PROJECT_NUMBER) {
+        logger.info("Ignoring item from untargeted project", {
+          deliveryId,
+          projectNumber,
+          TARGET_PROJECT_NUMBER
+        });
+        res.status(204).send("");
+        return;
+      }
+
+      // Trigger if Status is "In Progress" (on creation OR on edit to Status)
+      // OR if Persona was changed (only on edit)
+      const isStatusTrigger = (action === "created" && statusName === TARGET_STATUS) ||
+                              (action === "edited" && changedFieldName === "Status" && statusName === TARGET_STATUS);
+      const isPersonaTrigger = action === "edited" && changedFieldName === "Persona";
 
       if (!isStatusTrigger && !isPersonaTrigger) {
-        logger.info("Ignoring project item edit: neither status trigger nor persona trigger met", {
+        logger.info("Ignoring project item event: neither status trigger nor persona trigger met", {
           deliveryId,
           issueNumber,
+          action,
           changedFieldName,
           statusName
         });
@@ -239,7 +262,7 @@ exports.githubProjectsV2Webhook = onRequest(
 
       // If status trigger, we still need status to be TARGET_STATUS
       if (statusName !== TARGET_STATUS) {
-        logger.info("Ignoring persona change because status is not 'In Progress'", {
+        logger.info("Ignoring event because status is not 'In Progress'", {
           deliveryId,
           issueNumber,
           statusName
@@ -248,7 +271,7 @@ exports.githubProjectsV2Webhook = onRequest(
         return;
       }
 
-      await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value(), eventName, req.body?.action, issueBody, issueUrl, issueNodeId, projectNumber, projectUrl, personaName);
+      await dispatchProjectActivation(repositoryName, issueNumber, conductorToken.value(), eventName, action, issueBody, issueUrl, issueNodeId, projectNumber, projectUrl, personaName);
       logger.info("Dispatched project activation", { deliveryId, repositoryName, issueNumber, statusName, personaName, projectNumber });
       res.status(202).json({ ok: true, repository: repositoryName, issueNumber, status: statusName, persona: personaName, projectNumber });
     } catch (error) {
