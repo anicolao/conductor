@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 
 import {
+  countRecoveryAttempts,
   ConductorWorkflowRun,
   findOrphanedItems,
   normalizePersona,
@@ -12,6 +13,12 @@ const PROJECT_NUMBER = Number(process.env.CONDUCTOR_PROJECT_NUMBER || '1');
 const TARGET_STATUS = 'In Progress';
 const TARGET_REPO = process.env.CONDUCTOR_REPO || 'LLM-Orchestration/conductor';
 const WORKFLOW_FILE = process.env.CONDUCTOR_WORKFLOW_FILE || 'conductor.yml';
+const DEFAULT_MAX_RETRIES = Number(process.env.CONDUCTOR_RECOVERY_MAX_RETRIES || '5');
+
+interface RecoverOptions {
+  dryRun: boolean;
+  maxRetries: number;
+}
 
 interface GraphqlResponse<T> {
   data?: T;
@@ -51,6 +58,43 @@ function getToken(): string {
     throw new Error('CONDUCTOR_TOKEN, GH_TOKEN, or GITHUB_TOKEN must be set');
   }
   return token;
+}
+
+function parseArgs(argv: string[]): RecoverOptions {
+  let dryRun = false;
+  let maxRetries = DEFAULT_MAX_RETRIES;
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+
+    if (arg === '--dry-run') {
+      dryRun = true;
+      continue;
+    }
+
+    if (arg === '--max-retries') {
+      const value = argv[i + 1];
+      if (!value) {
+        throw new Error('--max-retries requires a numeric value');
+      }
+      maxRetries = Number(value);
+      i += 1;
+      continue;
+    }
+
+    if (arg.startsWith('--max-retries=')) {
+      maxRetries = Number(arg.split('=')[1]);
+      continue;
+    }
+
+    throw new Error(`Unknown argument: ${arg}`);
+  }
+
+  if (!Number.isInteger(maxRetries) || maxRetries < 0) {
+    throw new Error(`--max-retries must be a non-negative integer, got: ${maxRetries}`);
+  }
+
+  return { dryRun, maxRetries };
 }
 
 async function githubGraphql<T>(query: string, variables: Record<string, unknown>, token: string): Promise<T> {
@@ -94,7 +138,12 @@ async function githubRest<T>(path: string, token: string, init?: RequestInit): P
     throw new Error(`GitHub REST request failed for ${path}: ${response.status} ${text}`);
   }
 
-  return (await response.json()) as T;
+  const text = await response.text();
+  if (!text.trim()) {
+    return undefined as T;
+  }
+
+  return JSON.parse(text) as T;
 }
 
 async function loadProjectItems(token: string): Promise<ProjectIssueItem[]> {
@@ -211,6 +260,7 @@ async function dispatchRecovery(item: ProjectIssueItem, token: string): Promise<
 
 async function main(): Promise<void> {
   dotenv.config();
+  const options = parseArgs(process.argv.slice(2));
 
   const token = getToken();
   const [items, runs] = await Promise.all([
@@ -219,10 +269,31 @@ async function main(): Promise<void> {
   ]);
 
   const orphanedItems = findOrphanedItems(items, runs);
-  console.log(`Scanned ${items.length} project items; found ${orphanedItems.length} orphaned in-progress items.`);
+  console.log(
+    `Scanned ${items.length} project items; found ${orphanedItems.length} orphaned in-progress items ` +
+    `(dryRun=${options.dryRun}, maxRetries=${options.maxRetries}).`
+  );
 
   for (const item of orphanedItems) {
-    console.log(`Re-dispatching ${item.repository}#${item.issueNumber} as ${normalizePersona(item.persona)}.`);
+    const retries = countRecoveryAttempts(item, runs);
+    if (retries >= options.maxRetries) {
+      console.log(
+        `Skipping ${item.repository}#${item.issueNumber}: recovery attempts exhausted ` +
+        `(${retries}/${options.maxRetries}).`
+      );
+      continue;
+    }
+
+    const persona = normalizePersona(item.persona);
+    if (options.dryRun) {
+      console.log(
+        `[dry-run] Would re-dispatch ${item.repository}#${item.issueNumber} as ${persona} ` +
+        `(retry ${retries + 1}/${options.maxRetries}).`
+      );
+      continue;
+    }
+
+    console.log(`Re-dispatching ${item.repository}#${item.issueNumber} as ${persona} (retry ${retries + 1}/${options.maxRetries}).`);
     await dispatchRecovery(item, token);
   }
 }

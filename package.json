@@ -9,6 +9,7 @@
     "firebase:deploy": "npx --yes firebase-tools deploy --only functions",
     "firebase:serve": "npx --yes firebase-tools emulators:start --only functions",
     "recover:orphans": "node dist/recover-orphans.js",
+    "recover:orphans:dry-run": "node dist/recover-orphans.js --dry-run",
     "handoff": "bash ./scripts/handoff.sh",
     "hook:pre-commit": "bash ./scripts/pre-commit.sh",
     "hook:pre-push": "bash ./scripts/pre-push.sh",
