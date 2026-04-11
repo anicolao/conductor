@@ -256,5 +256,40 @@ else
   exit 1
 fi
 
+# Test 6: Fail because project_number provided but issue_node_id is missing
+cat > "$GITHUB_EVENT_PATH" <<'EOF'
+{
+  "client_payload": {
+    "issue_number": 123,
+    "project_number": 1
+  }
+}
+EOF
+cat > "$TEST_DIR/gh" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+  "issue view"*)
+    echo '{"labels":[]}'
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+EOF
+
+echo "Running handoff.sh (expecting failure due to missing issue_node_id)..."
+if bash scripts/handoff.sh coder < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
+  echo "Error: handoff.sh should have failed but exited with 0"
+  exit 1
+else
+  if grep -q "Error: project_number provided but issue_node_id is missing" "$TEST_DIR/stderr"; then
+    echo "Success: handoff.sh failed with correct error message"
+  else
+    echo "Error: handoff.sh failed but with wrong message"
+    cat "$TEST_DIR/stderr"
+    exit 1
+  fi
+fi
+
 echo "All handoff validation tests passed!"
 exit 0
