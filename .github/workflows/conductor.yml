@@ -4,7 +4,7 @@ run-name: Conductor [${{ github.event.client_payload.persona || 'orchestrator' }
 
 on:
   repository_dispatch:
-    types: [project_in_progress]
+    types: [project_in_progress, external_issue_event, external_issue_comment]
 
 permissions:
   contents: write
