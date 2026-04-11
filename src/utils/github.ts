@@ -21,6 +21,8 @@ export interface GitHubEvent {
     status?: string;
     persona?: string;
     body?: string;
+    event_name?: string;
+    action?: string;
   };
 }
 
@@ -34,6 +36,8 @@ export function extractEventData(event: GitHubEvent, env: NodeJS.ProcessEnv) {
   const commentBody = event.comment?.body || event.client_payload?.body || '';
   const projectNumber = event.client_payload?.project_number;
   const projectUrl = event.client_payload?.project_url;
+  const eventName = event.client_payload?.event_name || env.GITHUB_EVENT_NAME || '';
+  const action = event.client_payload?.action || event.action || '';
 
   return {
     repository,
@@ -44,6 +48,8 @@ export function extractEventData(event: GitHubEvent, env: NodeJS.ProcessEnv) {
     issueBody,
     commentBody,
     projectNumber,
-    projectUrl
+    projectUrl,
+    eventName,
+    action
   };
 }

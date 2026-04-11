@@ -66,7 +66,9 @@ The dispatch contract is:
     "project_number": 1,
     "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1",
     "status": "In Progress",
-    "persona": "conductor"
+    "persona": "conductor",
+    "event_name": "projects_v2_item",
+    "action": "edited"
   }
 }
 ```
@@ -98,7 +100,9 @@ curl -X POST \
       "project_number": 1,
       "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1",
       "status": "In Progress",
-      "persona": "conductor"
+      "persona": "conductor",
+      "event_name": "projects_v2_item",
+      "action": "edited"
     }
   }'
 ```
