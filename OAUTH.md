@@ -33,28 +33,29 @@ To set up the OAuth flow from scratch, follow these steps:
 ### 1. Create a GitHub OAuth App
 
 1.  Log in to your GitHub account.
-2.  Go to **Settings** (click your profile picture in the top right corner).
-3.  On the left sidebar, scroll to the bottom and click **Developer settings**.
-4.  Click **OAuth Apps**.
-5.  Click the **New OAuth App** button.
+2.  Navigate to **Settings** by clicking your profile picture in the top right corner.
+3.  On the left sidebar, scroll to the very bottom and click **Developer settings**.
+4.  In the left sidebar of the Developer settings page, click **OAuth Apps**.
+5.  Click the **New OAuth App** button (or **Register a new application** if it's your first one).
 6.  Fill in the application details:
-    - **Application name**: `Conductor Observability UI` (or any name you prefer).
+    - **Application name**: `Conductor Observability UI` (or any descriptive name).
     - **Homepage URL**:
         - For local development: `http://localhost:5173`
-        - For production: The URL where your UI is hosted (e.g., `https://your-project.web.app`).
-    - **Application description**: (Optional) A brief description of the app.
-    - **Authorization callback URL**: This must match the route in the UI that handles the callback.
+        - For production: `https://llm-orch-conductor-bridge.web.app` (or your specific Firebase Hosting URL).
+    - **Application description**: (Optional) e.g., "Observability UI for the Conductor LLM Orchestrator".
+    - **Authorization callback URL**: This must be the absolute URL to the `/auth/callback` route.
         - For local development: `http://localhost:5173/auth/callback`
-        - For production: `https://your-project.web.app/auth/callback`
+        - For production: `https://llm-orch-conductor-bridge.web.app/auth/callback`
 7.  Click **Register application**.
-8.  On the application page, you will see your **Client ID**. Copy this for later.
-9.  Click **Generate a new client secret**. Copy the **Client Secret** immediately, as it won't be shown again.
+8.  On the resulting application page, locate the **Client ID**. Copy this; you will need it for the frontend `PUBLIC_GITHUB_CLIENT_ID`.
+9.  Click the **Generate a new client secret** button. **IMPORTANT**: Copy the **Client Secret** immediately and store it securely. You will not be able to see it again once you leave the page.
 
 ### 2. Configure Firebase Functions Secrets
 
-The backend exchange function (`githubOAuthExchange`) needs the GitHub Client ID and Client Secret to securely exchange the authorization code for an access token. These should be set as Firebase secrets:
+The backend exchange function (`githubOAuthExchange`) securely exchanges the authorization code for an access token using your GitHub Client ID and Secret. These must be set as Firebase secrets using the Firebase CLI:
 
 ```bash
+# Navigate to the project root or functions directory
 # Set the GitHub Client ID
 firebase functions:secrets:set GITHUB_CLIENT_ID
 
@@ -62,7 +63,7 @@ firebase functions:secrets:set GITHUB_CLIENT_ID
 firebase functions:secrets:set GITHUB_CLIENT_SECRET
 ```
 
-When prompted by the CLI, paste the values you obtained from the GitHub OAuth App settings.
+When prompted by the CLI, paste the respective values you obtained from the GitHub OAuth App settings. These secrets are injected into the function at runtime and are not stored in source control.
 
 ### 3. Configure Frontend Environment Variables
 
@@ -71,8 +72,12 @@ The SvelteKit frontend needs to know the Client ID and the URL of the exchange f
 1.  Create a `.env` file in the root of the project (copying from `.env.example`).
 2.  Set `PUBLIC_GITHUB_CLIENT_ID` to your GitHub OAuth App Client ID.
 3.  Set `PUBLIC_OAUTH_EXCHANGE_URL` to the URL of your `githubOAuthExchange` function.
-    - Local development (using Firebase Emulators): `http://127.0.0.1:5001/llm-orch-conductor-bridge/us-central1/githubOAuthExchange`
-    - Production: `https://<region>-<project-id>.cloudfunctions.net/githubOAuthExchange`
+    - **Local development** (using Firebase Emulators):
+      `http://127.0.0.1:5001/<project-id>/us-central1/githubOAuthExchange`
+      *(Replace `<project-id>` with the project ID found in your `.firebaserc`, usually `llm-orch-conductor-bridge`)*.
+    - **Production**:
+      `https://us-central1-<project-id>.cloudfunctions.net/githubOAuthExchange`
+      *(Replace `<project-id>` with your actual Firebase project ID)*.
 
 ## Configuration Reference
 
