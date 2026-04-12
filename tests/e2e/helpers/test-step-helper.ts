@@ -50,7 +50,7 @@ export class TestStepHelper {
 
     // 2. Wait for animations and take screenshot
     await waitForAnimations(this.page);
-    await expect(this.page).toHaveScreenshot(filename.replace(/\.png$/, ''));
+    await expect(this.page).toHaveScreenshot(filename);
 
     // 3. Track for documentation
     this.steps.push({
