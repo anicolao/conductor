@@ -1,9 +1,10 @@
 import fs from 'fs';
 import path from 'path';
-import { spawn, spawnSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import dotenv from 'dotenv';
 
-import { CommandResult, runStreamingCommand } from './utils/exec';
+import { runStreamingCommand } from './utils/exec';
+import { DEFAULT_COMMENT_LIMIT, resolveCommentLimit } from './utils/comment-limit';
 import { GitHubEvent, extractEventData } from './utils/github';
 
 function verifyGitHubCli(repository: string, issueNumber: number): string {
@@ -101,6 +102,7 @@ function loadIssueState(repository: string, issueNumber: number): {
   labels: string[]; 
   body: string; 
   latestComment: string;
+  commentCount: number;
   htmlUrl: string;
   nodeId: string;
 } | null {
@@ -125,9 +127,111 @@ function loadIssueState(repository: string, issueNumber: number): {
     labels: Array.isArray(parsed.labels) ? parsed.labels.map((label: { name: string }) => label.name) : [],
     body: parsed.body || '',
     latestComment: commentsData.status === 0 ? commentsData.stdout.trim() : '',
+    commentCount: typeof parsed.comments === 'number' ? parsed.comments : 0,
     htmlUrl: parsed.html_url || '',
     nodeId: parsed.node_id || ''
   };
+}
+
+function loadIssueCommentBodies(repository: string, issueNumber: number, commentCount: number): string[] {
+  if (commentCount < 1) return [];
+
+  const perPage = 100;
+  const pages = Math.ceil(commentCount / perPage);
+  const bodies: string[] = [];
+
+  for (let page = 1; page <= pages; page += 1) {
+    const commentsData = spawnSync('gh', ['api', `repos/${repository}/issues/${issueNumber}/comments?per_page=${perPage}&page=${page}`], {
+      encoding: 'utf8',
+      env: process.env
+    });
+
+    if (commentsData.status !== 0 || !commentsData.stdout.trim()) {
+      const details = (commentsData.stderr || commentsData.stdout || 'No gh output captured').trim();
+      console.warn(
+        `Failed to load comment page ${page} for ${repository}#${issueNumber}; ` +
+        'falling back to the default comment limit.'
+      );
+      if (details) process.stderr.write(`${details}\n`);
+      return [];
+    }
+
+    const parsed = JSON.parse(commentsData.stdout) as Array<{ body?: string | null }>;
+    for (const comment of parsed) {
+      bodies.push(comment.body || '');
+    }
+  }
+
+  return bodies;
+}
+
+function getEffectiveCommentLimit(repository: string, issueNumber: number, commentCount: number): number {
+  if (commentCount <= DEFAULT_COMMENT_LIMIT) {
+    return DEFAULT_COMMENT_LIMIT;
+  }
+
+  const commentBodies = loadIssueCommentBodies(repository, issueNumber, commentCount);
+  return resolveCommentLimit(commentBodies, DEFAULT_COMMENT_LIMIT);
+}
+
+function moveToHumanReview(
+  repository: string,
+  issueNumber: number,
+  issueNodeId: string,
+  projectNumber: number | null,
+  projectUrl: string,
+  commentCount: number,
+  commentLimit: number
+): void {
+  const body = `### Comment Limit Reached
+
+Automation is aborting for this issue because the comment count exceeded the configured limit.
+
+- Current comments: ${commentCount}
+- Comment limit: ${commentLimit}
+
+If you need more automated iterations on this issue, add a comment with:
+
+\`SET COMMENT LIMIT: NNN\`
+
+Then move the item back to \`In Progress\`.
+
+*Automated report by Conductor*`;
+
+  const args = [
+    'run',
+    'human-review',
+    '--',
+    '--issue-number',
+    String(issueNumber),
+    '--repo',
+    repository
+  ];
+
+  if (issueNodeId) {
+    args.push('--issue-node-id', issueNodeId);
+  }
+
+  if (projectNumber !== null) {
+    args.push('--project-number', String(projectNumber));
+  }
+
+  if (projectUrl) {
+    args.push('--project-url', projectUrl);
+  }
+
+  const result = spawnSync('npm', args, {
+    encoding: 'utf8',
+    env: process.env,
+    input: body
+  });
+
+  if (result.status !== 0) {
+    const details = (result.stderr || result.stdout || 'No output captured').trim();
+    console.error(`Failed to move ${repository}#${issueNumber} to Human Review after comment-limit check.`);
+    if (details) process.stderr.write(`${details}\n`);
+    process.exit(result.status || 1);
+  }
 }
 
 function activatePersonaLabel(repository: string, issueNumber: number, persona: 'conductor' | 'coder'): void {
@@ -208,6 +312,23 @@ async function main() {
     commentBody = liveIssueState.latestComment;
     issueUrl = liveIssueState.htmlUrl;
     issueNodeId = liveIssueState.nodeId;
+    const commentLimit = getEffectiveCommentLimit(repository, issueNumber, liveIssueState.commentCount);
+    if (liveIssueState.commentCount > commentLimit) {
+      console.log(
+        `Comment limit exceeded for ${repository}#${issueNumber} ` +
+        `(${liveIssueState.commentCount} > ${commentLimit}). Moving item to Human Review.`
+      );
+      moveToHumanReview(
+        repository,
+        issueNumber,
+        issueNodeId,
+        projectNumber ?? null,
+        projectUrl || '',
+        liveIssueState.commentCount,
+        commentLimit
+      );
+      process.exit(0);
+    }
   }
 
   if (eventName === 'repository_dispatch' && !labels.some(label => label.startsWith('persona:'))) {
