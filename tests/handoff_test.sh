@@ -278,7 +278,115 @@ else
   exit 1
 fi
 
-# Test 6: Success with fallback when issue_node_id is missing
+# Test 6: Auto-branch away from main before labeling
+cat > "$GITHUB_EVENT_PATH" <<'EOF'
+{
+  "client_payload": {
+    "issue_number": 123,
+    "repository": "LLM-Orchestration/conductor"
+  }
+}
+EOF
+cat > "$TEST_DIR/git" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+  "branch --show-current")
+    echo "main"
+    exit 0
+    ;;
+  "checkout issue-123")
+    exit 1
+    ;;
+  "checkout -b issue-123")
+    exit 0
+    ;;
+  "status --porcelain -- src functions tests")
+    exit 0
+    ;;
+  "rev-parse --verify main")
+    exit 0
+    ;;
+  "diff --name-only main...issue-123 -- src functions tests")
+    exit 0
+    ;;
+  *)
+    exec git "$@"
+    ;;
+esac
+EOF
+chmod +x "$TEST_DIR/git"
+cat > "$TEST_DIR/gh" <<'EOF'
+#!/usr/bin/env bash
+MARKER_FILE="${GITHUB_EVENT_PATH}.main_branch_labels_set"
+case "$*" in
+  "issue view"*".labels[].name"*)
+    if [ -f "$MARKER_FILE" ]; then
+      echo "persona: coder"
+      echo "branch: issue-123"
+    else
+      echo "persona: coder"
+    fi
+    ;;
+  "issue view"*)
+    if [ -f "$MARKER_FILE" ]; then
+      echo '{"labels":[{"name":"persona: coder"},{"name":"branch: issue-123"}]}'
+    else
+      echo '{"labels":[{"name":"persona: coder"}]}'
+    fi
+    ;;
+  "issue edit"*)
+    if [[ "$*" == *"--add-label persona: coder"* ]] && [[ "$*" == *"--add-label branch: issue-123"* ]] && [[ "$*" != *"--add-label branch: main"* ]]; then
+      touch "$MARKER_FILE"
+      exit 0
+    else
+      echo "Error: wrong labels in issue edit for main fallback" >&2
+      echo "Args: $*" >&2
+      exit 1
+    fi
+    ;;
+  "issue comment"*)
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+EOF
+chmod +x "$TEST_DIR/gh"
+rm -f "${GITHUB_EVENT_PATH}.main_branch_labels_set"
+
+echo "Running handoff.sh from main (expecting success with branch issue-123)..."
+if bash scripts/handoff.sh coder < "$TEST_DIR/comment.md"; then
+  echo "Success: handoff.sh switched away from main and used issue-123"
+else
+  echo "Error: handoff.sh failed to switch away from main"
+  exit 1
+fi
+
+cat > "$TEST_DIR/git" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+  "branch --show-current")
+    echo "test-branch"
+    exit 0
+    ;;
+  "status --porcelain -- src functions tests")
+    exit 0
+    ;;
+  "rev-parse --verify main")
+    exit 0
+    ;;
+  "diff --name-only main...test-branch -- src functions tests")
+    exit 0
+    ;;
+  *)
+    exec git "\$@"
+    ;;
+esac
+EOF
+chmod +x "$TEST_DIR/git"
+
+# Test 7: Success with fallback when issue_node_id is missing
 cat > "$GITHUB_EVENT_PATH" <<'EOF'
 {
   "client_payload": {
@@ -335,7 +443,7 @@ else
   exit 1
 fi
 
-# Test 7: Fail because project_number provided but project_url is missing
+# Test 8: Fail because project_number provided but project_url is missing
 cat > "$GITHUB_EVENT_PATH" <<'EOF'
 {
   "client_payload": {
@@ -360,7 +468,7 @@ else
   fi
 fi
 
-# Test 8: Success for 'human' target (removes persona labels, preserves branch)
+# Test 9: Success for 'human' target (removes persona labels, preserves branch)
 cat > "$GITHUB_EVENT_PATH" <<'EOF'
 {
   "client_payload": {
@@ -412,7 +520,7 @@ else
   exit 1
 fi
 
-# Test 9: conductor-verify.sh is RUN when handing off to human and can block it
+# Test 10: conductor-verify.sh is RUN when handing off to human and can block it
 # We mock conductor-verify.sh to fail
 mkdir -p "$TEST_DIR/scripts"
 cat > "$TEST_DIR/scripts/conductor-verify.sh" <<EOF

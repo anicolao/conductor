@@ -50,8 +50,8 @@ jobs:
           ISSUE_NUMBER: ${{ steps.metadata.outputs.issue_number }}
         run: |
           BRANCH=$(gh api "repos/$REPO/issues/$ISSUE_NUMBER" --jq '.labels[].name | select(startswith("branch:"))' 2>/dev/null | cut -d':' -f2- | xargs || true)
-          if [ -z "$BRANCH" ]; then
-            BRANCH="main"
+          if [ -z "$BRANCH" ] || [ "$BRANCH" = "main" ]; then
+            BRANCH="issue-$ISSUE_NUMBER"
           fi
           echo "branch=$BRANCH" >> $GITHUB_OUTPUT
           echo "Selected branch: $BRANCH"
@@ -59,9 +59,7 @@ jobs:
       - name: Switch Target Repo to Branch
         run: |
           BRANCH=${{ steps.branch.outputs.branch }}
-          if [ "$BRANCH" != "main" ]; then
-            git checkout $BRANCH || git checkout -b $BRANCH
-          fi
+          git checkout "$BRANCH" || git checkout -b "$BRANCH"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4

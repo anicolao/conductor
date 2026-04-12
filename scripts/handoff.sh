@@ -12,12 +12,6 @@ if [ -z "${GITHUB_EVENT_PATH:-}" ]; then
 fi
 
 target="$1"
-branch_name="$(git branch --show-current)"
-
-if [ -z "$branch_name" ]; then
-  echo "Could not determine current branch" >&2
-  exit 1
-fi
 
 issue_number="$(node -e "
 const fs = require('fs');
@@ -29,6 +23,18 @@ if (!num) {
 }
 process.stdout.write(String(num));
 ")"
+
+branch_name="$(git branch --show-current)"
+
+if [ -z "$branch_name" ]; then
+  echo "Could not determine current branch" >&2
+  exit 1
+fi
+
+if [ "$branch_name" = "main" ]; then
+  branch_name="issue-$issue_number"
+  git checkout "$branch_name" 2>/dev/null || git checkout -b "$branch_name"
+fi
 
 target_repo="$(node -e "
 const fs = require('fs');
@@ -205,4 +211,3 @@ if [ -n "$project_number" ] && [ "$target" != "human" ]; then
     exit 1
   fi
 fi
-
