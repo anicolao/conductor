@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { runStreamingCommand } from './utils/exec';
 import { DEFAULT_COMMENT_LIMIT, resolveCommentLimit } from './utils/comment-limit';
 import { GitHubEvent, extractEventData } from './utils/github';
+import { logEvent } from './utils/logger';
 
 function verifyGitHubCli(repository: string, issueNumber: number): string {
   const repoCheck = spawnSync('gh', ['repo', 'view', repository, '--json', 'nameWithOwner', '--jq', '.nameWithOwner'], {
@@ -295,93 +296,96 @@ async function main() {
     action
   } = extractEventData(event, process.env);
 
-  if (!issueNumber) {
-    console.error('No issue number found in event');
-    process.exit(0);
-  }
+  let persona: 'conductor' | 'coder' | null = null;
 
-  if (!repository) {
-    console.error('No repository found in event');
-    process.exit(1);
-  }
-
-  const liveIssueState = loadIssueState(repository, issueNumber);
-  if (liveIssueState) {
-    labels = liveIssueState.labels;
-    issueBody = liveIssueState.body;
-    commentBody = liveIssueState.latestComment;
-    issueUrl = liveIssueState.htmlUrl;
-    issueNodeId = liveIssueState.nodeId;
-    const commentLimit = getEffectiveCommentLimit(repository, issueNumber, liveIssueState.commentCount);
-    if (liveIssueState.commentCount > commentLimit) {
-      console.log(
-        `Comment limit exceeded for ${repository}#${issueNumber} ` +
-        `(${liveIssueState.commentCount} > ${commentLimit}). Moving item to Human Review.`
-      );
-      moveToHumanReview(
-        repository,
-        issueNumber,
-        issueNodeId,
-        projectNumber ?? null,
-        projectUrl || '',
-        liveIssueState.commentCount,
-        commentLimit
-      );
+  try {
+    if (!issueNumber) {
+      console.error('No issue number found in event');
       process.exit(0);
     }
-  }
 
-  if (eventName === 'repository_dispatch' && !labels.some(label => label.startsWith('persona:'))) {
-    const targetPersona = (event.client_payload?.persona === 'coder' || event.client_payload?.persona === 'conductor') 
-      ? event.client_payload.persona 
-      : 'conductor';
-    console.log(`repository_dispatch received for issue #${issueNumber} in ${repository}. Activating ${targetPersona} persona.`);
-    activatePersonaLabel(repository, issueNumber, targetPersona);
-    labels.push(`persona: ${targetPersona}`);
-  }
-
-  // 1. Determine Persona
-  let persona: 'conductor' | 'coder' | null = null;
-  
-  const payloadPersona = event.client_payload?.persona;
-  if (payloadPersona === 'coder' || payloadPersona === 'conductor') {
-    persona = payloadPersona;
-  } else if (labels.includes('persona: coder')) {
-    persona = 'coder';
-  } else if (labels.includes('persona: conductor')) {
-    persona = 'conductor';
-  } else {
-    // Implicit initiation check
-    const body = commentBody || issueBody || '';
-    if (body.includes('@conductor')) {
-      persona = 'conductor';
+    if (!repository) {
+      console.error('No repository found in event');
+      process.exit(1);
     }
-  }
 
-  if (!persona) {
-    console.log('No active persona found. Exiting.');
-    process.exit(0);
-  }
+    const liveIssueState = loadIssueState(repository, issueNumber);
+    if (liveIssueState) {
+      labels = liveIssueState.labels;
+      issueBody = liveIssueState.body;
+      commentBody = liveIssueState.latestComment;
+      issueUrl = liveIssueState.htmlUrl;
+      issueNodeId = liveIssueState.nodeId;
+      const commentLimit = getEffectiveCommentLimit(repository, issueNumber, liveIssueState.commentCount);
+      if (liveIssueState.commentCount > commentLimit) {
+        console.log(
+          `Comment limit exceeded for ${repository}#${issueNumber} ` +
+          `(${liveIssueState.commentCount} > ${commentLimit}). Moving item to Human Review.`
+        );
+        moveToHumanReview(
+          repository,
+          issueNumber,
+          issueNodeId,
+          projectNumber ?? null,
+          projectUrl || '',
+          liveIssueState.commentCount,
+          commentLimit
+        );
+        process.exit(0);
+      }
+    }
 
-  // 2. Determine Branch (for context)
-  const branchLabel = labels.find(l => l.startsWith('branch:'));
-  const currentBranch = branchLabel ? branchLabel.split(':')[1].trim() : 'main';
+    if (eventName === 'repository_dispatch' && !labels.some(label => label.startsWith('persona:'))) {
+      const targetPersona = (event.client_payload?.persona === 'coder' || event.client_payload?.persona === 'conductor') 
+        ? event.client_payload.persona 
+        : 'conductor';
+      console.log(`repository_dispatch received for issue #${issueNumber} in ${repository}. Activating ${targetPersona} persona.`);
+      activatePersonaLabel(repository, issueNumber, targetPersona);
+      labels.push(`persona: ${targetPersona}`);
+    }
 
-  console.log(`Activating persona: ${persona} on branch: ${currentBranch}`);
+    // 1. Determine Persona
+    const payloadPersona = event.client_payload?.persona;
+    if (payloadPersona === 'coder' || payloadPersona === 'conductor') {
+      persona = payloadPersona;
+    } else if (labels.includes('persona: coder')) {
+      persona = 'coder';
+    } else if (labels.includes('persona: conductor')) {
+      persona = 'conductor';
+    } else {
+      // Implicit initiation check
+      const body = commentBody || issueBody || '';
+      if (body.includes('@conductor')) {
+        persona = 'conductor';
+      }
+    }
 
-  // Post pickup note (non-critical)
-  postPickupNote(repository, issueNumber, persona, currentBranch);
+    if (!persona) {
+      console.log('No active persona found. Exiting.');
+      process.exit(0);
+    }
 
-  // 3. Load Prompt
-  const promptPath = path.join(__dirname, '..', 'prompts', `${persona}.md`);
-  if (!fs.existsSync(promptPath)) {
-    console.error(`Prompt not found for persona: ${persona}`);
-    process.exit(1);
-  }
-  const systemPrompt = fs.readFileSync(promptPath, 'utf8');
+    // 2. Determine Branch (for context)
+    const branchLabel = labels.find(l => l.startsWith('branch:'));
+    const currentBranch = branchLabel ? branchLabel.split(':')[1].trim() : 'main';
 
-  // 4. Prepare Context
-  const context = `
+    console.log(`Activating persona: ${persona} on branch: ${currentBranch}`);
+
+    logEvent('session_start', { branch: currentBranch, labels }, { persona, issue: issueNumber });
+
+    // Post pickup note (non-critical)
+    postPickupNote(repository, issueNumber, persona, currentBranch);
+
+    // 3. Load Prompt
+    const promptPath = path.join(__dirname, '..', 'prompts', `${persona}.md`);
+    if (!fs.existsSync(promptPath)) {
+      console.error(`Prompt not found for persona: ${persona}`);
+      process.exit(1);
+    }
+    const systemPrompt = fs.readFileSync(promptPath, 'utf8');
+
+    // 4. Prepare Context
+    const context = `
 Issue #${issueNumber}
 Repository: ${repository}
 Issue URL: ${issueUrl}
@@ -398,50 +402,50 @@ LATEST COMMENT:
 ${commentBody}
 `;
 
-  const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!geminiApiKey) {
-    console.error('Gemini API key not set. Configure GEMINI_API_KEY in GitHub Actions secrets or a local .env file.');
-    process.exit(1);
-  }
+    const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    if (!geminiApiKey) {
+      console.error('Gemini API key not set. Configure GEMINI_API_KEY in GitHub Actions secrets or a local .env file.');
+      process.exit(1);
+    }
 
-  const verifiedRepo = verifyGitHubCli(repository, issueNumber);
-  console.log(`Verified GitHub CLI access to ${verifiedRepo}`);
+    const verifiedRepo = verifyGitHubCli(repository, issueNumber);
+    console.log(`Verified GitHub CLI access to ${verifiedRepo}`);
 
-  // Ensure downstream tools (like gh) use the correct repository
-  process.env.GITHUB_REPOSITORY = repository;
+    // Ensure downstream tools (like gh) use the correct repository
+    process.env.GITHUB_REPOSITORY = repository;
 
-  const prompt = `${systemPrompt}\n\n${context}
+    const prompt = `${systemPrompt}\n\n${context}
 ---
 ENVIRONMENT:
 - GitHub CLI repository access has been preflight-verified for ${verifiedRepo}.
 - If a gh command fails, report the exact command and stderr instead of inferring an authentication problem.`;
 
-  // Invoke the official CLI package in headless mode so Actions does not depend on a preinstalled binary.
-  const args = [
-    '-y',
-    '@google/gemini-cli',
-    '--prompt',
-    prompt,
-    '--approval-mode',
-    'yolo'
-  ];
+    // Invoke the official CLI package in headless mode so Actions does not depend on a preinstalled binary.
+    const args = [
+      '-y',
+      '@google/gemini-cli',
+      '--prompt',
+      prompt,
+      '--approval-mode',
+      'yolo'
+    ];
 
-  console.log('Invoking Gemini CLI...');
-  const childEnv = buildGeminiEnv();
-  
-  // The target repository is at the root (../ from .conductor/dist/src or ../ from .conductor if running via npm start)
-  // In Actions, GITHUB_WORKSPACE is the root.
-  const targetCwd = process.env.GITHUB_WORKSPACE || path.resolve(process.cwd(), '..');
-  const result = await runStreamingCommand('npx', args, childEnv, targetCwd);
+    console.log('Invoking Gemini CLI...');
+    const childEnv = buildGeminiEnv();
+    
+    // The target repository is at the root (../ from .conductor/dist/src or ../ from .conductor if running via npm start)
+    // In Actions, GITHUB_WORKSPACE is the root.
+    const targetCwd = process.env.GITHUB_WORKSPACE || path.resolve(process.cwd(), '..');
+    const result = await runStreamingCommand('npx', args, childEnv, targetCwd);
 
-  if (result.status !== 0) {
-    console.error('Gemini CLI execution failed');
+    if (result.status !== 0) {
+      console.error('Gemini CLI execution failed');
 
-    const errorOutput = (result.stderr || result.stdout || 'No output captured').trim();
-    const lines = errorOutput.split('\n');
-    const snippet = lines.length > 50 ? lines.slice(-50).join('\n') : errorOutput;
+      const errorOutput = (result.stderr || result.stdout || 'No output captured').trim();
+      const lines = errorOutput.split('\n');
+      const snippet = lines.length > 50 ? lines.slice(-50).join('\n') : errorOutput;
 
-    const body = `### ❌ Gemini CLI Execution Failed
+      const body = `### ❌ Gemini CLI Execution Failed
 
 **Exit Code**: ${result.status}
 
@@ -455,13 +459,24 @@ ${snippet}
 
 *Automated report by Conductor*`;
 
-    console.log('Posting failure comment to GitHub...');
-    spawnSync('gh', ['issue', 'comment', String(issueNumber), '-R', repository, '--body', body], {
-      stdio: 'inherit',
-      env: childEnv
-    });
+      console.log('Posting failure comment to GitHub...');
+      spawnSync('gh', ['issue', 'comment', String(issueNumber), '-R', repository, '--body', body], {
+        stdio: 'inherit',
+        env: childEnv
+      });
 
-    process.exit(result.status || 1);
+      logEvent('session_end', { status: 'failure', exitCode: result.status }, { persona, issue: issueNumber });
+      process.exit(result.status || 1);
+    }
+
+    logEvent('session_end', { status: 'success' }, { persona, issue: issueNumber });
+  } catch (error) {
+    console.error('An unexpected error occurred:', error);
+    logEvent('session_end', { 
+      status: 'failure', 
+      error: error instanceof Error ? error.message : String(error) 
+    }, { persona: persona || undefined, issue: issueNumber });
+    process.exit(1);
   }
 }
 
