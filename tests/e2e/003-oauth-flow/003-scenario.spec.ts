@@ -3,9 +3,9 @@ import { TestStepHelper } from '../helpers/test-step-helper';
 
 test('GitHub OAuth Flow', async ({ page }, testInfo) => {
   const helper = new TestStepHelper(page, testInfo);
-  helper.setMetadata('GitHub OAuth Flow', 'Verify that a user can login via GitHub and see their profile.');
+  helper.setMetadata('GitHub OAuth Flow', 'Verify that a user can login via GitHub and see their profile and verified repo access.');
 
-  // Mock Firebase Function
+  // Mock Firebase Function for OAuth exchange
   await page.route('**/githubOAuthExchange', async (route) => {
     if (route.request().method() === 'OPTIONS') {
       await route.fulfill({
@@ -38,6 +38,18 @@ test('GitHub OAuth Flow', async ({ page }, testInfo) => {
     });
   });
 
+  // Mock GitHub Repo API
+  await page.route('https://api.github.com/repos/LLM-Orchestration/conductor', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        name: 'conductor',
+        full_name: 'LLM-Orchestration/conductor',
+      }),
+    });
+  });
+
   // Mock GitHub OAuth Authorize redirect
   // We'll intercept the click and manually navigate to the callback
   await page.route('https://github.com/login/oauth/authorize*', async (route) => {
@@ -59,14 +71,17 @@ test('GitHub OAuth Flow', async ({ page }, testInfo) => {
   // Click login
   await page.getByRole('button', { name: 'Login with GitHub' }).click();
 
-  // Wait for the profile to load (after redirect to /auth/callback and back to /)
+  // Wait for the profile and repo verification to load
   await expect(page.getByText('Logged in as testuser')).toBeVisible();
+  await expect(page.getByText('GitHub API Verified ✅')).toBeVisible();
 
   await helper.step('logged_in_profile_visible', {
-    description: 'User is logged in and profile is displayed',
+    description: 'User is logged in and profile/repo access is displayed',
     verifications: [
       { spec: 'Username is visible', check: async () => expect(page.getByText('testuser')).toBeVisible() },
       { spec: 'Avatar is visible', check: async () => expect(page.getByAltText('testuser')).toBeVisible() },
+      { spec: 'GitHub API Verified message is visible', check: async () => expect(page.getByText('GitHub API Verified ✅')).toBeVisible() },
+      { spec: 'Repo name is visible', check: async () => expect(page.getByText('LLM-Orchestration/conductor')).toBeVisible() },
       { spec: 'Logout button is visible', check: async () => expect(page.getByRole('button', { name: 'Logout' })).toBeVisible() }
     ]
   });

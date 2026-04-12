@@ -26,7 +26,10 @@
 				console.error('OAuth exchange failed', e);
 			}
 		}
-		goto('/');
+		
+		const redirectPath = sessionStorage.getItem('oauth_redirect_path') || '/';
+		sessionStorage.removeItem('oauth_redirect_path');
+		goto(redirectPath);
 	});
 </script>
 

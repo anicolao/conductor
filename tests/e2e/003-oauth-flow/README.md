@@ -1,6 +1,6 @@
 # GitHub OAuth Flow
 
-Verify that a user can login via GitHub and see their profile.
+Verify that a user can login via GitHub and see their profile and verified repo access.
 
 ## Landing page loaded with Login button
 
@@ -12,13 +12,15 @@ Verify that a user can login via GitHub and see their profile.
 
 ---
 
-## User is logged in and profile is displayed
+## User is logged in and profile/repo access is displayed
 
-![User is logged in and profile is displayed](./screenshots/001-logged-in-profile-visible.png)
+![User is logged in and profile/repo access is displayed](./screenshots/001-logged-in-profile-visible.png)
 
 ### Verifications
 - [x] Username is visible
 - [x] Avatar is visible
+- [x] GitHub API Verified message is visible
+- [x] Repo name is visible
 - [x] Logout button is visible
 
 ---
