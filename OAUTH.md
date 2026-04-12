@@ -26,6 +26,43 @@ The Conductor Observability UI uses GitHub OAuth to authenticate users and gain 
    - It also fetches repository information (e.g., `LLM-Orchestration/conductor`) to verify that the token has the necessary permissions.
    - A success message "GitHub API Verified ✅" is displayed if the repository access is successful.
 
+## Setup Instructions
+
+### 1. Create a GitHub OAuth App
+
+To enable OAuth integration, you must create a GitHub OAuth App:
+
+1.  Go to GitHub **Settings**.
+2.  On the left sidebar, scroll down and click **Developer settings**.
+3.  Click **OAuth Apps**.
+4.  Click **New OAuth App**.
+5.  Fill in the details:
+    - **Application name**: Conductor Observability UI (or your preferred name)
+    - **Homepage URL**: 
+        - Local development: `http://localhost:5173`
+        - Production: The URL where your UI is hosted (e.g., `https://your-project.web.app`)
+    - **Authorization callback URL**:
+        - Local development: `http://localhost:5173/auth/callback`
+        - Production: `https://your-project.web.app/auth/callback`
+6.  Click **Register application**.
+7.  Note the **Client ID**.
+8.  Click **Generate a new client secret** and note the **Client Secret**.
+
+### 2. Configure Firebase Functions Secrets
+
+The backend exchange function requires the Client ID and Client Secret to be set as secrets in Firebase:
+
+```bash
+firebase functions:secrets:set GITHUB_CLIENT_ID
+firebase functions:secrets:set GITHUB_CLIENT_SECRET
+```
+
+When prompted, paste the values obtained from GitHub.
+
+### 3. Configure Frontend Environment Variables
+
+Update your `.env` file in the root directory (refer to `.env.example`) with the Client ID and the URL of your deployed exchange function.
+
 ## Configuration
 
 The following environment variables are required:
