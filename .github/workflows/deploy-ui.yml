@@ -50,6 +50,8 @@ jobs:
         env:
           NODE_ENV: production
           PUBLIC_BASE_PATH: ${{ steps.base_path.outputs.path }}
+          PUBLIC_GITHUB_CLIENT_ID: ${{ secrets.PUBLIC_GITHUB_CLIENT_ID }}
+          PUBLIC_OAUTH_EXCHANGE_URL: ${{ secrets.PUBLIC_OAUTH_EXCHANGE_URL }}
 
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
