@@ -40,8 +40,8 @@ Current Firebase bridge project:
 
 - `llm-orch-conductor-bridge`
 
-The repository also includes a Firebase scheduled recovery function that scans the shared project on staggered minutes for `In Progress` items with no non-completed Conductor run and re-dispatches them.
-The GitHub workflow is now manual-only and can still exercise the same scanner when needed.
+The repository also includes a Firebase scheduled recovery function that triggers the existing `recover-orphaned-items.yml` workflow on staggered minutes.
+During the transition, the GitHub workflow keeps its own native cron as well, so both schedulers can exercise the same recovery path.
 You can exercise the same scanner without re-triggering work via `npm run recover:orphans:dry-run`.
 
 ## Licensing
