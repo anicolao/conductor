@@ -3,6 +3,7 @@
 const crypto = require("crypto");
 
 const { onRequest } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const logger = require("firebase-functions/logger");
 const { defineSecret } = require("firebase-functions/params");
 
@@ -10,8 +11,11 @@ const githubWebhookSecret = defineSecret("GITHUB_WEBHOOK_SECRET");
 const conductorToken = defineSecret("CONDUCTOR_TOKEN");
 
 const TARGET_REPO = "LLM-Orchestration/conductor";
+const WORKFLOW_FILE = "conductor.yml";
 const TARGET_STATUS = "In Progress";
 const TARGET_PROJECT_NUMBER = 1;
+const DEFAULT_MAX_RECOVERY_RETRIES = 5;
+const RECOVERY_RUN_SUFFIX = "Event: schedule (recover_orphaned_in_progress)";
 
 function timingSafeEqualHex(a, b) {
   const aBuffer = Buffer.from(a, "utf8");
@@ -59,6 +63,29 @@ async function githubGraphql(query, variables, token) {
   return body.data;
 }
 
+async function githubRest(path, token, init = {}) {
+  const response = await fetch(`https://api.github.com${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "Content-Type": "application/json",
+      "User-Agent": "conductor-project-bridge",
+      ...(init.headers || {})
+    }
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    const error = new Error(`GitHub REST request failed for ${path}`);
+    error.details = { status: response.status, body };
+    throw error;
+  }
+
+  const text = await response.text();
+  return text.trim() ? JSON.parse(text) : undefined;
+}
+
 async function dispatchProjectActivation(repository, issueNumber, token, eventName = null, action = null, issueNodeId = null, projectNumber = null, projectUrl = null, persona = null) {
   const response = await fetch(`https://api.github.com/repos/${TARGET_REPO}/dispatches`, {
     method: "POST",
@@ -88,6 +115,189 @@ async function dispatchProjectActivation(repository, issueNumber, token, eventNa
     const error = new Error("GitHub repository_dispatch failed");
     error.details = { status: response.status, body };
     throw error;
+  }
+}
+
+function normalizePersona(persona) {
+  return persona === "coder" ? "coder" : "conductor";
+}
+
+function parseRunTarget(displayTitle) {
+  if (typeof displayTitle !== "string") {
+    return null;
+  }
+
+  const match = displayTitle.match(/^Conductor \[(.+)\] Issue #(\d+)\b/);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    repository: match[1],
+    issueNumber: Number(match[2])
+  };
+}
+
+function isRecoveryRun(run) {
+  return typeof run.display_title === "string" && run.display_title.includes(RECOVERY_RUN_SUFFIX);
+}
+
+function hasActiveRun(item, runs) {
+  return runs.some(run => {
+    if (run.status === "completed") {
+      return false;
+    }
+
+    const target = parseRunTarget(run.display_title);
+    return target?.repository === item.repository && target.issueNumber === item.issueNumber;
+  });
+}
+
+function countRecoveryAttempts(item, runs) {
+  return runs.filter(run => {
+    if (!isRecoveryRun(run)) {
+      return false;
+    }
+
+    const target = parseRunTarget(run.display_title);
+    return target?.repository === item.repository && target.issueNumber === item.issueNumber;
+  }).length;
+}
+
+function findOrphanedItems(items, runs) {
+  return items.filter(item => item.status === TARGET_STATUS && !hasActiveRun(item, runs));
+}
+
+async function loadProjectItems(token) {
+  const query = `
+    query ProjectItems($org: String!, $number: Int!, $after: String) {
+      organization(login: $org) {
+        projectV2(number: $number) {
+          url
+          items(first: 100, after: $after) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              status: fieldValueByName(name: "Status") {
+                ... on ProjectV2ItemFieldSingleSelectValue {
+                  name
+                }
+              }
+              persona: fieldValueByName(name: "Persona") {
+                ... on ProjectV2ItemFieldSingleSelectValue {
+                  name
+                }
+              }
+              content {
+                ... on Issue {
+                  id
+                  number
+                  repository {
+                    nameWithOwner
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const items = [];
+  let after = null;
+
+  while (true) {
+    const data = await githubGraphql(query, {
+      org: "LLM-Orchestration",
+      number: TARGET_PROJECT_NUMBER,
+      after
+    }, token);
+
+    const project = data?.organization?.projectV2 ?? null;
+    if (!project) {
+      throw new Error(`Project LLM-Orchestration#${TARGET_PROJECT_NUMBER} was not found`);
+    }
+
+    for (const node of project.items.nodes) {
+      const repository = node.content?.repository?.nameWithOwner;
+      const issueNumber = node.content?.number;
+      const issueNodeId = node.content?.id;
+      const status = node.status?.name;
+      if (!repository || !issueNumber || !issueNodeId || !status) {
+        continue;
+      }
+
+      items.push({
+        repository,
+        issueNumber,
+        issueNodeId,
+        projectNumber: TARGET_PROJECT_NUMBER,
+        projectUrl: project.url,
+        status,
+        persona: node.persona?.name === "coder" || node.persona?.name === "conductor" ? node.persona.name : null
+      });
+    }
+
+    if (!project.items.pageInfo.hasNextPage) {
+      break;
+    }
+    after = project.items.pageInfo.endCursor;
+  }
+
+  return items;
+}
+
+async function loadWorkflowRuns(token) {
+  const data = await githubRest(`/repos/${TARGET_REPO}/actions/workflows/${WORKFLOW_FILE}/runs?per_page=100`, token);
+  return Array.isArray(data?.workflow_runs) ? data.workflow_runs : [];
+}
+
+async function recoverOrphanedItems(token) {
+  const [items, runs] = await Promise.all([
+    loadProjectItems(token),
+    loadWorkflowRuns(token)
+  ]);
+
+  const orphanedItems = findOrphanedItems(items, runs);
+  logger.info("Cloud scheduler scanned project for orphaned in-progress items", {
+    scannedItems: items.length,
+    orphanedItems: orphanedItems.length,
+    maxRetries: DEFAULT_MAX_RECOVERY_RETRIES
+  });
+
+  for (const item of orphanedItems) {
+    const retries = countRecoveryAttempts(item, runs);
+    if (retries >= DEFAULT_MAX_RECOVERY_RETRIES) {
+      logger.info("Skipping orphan recovery because retry budget is exhausted", {
+        repository: item.repository,
+        issueNumber: item.issueNumber,
+        retries,
+        maxRetries: DEFAULT_MAX_RECOVERY_RETRIES
+      });
+      continue;
+    }
+
+    await dispatchProjectActivation(
+      item.repository,
+      item.issueNumber,
+      token,
+      "schedule",
+      "recover_orphaned_in_progress",
+      item.issueNodeId,
+      item.projectNumber,
+      item.projectUrl,
+      normalizePersona(item.persona)
+    );
+
+    logger.info("Cloud scheduler re-dispatched orphaned in-progress item", {
+      repository: item.repository,
+      issueNumber: item.issueNumber,
+      persona: normalizePersona(item.persona),
+      retry: retries + 1
+    });
   }
 }
 
@@ -275,6 +485,26 @@ exports.githubProjectsV2Webhook = onRequest(
         error: "Bridge failed",
         message: error.message
       });
+    }
+  }
+);
+
+exports.recoverOrphanedInProgress = onSchedule(
+  {
+    region: "us-central1",
+    schedule: "3-58/5 * * * *",
+    timeZone: "UTC",
+    secrets: [conductorToken]
+  },
+  async () => {
+    try {
+      await recoverOrphanedItems(conductorToken.value());
+    } catch (error) {
+      logger.error("Scheduled orphan recovery failed", {
+        message: error.message,
+        details: error.details || null
+      });
+      throw error;
     }
   }
 );
