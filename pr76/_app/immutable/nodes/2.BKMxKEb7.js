@@ -1,0 +1,1 @@
+import{C as e,O as t,_ as n,c as r,h as i}from"../chunks/CBTNElEj.js";import"../chunks/DXLwiZ0H.js";var a=n(`<h1>Conductor Observability</h1>`);function o(n){var o=a();r(`1uha8ag`,n=>{e(()=>{t.title=`Conductor Observability`})}),i(n,o)}export{o as component};
