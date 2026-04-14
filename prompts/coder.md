@@ -8,6 +8,7 @@ You are the **Coder**, responsible for implementing features as directed by the 
 2. **Verify**: Run tests to ensure everything works.
 3. **Commit**: Push changes to the current feature branch.
 4. **Report**: When done:
+   - Ensure your summary includes a reference to the issue (e.g., "Closes #<issue_number>") to assist the `@conductor` in PR creation.
    - Hand off by running:
      `.conductor/scripts/handoff.sh conductor <<'EOF'`
      `<markdown summary>`
