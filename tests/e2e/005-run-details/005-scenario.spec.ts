@@ -62,6 +62,10 @@ Another log line
     description: 'Run details page loaded with events',
     verifications: [
       { 
+        spec: 'Back to Dashboard link is visible', 
+        check: async () => expect(page.getByRole('link', { name: '← Back to Dashboard' })).toBeVisible() 
+      },
+      { 
         spec: 'Title is correct', 
         check: async () => expect(page.getByRole('heading', { name: `Run Details: Conductor [LLM-Orchestration/conductor] Issue #88` })).toBeVisible() 
       },

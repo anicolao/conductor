@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { base } from '$app/paths';
 	import type { WorkflowRun, Issue } from '$lib/types';
 
 	interface Props {
@@ -8,7 +9,7 @@
 
 	let { runs }: Props = $props();
 	let issueDetails = $state<Record<string, Issue>>({});
-	let prDetails = $state<Record<string, { html_url: string }>>({});
+	let prDetails = $state<Record<string, { html_url: string; number: number }>>({});
 
 	onMount(async () => {
 		const token = sessionStorage.getItem('github_access_token');
@@ -61,7 +62,10 @@
 					if (res.ok) {
 						const pulls = await res.json();
 						if (pulls.length > 0) {
-							prDetails[run.id.toString()] = { html_url: pulls[0].html_url };
+							prDetails[run.id.toString()] = {
+								html_url: pulls[0].html_url,
+								number: pulls[0].number
+							};
 						}
 					}
 				} catch (e) {
@@ -115,11 +119,7 @@
 					<td>
 						{#if parsed}
 							{@const path = `${parsed.repo}/issues/${parsed.issue}`}
-							<a
-								href="https://github.com/{path}"
-								target="_blank"
-								rel="noopener noreferrer"
-							>
+							<a href="https://github.com/{path}" target="_blank" rel="noopener noreferrer">
 								#{parsed.issue}{issueDetails[path] ? `: ${issueDetails[path].title}` : ''}
 							</a>
 						{:else}
@@ -135,7 +135,7 @@
 									target="_blank"
 									rel="noopener noreferrer"
 								>
-									View PR
+									PR #{issueDetails[path].number}
 								</a>
 							{:else if prDetails[run.id.toString()]}
 								<a
@@ -143,7 +143,7 @@
 									target="_blank"
 									rel="noopener noreferrer"
 								>
-									View PR
+									PR #{prDetails[run.id.toString()].number}
 								</a>
 							{:else}
 								-
@@ -153,7 +153,7 @@
 						{/if}
 					</td>
 					<td>
-						<a href="/run?id={run.id}"> View Run </a>
+						<a href="{base}/run?id={run.id}"> View Run </a>
 					</td>
 					<td>{formatDate(run.created_at)}</td>
 				</tr>
