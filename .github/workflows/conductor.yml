@@ -76,13 +76,19 @@ jobs:
         working-directory: .conductor
         run: npm run build
 
+      - name: Prepare Gemini Auth
+        working-directory: .conductor
+        env:
+          GEMINI_API_KEY_SECRET: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_OAUTH_CREDS_JSON: ${{ secrets.GEMINI_OAUTH_CREDS_JSON }}
+        run: npm run gemini:prepare-auth
+
       - name: Run Conductor
         working-directory: .conductor
         env:
           CONDUCTOR_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
           GH_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
           GITHUB_REPOSITORY: ${{ steps.metadata.outputs.repository }}
         run: npm start

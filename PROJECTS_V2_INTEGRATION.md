@@ -173,10 +173,10 @@ The Conductor is triggered by Project V2 activity:
 3. The next agent (e.g., `coder`) starts its work.
 
 ### 3. Recovering Orphaned Items
-1. A scheduled workflow in `LLM-Orchestration/conductor` runs every 5 minutes.
-2. It scans Project `#1` for items still in `In Progress`.
-3. If an item has no non-completed Conductor workflow run targeting that repository/issue, it re-dispatches `project_in_progress` for that item.
-4. Recovery attempts are capped so the watchdog will not endlessly re-trigger the same stalled item.
+1. A Firebase scheduled function in `llm-orch-conductor-bridge` runs on staggered 5-minute intervals.
+2. It dispatches the existing `recover-orphaned-items.yml` GitHub Actions workflow on `main`.
+3. That workflow performs the orphan scan and any re-dispatches, so recovery logic stays in one place.
+4. During the transition, the GitHub workflow also keeps its native cron schedule.
 5. The same scanner can be exercised safely with `npm run recover:orphans:dry-run`, which prints the intended re-dispatches without sending them.
 
 ### Audit Trail

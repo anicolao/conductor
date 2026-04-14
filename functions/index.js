@@ -3,6 +3,7 @@
 const crypto = require("crypto");
 
 const { onRequest } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const logger = require("firebase-functions/logger");
 const { defineSecret } = require("firebase-functions/params");
 
@@ -12,6 +13,8 @@ const githubClientId = defineSecret("GITHUB_CLIENT_ID");
 const githubClientSecret = defineSecret("GITHUB_CLIENT_SECRET");
 
 const TARGET_REPO = "LLM-Orchestration/conductor";
+const RECOVER_ORPHANED_WORKFLOW_FILE = "recover-orphaned-items.yml";
+const DEFAULT_BRANCH = "main";
 const TARGET_STATUS = "In Progress";
 const TARGET_PROJECT_NUMBER = 1;
 
@@ -61,6 +64,29 @@ async function githubGraphql(query, variables, token) {
   return body.data;
 }
 
+async function githubRest(path, token, init = {}) {
+  const response = await fetch(`https://api.github.com${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "Content-Type": "application/json",
+      "User-Agent": "conductor-project-bridge",
+      ...(init.headers || {})
+    }
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    const error = new Error(`GitHub REST request failed for ${path}`);
+    error.details = { status: response.status, body };
+    throw error;
+  }
+
+  const text = await response.text();
+  return text.trim() ? JSON.parse(text) : undefined;
+}
+
 async function dispatchProjectActivation(repository, issueNumber, token, eventName = null, action = null, issueNodeId = null, projectNumber = null, projectUrl = null, persona = null) {
   const response = await fetch(`https://api.github.com/repos/${TARGET_REPO}/dispatches`, {
     method: "POST",
@@ -91,6 +117,17 @@ async function dispatchProjectActivation(repository, issueNumber, token, eventNa
     error.details = { status: response.status, body };
     throw error;
   }
+}
+
+async function dispatchRecoverOrphanedWorkflow(token) {
+  await githubRest(
+    `/repos/${TARGET_REPO}/actions/workflows/${RECOVER_ORPHANED_WORKFLOW_FILE}/dispatches`,
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify({ ref: DEFAULT_BRANCH })
+    }
+  );
 }
 
 exports.githubProjectsV2Webhook = onRequest(
@@ -324,6 +361,26 @@ exports.githubOAuthExchange = onRequest(
     } catch (error) {
       logger.error("Failed to exchange GitHub code", { error: error.message });
       res.status(500).json({ error: "internal_error", message: error.message });
+exports.recoverOrphanedInProgress = onSchedule(
+  {
+    region: "us-central1",
+    schedule: "3-58/5 * * * *",
+    timeZone: "UTC",
+    secrets: [conductorToken]
+  },
+  async () => {
+    try {
+      await dispatchRecoverOrphanedWorkflow(conductorToken.value());
+      logger.info("Scheduled orphan recovery workflow dispatch succeeded", {
+        workflow: RECOVER_ORPHANED_WORKFLOW_FILE,
+        ref: DEFAULT_BRANCH
+      });
+    } catch (error) {
+      logger.error("Scheduled orphan recovery workflow dispatch failed", {
+        message: error.message,
+        details: error.details || null
+      });
+      throw error;
     }
   }
 );

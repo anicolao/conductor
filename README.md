@@ -17,8 +17,11 @@ Conductor aims for extreme simplicity and high agency. Instead of complex, hardc
 
 This MVP invokes the official Gemini CLI through `npx` in headless mode.
 
-- For GitHub Actions, set the repository secret `GEMINI_API_KEY`.
-- For local runs, copy `.env.example` to `.env` and set `GEMINI_API_KEY`.
+- For GitHub Actions, set either:
+  - `GEMINI_OAUTH_CREDS_JSON` to the full contents of `~/.gemini/oauth_creds.json`
+  - or `GEMINI_API_KEY` as a fallback
+- The conductor workflow pre-seeds `~/.gemini/projects.json` on the runner to avoid the upstream `ProjectRegistry.save()` bootstrap race on fresh environments.
+- For local runs, either authenticate Gemini CLI so `~/.gemini/oauth_creds.json` exists, or copy `.env.example` to `.env` and set `GEMINI_API_KEY`.
 
 ## Projects V2 Setup
 
@@ -40,7 +43,8 @@ Current Firebase bridge project:
 
 - `llm-orch-conductor-bridge`
 
-The repository also includes a scheduled recovery workflow that scans the shared project every 5 minutes for `In Progress` items with no non-completed Conductor run and re-dispatches them.
+The repository also includes a Firebase scheduled recovery function that triggers the existing `recover-orphaned-items.yml` workflow on staggered minutes.
+During the transition, the GitHub workflow keeps its own native cron as well, so both schedulers can exercise the same recovery path.
 You can exercise the same scanner without re-triggering work via `npm run recover:orphans:dry-run`.
 
 ## Licensing

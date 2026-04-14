@@ -99,6 +99,23 @@ function buildGeminiEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
+function hasGeminiOAuthCredentials(): boolean {
+  const home = process.env.HOME;
+  if (!home) return false;
+
+  const credsPath = path.join(home, '.gemini', 'oauth_creds.json');
+
+  try {
+    const raw = fs.readFileSync(credsPath, 'utf8').trim();
+    if (!raw) return false;
+
+    const parsed = JSON.parse(raw);
+    return typeof parsed === 'object' && parsed !== null;
+  } catch {
+    return false;
+  }
+}
+
 function loadIssueState(repository: string, issueNumber: number): { 
   labels: string[]; 
   body: string; 
@@ -403,8 +420,11 @@ ${commentBody}
 `;
 
     const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    if (!geminiApiKey) {
-      console.error('Gemini API key not set. Configure GEMINI_API_KEY in GitHub Actions secrets or a local .env file.');
+    if (!geminiApiKey && !hasGeminiOAuthCredentials()) {
+      console.error(
+        'Gemini auth not set. Configure GEMINI_API_KEY or GEMINI_OAUTH_CREDS_JSON in GitHub Actions, ' +
+        'or authenticate locally so ~/.gemini/oauth_creds.json exists.'
+      );
       process.exit(1);
     }
 
