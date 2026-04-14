@@ -1,6 +1,7 @@
+// @ts-check
 "use strict";
 
-const crypto = require("crypto");
+const crypto = require("node:crypto");
 
 const { onRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
@@ -17,6 +18,10 @@ const RECOVER_ORPHANED_WORKFLOW_FILE = "recover-orphaned-items.yml";
 const DEFAULT_BRANCH = "main";
 const TARGET_STATUS = "In Progress";
 const TARGET_PROJECT_NUMBER = 1;
+
+/**
+ * @typedef {Error & {details?: unknown}} DetailedError
+ */
 
 function timingSafeEqualHex(a, b) {
   const aBuffer = Buffer.from(a, "utf8");
@@ -54,8 +59,10 @@ async function githubGraphql(query, variables, token) {
     body: JSON.stringify({ query, variables })
   });
 
+  /** @type {{ errors?: unknown; data?: unknown }} */
   const body = await response.json();
   if (!response.ok || body.errors) {
+    /** @type {DetailedError} */
     const error = new Error("GitHub GraphQL request failed");
     error.details = { status: response.status, body };
     throw error;
@@ -78,6 +85,7 @@ async function githubRest(path, token, init = {}) {
 
   if (!response.ok) {
     const body = await response.text();
+    /** @type {DetailedError} */
     const error = new Error(`GitHub REST request failed for ${path}`);
     error.details = { status: response.status, body };
     throw error;
@@ -113,6 +121,7 @@ async function dispatchProjectActivation(repository, issueNumber, token, eventNa
 
   if (!response.ok) {
     const body = await response.text();
+    /** @type {DetailedError} */
     const error = new Error("GitHub repository_dispatch failed");
     error.details = { status: response.status, body };
     throw error;
@@ -199,6 +208,7 @@ exports.githubProjectsV2Webhook = onRequest(
     }
 
     try {
+      /** @type {{ node?: any } | undefined} */
       const data = await githubGraphql(
         `query ProjectItemState($id: ID!) {
           node(id: $id) {
@@ -375,6 +385,7 @@ exports.githubOAuthExchange = onRequest(
         body: params.toString()
       });
 
+      /** @type {{ error?: unknown } & Record<string, unknown>} */
       const data = await response.json();
       logger.info("GitHub OAuth exchange response received", {
         status: response.status,

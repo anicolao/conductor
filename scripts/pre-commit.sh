@@ -2,3 +2,4 @@
 set -euo pipefail
 
 npm run build
+npm run functions:check
