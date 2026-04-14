@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
+	import { base } from '$app/paths';
 	import { parseLogs } from '$lib/parser';
 	import EventTimeline from '$lib/components/EventTimeline.svelte';
 	import type { ConductorEvent, WorkflowRun } from '$lib/types';
@@ -84,7 +85,7 @@
 
 <div class="container">
 	<nav>
-		<a href="/">← Back to Dashboard</a>
+		<a href="{base}/">← Back to Dashboard</a>
 	</nav>
 
 	{#if loading}

@@ -7,6 +7,7 @@ Verify that the run details route fetches and displays conductor events.
 ![Run details page loaded with events](./screenshots/000-run-details-loaded.png)
 
 ### Verifications
+- [x] Back to Dashboard link is visible
 - [x] Title is correct
 - [x] Status badge is visible
 - [x] Drill down link is correct
