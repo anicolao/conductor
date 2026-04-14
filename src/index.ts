@@ -280,7 +280,7 @@ function activatePersonaLabel(repository: string, issueNumber: number, persona: 
 }
 
 function postPickupNote(repository: string, issueNumber: number, persona: string, branch: string): void {
-  const body = `Conductor has picked up this task and is starting work (Persona: **${persona}**, Branch: \`${branch}\`).`;
+  const body = `The **${persona}** has picked up this task and is working on **${branch}**.`;
   
   console.log(`Posting pickup note to issue #${issueNumber} in ${repository}...`);
   
