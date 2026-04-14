@@ -9,6 +9,8 @@ const { defineSecret } = require("firebase-functions/params");
 
 const githubWebhookSecret = defineSecret("GITHUB_WEBHOOK_SECRET");
 const conductorToken = defineSecret("CONDUCTOR_TOKEN");
+const githubClientId = defineSecret("GITHUB_CLIENT_ID");
+const githubClientSecret = defineSecret("GITHUB_CLIENT_SECRET");
 
 const TARGET_REPO = "LLM-Orchestration/conductor";
 const RECOVER_ORPHANED_WORKFLOW_FILE = "recover-orphaned-items.yml";
@@ -316,6 +318,49 @@ exports.githubProjectsV2Webhook = onRequest(
   }
 );
 
+exports.githubOAuthExchange = onRequest(
+  {
+    region: "us-central1",
+    secrets: [githubClientId, githubClientSecret],
+    cors: true
+  },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).send("Method Not Allowed");
+      return;
+    }
+
+    const { code } = req.body || {};
+    if (!code) {
+      res.status(400).json({ error: "missing_code" });
+      return;
+    }
+
+    try {
+      const response = await fetch("https://github.com/login/oauth/access_token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        },
+        body: JSON.stringify({
+          client_id: githubClientId.value(),
+          client_secret: githubClientSecret.value(),
+          code
+        })
+      });
+
+      const data = await response.json();
+      if (data.error) {
+        logger.error("GitHub OAuth exchange error", data);
+        res.status(400).json(data);
+        return;
+      }
+
+      res.status(200).json(data);
+    } catch (error) {
+      logger.error("Failed to exchange GitHub code", { error: error.message });
+      res.status(500).json({ error: "internal_error", message: error.message });
 exports.recoverOrphanedInProgress = onSchedule(
   {
     region: "us-central1",

@@ -1,5 +1,115 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { PUBLIC_GITHUB_CLIENT_ID } from '$env/static/public';
+
+	let user = $state<{ login: string; avatar_url: string } | null>(null);
+	let repo = $state<{ name: string; full_name: string } | null>(null);
+	let loading = $state(true);
+	let error = $state<string | null>(null);
+
+	onMount(async () => {
+		const token = sessionStorage.getItem('github_access_token');
+		if (token) {
+			try {
+				const [userRes, repoRes] = await Promise.all([
+					fetch('https://api.github.com/user', {
+						headers: { Authorization: `Bearer ${token}` }
+					}),
+					fetch('https://api.github.com/repos/LLM-Orchestration/conductor', {
+						headers: { Authorization: `Bearer ${token}` }
+					})
+				]);
+
+				if (userRes.ok) {
+					user = await userRes.json();
+				} else {
+					sessionStorage.removeItem('github_access_token');
+				}
+
+				if (repoRes.ok) {
+					repo = await repoRes.json();
+				}
+			} catch (e) {
+				console.error('Failed to fetch from GitHub', e);
+				error = 'Failed to fetch from GitHub';
+			}
+		}
+		loading = false;
+	});
+
+	function login() {
+		// Save current path to redirect back after OAuth
+		sessionStorage.setItem('oauth_redirect_path', window.location.pathname);
+		
+		const clientId = PUBLIC_GITHUB_CLIENT_ID;
+		const scope = 'repo,workflow';
+		window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=${scope}`;
+	}
+
+	function logout() {
+		sessionStorage.removeItem('github_access_token');
+		user = null;
+		repo = null;
+	}
+</script>
+
 <svelte:head>
 	<title>Conductor Observability</title>
 </svelte:head>
 
 <h1>Conductor Observability</h1>
+
+{#if loading}
+	<p>Loading...</p>
+{:else if user}
+	<div class="profile">
+		<img src={user.avatar_url} alt={user.login} />
+		<p>Logged in as <strong>{user.login}</strong></p>
+		<button onclick={logout}>Logout</button>
+	</div>
+
+	{#if repo}
+		<div class="repo-verification">
+			<p>Accessing repository: <strong>{repo.full_name}</strong></p>
+			<p class="success">GitHub API Verified ✅</p>
+		</div>
+	{/if}
+{:else}
+	<button onclick={login}>Login with GitHub</button>
+{/if}
+
+{#if error}
+	<p class="error">{error}</p>
+{/if}
+
+<style>
+	.profile {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		margin: 1rem 0;
+	}
+
+	.profile img {
+		width: 50px;
+		height: 50px;
+		border-radius: 50%;
+	}
+
+	.repo-verification {
+		margin-top: 1rem;
+		padding: 1rem;
+		background: #f0fdf4;
+		border: 1px solid #bbf7d0;
+		border-radius: 0.5rem;
+	}
+
+	.success {
+		color: #166534;
+		font-weight: bold;
+	}
+
+	.error {
+		color: #991b1b;
+	}
+</style>
