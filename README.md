@@ -17,8 +17,11 @@ Conductor aims for extreme simplicity and high agency. Instead of complex, hardc
 
 This MVP invokes the official Gemini CLI through `npx` in headless mode.
 
-- For GitHub Actions, set the repository secret `GEMINI_API_KEY`.
-- For local runs, copy `.env.example` to `.env` and set `GEMINI_API_KEY`.
+- For GitHub Actions, set either:
+  - `GEMINI_OAUTH_CREDS_JSON` to the full contents of `~/.gemini/oauth_creds.json`
+  - or `GEMINI_API_KEY` as a fallback
+- The conductor workflow pre-seeds `~/.gemini/projects.json` on the runner to avoid the upstream `ProjectRegistry.save()` bootstrap race on fresh environments.
+- For local runs, either authenticate Gemini CLI so `~/.gemini/oauth_creds.json` exists, or copy `.env.example` to `.env` and set `GEMINI_API_KEY`.
 
 ## Projects V2 Setup
 
