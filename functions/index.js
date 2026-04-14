@@ -336,12 +336,16 @@ exports.githubOAuthExchange = onRequest(
       return;
     }
 
-    logger.info("Starting GitHub OAuth exchange", { code: code.substring(0, 5) + "..." });
+    logger.info("Starting GitHub OAuth exchange", { 
+      code: code.substring(0, 5) + "...",
+      client_id_prefix: githubClientId.value().trim().substring(0, 4),
+      client_secret_len: githubClientSecret.value().trim().length
+    });
 
     try {
       const params = new URLSearchParams();
-      params.append("client_id", githubClientId.value());
-      params.append("client_secret", githubClientSecret.value());
+      params.append("client_id", githubClientId.value().trim());
+      params.append("client_secret", githubClientSecret.value().trim());
       params.append("code", code);
 
       const response = await fetch("https://github.com/login/oauth/access_token", {
@@ -360,7 +364,11 @@ exports.githubOAuthExchange = onRequest(
       });
 
       if (data.error) {
-        logger.error("GitHub OAuth exchange error", data);
+        logger.error("GitHub OAuth exchange error", {
+          error: data.error,
+          error_description: data.error_description,
+          error_uri: data.error_uri
+        });
         res.status(400).json(data);
         return;
       }
