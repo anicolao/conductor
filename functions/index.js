@@ -336,21 +336,29 @@ exports.githubOAuthExchange = onRequest(
       return;
     }
 
+    logger.info("Starting GitHub OAuth exchange", { code: code.substring(0, 5) + "..." });
+
     try {
+      const params = new URLSearchParams();
+      params.append("client_id", githubClientId.value());
+      params.append("client_secret", githubClientSecret.value());
+      params.append("code", code);
+
       const response = await fetch("https://github.com/login/oauth/access_token", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type": "application/x-www-form-urlencoded",
           Accept: "application/json"
         },
-        body: JSON.stringify({
-          client_id: githubClientId.value(),
-          client_secret: githubClientSecret.value(),
-          code
-        })
+        body: params.toString()
       });
 
       const data = await response.json();
+      logger.info("GitHub OAuth exchange response received", { 
+        has_token: !!data.access_token,
+        error: data.error || null 
+      });
+
       if (data.error) {
         logger.error("GitHub OAuth exchange error", data);
         res.status(400).json(data);

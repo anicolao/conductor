@@ -4,9 +4,12 @@
 	import { goto } from '$app/navigation';
 	import { PUBLIC_OAUTH_EXCHANGE_URL } from '$env/static/public';
 
+	let exchanged = false;
+
 	onMount(async () => {
 		const code = $page.url.searchParams.get('code');
-		if (code) {
+		if (code && !exchanged) {
+			exchanged = true;
 			try {
 				const response = await fetch(PUBLIC_OAUTH_EXCHANGE_URL, {
 					method: 'POST',
