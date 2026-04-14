@@ -17,8 +17,8 @@ Verify that the landing page shows a table of recent workflow runs when logged i
 
 ### Verifications
 - [x] Table headers are correct
-- [x] First row data is correct
-- [x] Second row data is correct
+- [x] First row data is correct (with PR)
+- [x] Second row data is correct (without PR)
 
 ---
 
