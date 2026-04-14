@@ -1,11 +1,44 @@
 <script lang="ts">
-	import type { WorkflowRun } from '$lib/types';
+	import { onMount } from 'svelte';
+	import type { WorkflowRun, Issue } from '$lib/types';
 
 	interface Props {
 		runs: WorkflowRun[];
 	}
 
 	let { runs }: Props = $props();
+	let issueDetails = $state<Record<string, Issue>>({});
+
+	onMount(async () => {
+		const token = sessionStorage.getItem('github_access_token');
+		if (!token) return;
+
+		// Extract unique issues to fetch
+		const issuesToFetch = new Set<string>();
+		runs.forEach((run) => {
+			const parsed = parseTitle(run.display_title);
+			if (parsed) {
+				issuesToFetch.add(`${parsed.repo}/issues/${parsed.issue}`);
+			}
+		});
+
+		// Fetch each issue
+		await Promise.all(
+			Array.from(issuesToFetch).map(async (path) => {
+				try {
+					const res = await fetch(`https://api.github.com/repos/${path}`, {
+						headers: { Authorization: `Bearer ${token}` }
+					});
+					if (res.ok) {
+						const issue: Issue = await res.json();
+						issueDetails[path] = issue;
+					}
+				} catch (e) {
+					console.error(`Failed to fetch issue ${path}`, e);
+				}
+			})
+		);
+	});
 
 	function parseTitle(title: string) {
 		const regex = /Conductor \[(?<repo>[^\]]+)\] Issue #(?<issue>\d+)/;
@@ -30,6 +63,7 @@
 			<tr>
 				<th>Repository</th>
 				<th>Issue</th>
+				<th>PR</th>
 				<th>Workflow Run</th>
 				<th>Timestamp</th>
 			</tr>
@@ -49,17 +83,38 @@
 					</td>
 					<td>
 						{#if parsed}
-							<a href="https://github.com/{parsed.repo}/issues/{parsed.issue}" target="_blank" rel="noopener noreferrer">
-								#{parsed.issue}
+							{@const path = `${parsed.repo}/issues/${parsed.issue}`}
+							<a
+								href="https://github.com/{path}"
+								target="_blank"
+								rel="noopener noreferrer"
+							>
+								#{parsed.issue}{issueDetails[path] ? `: ${issueDetails[path].title}` : ''}
 							</a>
 						{:else}
 							-
 						{/if}
 					</td>
 					<td>
-						<a href={run.html_url} target="_blank" rel="noopener noreferrer">
-							View Run
-						</a>
+						{#if parsed}
+							{@const path = `${parsed.repo}/issues/${parsed.issue}`}
+							{#if issueDetails[path]?.pull_request}
+								<a
+									href={issueDetails[path].pull_request?.html_url}
+									target="_blank"
+									rel="noopener noreferrer"
+								>
+									View PR
+								</a>
+							{:else}
+								-
+							{/if}
+						{:else}
+							-
+						{/if}
+					</td>
+					<td>
+						<a href="/run/{run.id}"> View Run </a>
 					</td>
 					<td>{formatDate(run.created_at)}</td>
 				</tr>

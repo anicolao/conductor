@@ -25,3 +25,12 @@ export interface WorkflowRunsResponse {
 	total_count: number;
 	workflow_runs: WorkflowRun[];
 }
+
+export interface Issue {
+	number: number;
+	title: string;
+	html_url: string;
+	pull_request?: {
+		html_url: string;
+	};
+}

@@ -76,6 +76,34 @@ test('Workflow Table Display', async ({ page }, testInfo) => {
     });
   });
 
+  // Mock GitHub Issues API
+  await page.route('https://api.github.com/repos/LLM-Orchestration/conductor/issues/83', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        number: 83,
+        title: 'Fix the landing page table',
+        html_url: 'https://github.com/LLM-Orchestration/conductor/issues/83',
+        pull_request: {
+          html_url: 'https://github.com/LLM-Orchestration/conductor/pull/84'
+        }
+      }),
+    });
+  });
+
+  await page.route('https://api.github.com/repos/some-org/another-repo/issues/42', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        number: 42,
+        title: 'Meaning of life',
+        html_url: 'https://github.com/some-org/another-repo/issues/42'
+      }),
+    });
+  });
+
   // Mock GitHub OAuth Authorize redirect
   await page.route('https://github.com/login/oauth/authorize*', async (route) => {
     await page.goto('/auth/callback?code=test_code');
@@ -105,26 +133,31 @@ test('Workflow Table Display', async ({ page }, testInfo) => {
         check: async () => {
           await expect(page.getByRole('columnheader', { name: 'Repository' })).toBeVisible();
           await expect(page.getByRole('columnheader', { name: 'Issue' })).toBeVisible();
+          await expect(page.getByRole('columnheader', { name: 'PR' })).toBeVisible();
           await expect(page.getByRole('columnheader', { name: 'Workflow Run' })).toBeVisible();
           await expect(page.getByRole('columnheader', { name: 'Timestamp' })).toBeVisible();
         }
       },
       {
-        spec: 'First row data is correct',
+        spec: 'First row data is correct (with PR)',
         check: async () => {
           const row = page.getByRole('row').filter({ hasText: 'LLM-Orchestration/conductor' });
           await expect(row.getByRole('link', { name: 'LLM-Orchestration/conductor' })).toHaveAttribute('href', 'https://github.com/LLM-Orchestration/conductor');
-          await expect(row.getByRole('link', { name: '#83' })).toHaveAttribute('href', 'https://github.com/LLM-Orchestration/conductor/issues/83');
-          await expect(row.getByRole('link', { name: 'View Run' })).toHaveAttribute('href', 'https://github.com/LLM-Orchestration/conductor/actions/runs/123456789');
+          // Wait for title to be loaded
+          await expect(row.getByRole('link', { name: '#83: Fix the landing page table' })).toBeVisible();
+          await expect(row.getByRole('link', { name: 'View PR' })).toHaveAttribute('href', 'https://github.com/LLM-Orchestration/conductor/pull/84');
+          await expect(row.getByRole('link', { name: 'View Run' })).toHaveAttribute('href', '/run/123456789');
         }
       },
       {
-        spec: 'Second row data is correct',
+        spec: 'Second row data is correct (without PR)',
         check: async () => {
           const row = page.getByRole('row').filter({ hasText: 'some-org/another-repo' });
           await expect(row.getByRole('link', { name: 'some-org/another-repo' })).toHaveAttribute('href', 'https://github.com/some-org/another-repo');
-          await expect(row.getByRole('link', { name: '#42' })).toHaveAttribute('href', 'https://github.com/some-org/another-repo/issues/42');
-          await expect(row.getByRole('link', { name: 'View Run' })).toHaveAttribute('href', 'https://github.com/some-org/another-repo/actions/runs/987654321');
+          // Wait for title to be loaded
+          await expect(row.getByRole('link', { name: '#42: Meaning of life' })).toBeVisible();
+          await expect(row.getByRole('link', { name: 'View PR' })).not.toBeVisible();
+          await expect(row.getByRole('link', { name: 'View Run' })).toHaveAttribute('href', '/run/987654321');
         }
       }
     ]
