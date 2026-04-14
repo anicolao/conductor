@@ -361,6 +361,10 @@ exports.githubOAuthExchange = onRequest(
     } catch (error) {
       logger.error("Failed to exchange GitHub code", { error: error.message });
       res.status(500).json({ error: "internal_error", message: error.message });
+    }
+  }
+);
+
 exports.recoverOrphanedInProgress = onSchedule(
   {
     region: "us-central1",
