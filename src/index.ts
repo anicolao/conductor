@@ -120,6 +120,7 @@ function loadIssueState(repository: string, issueNumber: number): {
   labels: string[]; 
   body: string; 
   latestComment: string;
+  latestCommentUrl: string;
   commentCount: number;
   htmlUrl: string;
   nodeId: string;
@@ -136,15 +137,28 @@ function loadIssueState(repository: string, issueNumber: number): {
   const parsed = JSON.parse(issueData.stdout);
 
   // Fetch latest comment
-  const commentsData = spawnSync('gh', ['api', `repos/${repository}/issues/${issueNumber}/comments`, '--jq', '.[-1].body // empty'], {
+  const commentsData = spawnSync('gh', ['api', `repos/${repository}/issues/${issueNumber}/comments`, '--jq', '. [-1] | {body: .body, html_url: .html_url} // empty'], {
     encoding: 'utf8',
     env: process.env
   });
 
+  let latestComment = '';
+  let latestCommentUrl = '';
+  if (commentsData.status === 0 && commentsData.stdout.trim()) {
+    try {
+      const commentParsed = JSON.parse(commentsData.stdout);
+      latestComment = commentParsed.body || '';
+      latestCommentUrl = commentParsed.html_url || '';
+    } catch {
+      // ignore
+    }
+  }
+
   return {
     labels: Array.isArray(parsed.labels) ? parsed.labels.map((label: { name: string }) => label.name) : [],
     body: parsed.body || '',
-    latestComment: commentsData.status === 0 ? commentsData.stdout.trim() : '',
+    latestComment,
+    latestCommentUrl,
     commentCount: typeof parsed.comments === 'number' ? parsed.comments : 0,
     htmlUrl: parsed.html_url || '',
     nodeId: parsed.node_id || ''
@@ -307,6 +321,7 @@ async function main() {
     labels,
     issueBody,
     commentBody,
+    commentUrl,
     projectNumber,
     projectUrl,
     eventName: extractedEventName,
@@ -314,6 +329,7 @@ async function main() {
   } = extractEventData(event, process.env);
 
   let persona: 'conductor' | 'coder' | null = null;
+  let lastCommentUrl = commentUrl;
 
   try {
     if (!issueNumber) {
@@ -331,6 +347,7 @@ async function main() {
       labels = liveIssueState.labels;
       issueBody = liveIssueState.body;
       commentBody = liveIssueState.latestComment;
+      lastCommentUrl = liveIssueState.latestCommentUrl;
       issueUrl = liveIssueState.htmlUrl;
       issueNodeId = liveIssueState.nodeId;
       const commentLimit = getEffectiveCommentLimit(repository, issueNumber, liveIssueState.commentCount);
@@ -452,6 +469,8 @@ ENVIRONMENT:
 
     console.log('Invoking Gemini CLI...');
     const childEnv = buildGeminiEnv();
+    childEnv.CONDUCTOR_PERSONA = persona;
+    childEnv.CONDUCTOR_LAST_COMMENT_URL = lastCommentUrl;
     
     // The target repository is at the root (../ from .conductor/dist/src or ../ from .conductor if running via npm start)
     // In Actions, GITHUB_WORKSPACE is the root.

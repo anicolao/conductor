@@ -67,7 +67,14 @@ fi
 
 body_file="$(mktemp)"
 trap 'rm -f "$body_file"' EXIT
-cat > "$body_file"
+
+if [ -n "${CONDUCTOR_PERSONA:-}" ] && [ -n "${CONDUCTOR_LAST_COMMENT_URL:-}" ]; then
+  comment_id="${CONDUCTOR_LAST_COMMENT_URL##*-}"
+  echo "I am the $CONDUCTOR_PERSONA, and I am responding to comment [$comment_id]($CONDUCTOR_LAST_COMMENT_URL) on branch $branch_name." > "$body_file"
+  echo "" >> "$body_file"
+fi
+
+cat >> "$body_file"
 
 if [ ! -s "$body_file" ]; then
   echo "Comment body must be provided on stdin" >&2

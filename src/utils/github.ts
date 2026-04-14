@@ -9,6 +9,7 @@ export interface GitHubEvent {
   };
   comment?: {
     body: string;
+    html_url?: string;
   };
   client_payload?: {
     repository?: string;
@@ -20,6 +21,7 @@ export interface GitHubEvent {
     persona?: string;
     event_name?: string;
     action?: string;
+    last_comment_url?: string;
   };
 }
 
@@ -31,6 +33,7 @@ export function extractEventData(event: GitHubEvent, env: NodeJS.ProcessEnv) {
   const labels = event.issue?.labels?.map(l => l.name) || [];
   const issueBody = event.issue?.body || '';
   const commentBody = event.comment?.body || '';
+  const commentUrl = event.comment?.html_url || event.client_payload?.last_comment_url || '';
   const projectNumber = event.client_payload?.project_number;
   const projectUrl = event.client_payload?.project_url;
   const eventName = event.client_payload?.event_name || env.GITHUB_EVENT_NAME || '';
@@ -44,6 +47,7 @@ export function extractEventData(event: GitHubEvent, env: NodeJS.ProcessEnv) {
     labels,
     issueBody,
     commentBody,
+    commentUrl,
     projectNumber,
     projectUrl,
     eventName,

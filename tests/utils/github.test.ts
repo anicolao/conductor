@@ -22,6 +22,34 @@ describe('extractEventData', () => {
     expect(result.issueBody).toBe('issue body');
   });
 
+  it('should extract commentUrl from issue_comment event', () => {
+    const event: GitHubEvent = {
+      issue: {
+        number: 123,
+        labels: [],
+        body: 'issue body',
+        html_url: 'https://github.com/owner/repo/issues/123'
+      },
+      comment: {
+        body: 'comment body',
+        html_url: 'https://github.com/owner/repo/issues/123#issuecomment-789'
+      }
+    };
+    const result = extractEventData(event, {});
+    expect(result.commentBody).toBe('comment body');
+    expect(result.commentUrl).toBe('https://github.com/owner/repo/issues/123#issuecomment-789');
+  });
+
+  it('should extract commentUrl from client_payload', () => {
+    const event: GitHubEvent = {
+      client_payload: {
+        last_comment_url: 'https://github.com/owner/repo/issues/123#issuecomment-456'
+      }
+    };
+    const result = extractEventData(event, {});
+    expect(result.commentUrl).toBe('https://github.com/owner/repo/issues/123#issuecomment-456');
+  });
+
   it('should extract data from repository_dispatch event with client_payload', () => {
     const event: GitHubEvent = {
       client_payload: {
