@@ -146,8 +146,7 @@ test('Workflow Table Display', async ({ page }, testInfo) => {
           // Wait for title to be loaded
           await expect(row.getByRole('link', { name: '#83: Fix the landing page table' })).toBeVisible();
           await expect(row.getByRole('link', { name: 'View PR' })).toHaveAttribute('href', 'https://github.com/LLM-Orchestration/conductor/pull/84');
-          await expect(row.getByRole('link', { name: 'View Run' })).toHaveAttribute('href', '/run/123456789');
-        }
+          await expect(row.getByRole('link', { name: 'View Run' })).toHaveAttribute('href', '/run?id=123456789');        }
       },
       {
         spec: 'Second row data is correct (without PR)',
@@ -157,8 +156,7 @@ test('Workflow Table Display', async ({ page }, testInfo) => {
           // Wait for title to be loaded
           await expect(row.getByRole('link', { name: '#42: Meaning of life' })).toBeVisible();
           await expect(row.getByRole('link', { name: 'View PR' })).not.toBeVisible();
-          await expect(row.getByRole('link', { name: 'View Run' })).toHaveAttribute('href', '/run/987654321');
-        }
+          await expect(row.getByRole('link', { name: 'View Run' })).toHaveAttribute('href', '/run?id=987654321');        }
       }
     ]
   });
