@@ -558,5 +558,54 @@ else
   exit 1
 fi
 
+# Test 11: Header prepending
+export CONDUCTOR_PERSONA="coder"
+export CONDUCTOR_LAST_COMMENT_URL="https://github.com/LLM-Orchestration/conductor/issues/123#issuecomment-456789"
+cat > "$GITHUB_EVENT_PATH" <<'EOF'
+{
+  "client_payload": {
+    "issue_number": 123
+  }
+}
+EOF
+cat > "$TEST_DIR/gh" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+  "issue view"*".labels[].name"*)
+    echo "persona: conductor"
+    echo "branch: test-branch"
+    ;;
+  "issue view"*)
+    echo '{"labels":[{"name":"persona: conductor"}, {"name":"branch: test-branch"}]}'
+    ;;
+  "issue comment"*)
+    # Capture the body file content
+    while [ "\$#" -gt 0 ]; do
+      if [ "\$1" == "--body-file" ]; then
+        cp "\$2" "$TEST_DIR/captured_body.md"
+        break
+      fi
+      shift
+    done
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+EOF
+chmod +x "$TEST_DIR/gh"
+
+echo "Running handoff.sh (checking for header)..."
+echo "Original body" | bash scripts/handoff.sh conductor
+
+if grep -q "I am the coder, and I am responding to comment \[456789\](https://github.com/LLM-Orchestration/conductor/issues/123#issuecomment-456789) on branch test-branch." "$TEST_DIR/captured_body.md"; then
+  echo "Success: Header prepended correctly"
+else
+  echo "Error: Header NOT prepended correctly"
+  cat "$TEST_DIR/captured_body.md"
+  exit 1
+fi
+
 echo "All handoff validation tests passed!"
 exit 0

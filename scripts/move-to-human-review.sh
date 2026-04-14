@@ -101,8 +101,15 @@ fi
 body_file="$(mktemp)"
 trap 'rm -f "$body_file"' EXIT
 
+if [ -n "${CONDUCTOR_PERSONA:-}" ] && [ -n "${CONDUCTOR_LAST_COMMENT_URL:-}" ]; then
+  branch_name="$(git branch --show-current)"
+  comment_id="${CONDUCTOR_LAST_COMMENT_URL##*-}"
+  echo "I am the $CONDUCTOR_PERSONA, and I am responding to comment [$comment_id]($CONDUCTOR_LAST_COMMENT_URL) on branch ${branch_name:-unknown}." > "$body_file"
+  echo "" >> "$body_file"
+fi
+
 if [ ! -t 0 ]; then
-  cat > "$body_file"
+  cat >> "$body_file"
 fi
 
 if [ -s "$body_file" ]; then
