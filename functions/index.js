@@ -325,6 +325,13 @@ exports.githubOAuthExchange = onRequest(
     cors: true
   },
   async (req, res) => {
+    // Diagnostic log for investigating "empty logs" and request issues
+    logger.info("githubOAuthExchange request received", {
+      method: req.method,
+      has_body: !!req.body,
+      body_keys: req.body ? Object.keys(req.body) : []
+    });
+
     if (req.method !== "POST") {
       res.status(405).send("Method Not Allowed");
       return;
@@ -336,16 +343,27 @@ exports.githubOAuthExchange = onRequest(
       return;
     }
 
-    logger.info("Starting GitHub OAuth exchange", { 
+    const clientId = githubClientId.value().trim();
+    const clientSecret = githubClientSecret.value().trim();
+
+    logger.info("Starting GitHub OAuth exchange", {
       code: code.substring(0, 5) + "...",
-      client_id_prefix: githubClientId.value().trim().substring(0, 4),
-      client_secret_len: githubClientSecret.value().trim().length
+      client_id_diag: {
+        first8: clientId.substring(0, 8),
+        last4: clientId.substring(clientId.length - 4),
+        len: clientId.length
+      },
+      client_secret_diag: {
+        first4: clientSecret.substring(0, 4),
+        last4: clientSecret.substring(clientSecret.length - 4),
+        len: clientSecret.length
+      }
     });
 
     try {
       const params = new URLSearchParams();
-      params.append("client_id", githubClientId.value().trim());
-      params.append("client_secret", githubClientSecret.value().trim());
+      params.append("client_id", clientId);
+      params.append("client_secret", clientSecret);
       params.append("code", code);
 
       const response = await fetch("https://github.com/login/oauth/access_token", {
@@ -358,18 +376,21 @@ exports.githubOAuthExchange = onRequest(
       });
 
       const data = await response.json();
-      logger.info("GitHub OAuth exchange response received", { 
+      logger.info("GitHub OAuth exchange response received", {
+        status: response.status,
         has_token: !!data.access_token,
-        error: data.error || null 
+        error: data.error || null
       });
 
-      if (data.error) {
+      if (!response.ok || data.error) {
         logger.error("GitHub OAuth exchange error", {
+          status: response.status,
           error: data.error,
           error_description: data.error_description,
-          error_uri: data.error_uri
+          error_uri: data.error_uri,
+          full_response: data
         });
-        res.status(400).json(data);
+        res.status(response.status === 200 ? 400 : response.status).json(data);
         return;
       }
 
