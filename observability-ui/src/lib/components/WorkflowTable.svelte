@@ -8,6 +8,7 @@
 
 	let { runs }: Props = $props();
 	let issueDetails = $state<Record<string, Issue>>({});
+	let prDetails = $state<Record<string, { html_url: string }>>({});
 
 	onMount(async () => {
 		const token = sessionStorage.getItem('github_access_token');
@@ -35,6 +36,36 @@
 					}
 				} catch (e) {
 					console.error(`Failed to fetch issue ${path}`, e);
+				}
+			})
+		);
+
+		// For runs without a PR in issueDetails, try to find by head_branch
+		await Promise.all(
+			runs.map(async (run) => {
+				const parsed = parseTitle(run.display_title);
+				if (!parsed) return;
+
+				const path = `${parsed.repo}/issues/${parsed.issue}`;
+				if (issueDetails[path]?.pull_request) return;
+
+				// Try to find PR by branch
+				try {
+					const [owner, repo] = parsed.repo.split('/');
+					const res = await fetch(
+						`https://api.github.com/repos/${parsed.repo}/pulls?head=${owner}:${run.head_branch}`,
+						{
+							headers: { Authorization: `Bearer ${token}` }
+						}
+					);
+					if (res.ok) {
+						const pulls = await res.json();
+						if (pulls.length > 0) {
+							prDetails[run.id.toString()] = { html_url: pulls[0].html_url };
+						}
+					}
+				} catch (e) {
+					console.error(`Failed to fetch PR for run ${run.id}`, e);
 				}
 			})
 		);
@@ -106,6 +137,14 @@
 								>
 									View PR
 								</a>
+							{:else if prDetails[run.id.toString()]}
+								<a
+									href={prDetails[run.id.toString()].html_url}
+									target="_blank"
+									rel="noopener noreferrer"
+								>
+									View PR
+								</a>
 							{:else}
 								-
 							{/if}
@@ -114,7 +153,7 @@
 						{/if}
 					</td>
 					<td>
-						<a href="/run/{run.id}"> View Run </a>
+						<a href="/run?id={run.id}"> View Run </a>
 					</td>
 					<td>{formatDate(run.created_at)}</td>
 				</tr>

@@ -57,8 +57,7 @@ Another log line
   await page.evaluate(() => {
     sessionStorage.setItem('github_access_token', 'test_access_token');
   });
-  await page.goto(`/run/${runId}`);
-
+  await page.goto(`/run?id=${runId}`);
   await helper.step('run_details_loaded', {
     description: 'Run details page loaded with events',
     verifications: [
