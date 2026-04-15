@@ -15,6 +15,7 @@
 	let error = $state<string | null>(null);
 	let polling = $state(false);
 	let logsAvailable = $state(false);
+	let isStreamingConductorEvents = $state(false);
 	let pollingInterval: any = null;
 
 	async function fetchData(currentId: string, isInitial = false) {
@@ -76,12 +77,13 @@
 						}
 					}));
 				logsAvailable = false;
+				isStreamingConductorEvents = false;
 			} else if (logsRes.ok) {
 				const rawLogs = await logsRes.text();
 				const parsedEvents = parseLogs(rawLogs);
 				if (parsedEvents.length > 0) {
 					events = parsedEvents;
-					logsAvailable = true;
+					isStreamingConductorEvents = true;
 				} else {
 					// Fallback to steps if logs exist but have no conductor events yet
 					events = (conductorJob.steps || [])
@@ -94,14 +96,15 @@
 								text: `${step.name}: ${step.status}${step.conclusion ? ' (' + step.conclusion + ')' : ''}`
 							}
 						}));
-					logsAvailable = false;
+					isStreamingConductorEvents = false;
 				}
+				logsAvailable = true;
 			} else {
 				throw new Error(`Failed to fetch logs: ${logsRes.statusText}`);
 			}
 
-			// Stop polling if completed
-			if (run?.status === 'completed') {
+			// Stop polling only if completed and logs are available (not 404)
+			if (run?.status === 'completed' && logsAvailable) {
 				stopPolling();
 			}
 		} catch (e: any) {
@@ -196,8 +199,8 @@
 			<h2>Event Timeline</h2>
 			{#if events.length > 0}
 				<EventTimeline {events} />
-				{#if !logsAvailable && run?.status !== 'completed'}
-					<p class="status small">Waiting for logs to stream... Showing job steps for now.</p>
+				{#if !isStreamingConductorEvents && run?.status !== 'completed'}
+					<p class="status small">Waiting for conductor events to stream... Showing job steps for now.</p>
 				{/if}
 			{:else}
 				<p class="status">
