@@ -21,7 +21,7 @@ interface DocStep {
 export async function waitForAnimations(page: Page) {
   await page.evaluate(() => {
     return Promise.all(
-      document.getAnimations().map(animation => animation.finished)
+      document.getAnimations().map(animation => animation.finished.catch(() => {}))
     );
   });
 }

@@ -1,27 +1,34 @@
-# Run Details Route
+# Run Details Streaming Logs
 
-Verify that the run details route fetches and displays conductor events.
+Verify that the run details route polls for logs and updates the timeline.
 
-## Run details page loaded with events
+## Initially shows steps when logs are 404
 
-![Run details page loaded with events](./screenshots/000-run-details-loaded.png)
+![Initially shows steps when logs are 404](./screenshots/000-initial-load-404.png)
 
 ### Verifications
-- [x] Back to Dashboard link is visible
-- [x] Title is correct
-- [x] Status badge is visible
-- [x] Drill down link is correct
+- [x] Fallback steps are visible
+- [x] Live indicator is visible
+- [x] Waiting message is visible
 
 ---
 
-## Event timeline is displayed with parsed events
+## Timeline updates when partial logs are available
 
-![Event timeline is displayed with parsed events](./screenshots/001-timeline-visible.png)
+![Timeline updates when partial logs are available](./screenshots/001-second-load-partial.png)
 
 ### Verifications
-- [x] Terminal window shows STDOUT and STDERR
-- [x] Handled events are displayed with custom rendering
-- [x] Task event is displayed with persona
+- [x] Session start event is visible
+
+---
+
+## Timeline updates when logs are complete and polling stops
+
+![Timeline updates when logs are complete and polling stops](./screenshots/002-final-load-complete.png)
+
+### Verifications
+- [x] Session end event is visible
+- [x] Live indicator disappears after completion
 
 ---
 
