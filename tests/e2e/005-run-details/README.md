@@ -19,8 +19,9 @@ Verify that the run details route fetches and displays conductor events.
 ![Event timeline is displayed with parsed events](./screenshots/001-timeline-visible.png)
 
 ### Verifications
-- [x] First event is displayed
-- [x] Second event is displayed with persona
+- [x] Terminal window shows STDOUT and STDERR
+- [x] Other events are displayed below terminal
+- [x] Task event is displayed with persona
 
 ---
 

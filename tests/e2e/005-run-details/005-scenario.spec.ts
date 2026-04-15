@@ -42,7 +42,8 @@ test('Run Details Route', async ({ page }, testInfo) => {
     const logs = `
 Some random log line
 2026-04-14T12:00:00Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:00:00Z","event":"START","data":{"msg":"Starting workflow"}}
-Another log line
+2026-04-14T12:00:05Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:00:05Z","event":"STDOUT","data":"Compiling source code..."}
+2026-04-14T12:00:10Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:00:10Z","event":"STDERR","data":"Warning: low disk space"}
 2026-04-14T12:01:00Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:01:00Z","event":"TASK","persona":"coder","data":{"task":"Implement feature"}}
     `;
     await route.fulfill({
@@ -84,7 +85,15 @@ Another log line
     description: 'Event timeline is displayed with parsed events',
     verifications: [
       { 
-        spec: 'First event is displayed', 
+        spec: 'Terminal window shows STDOUT and STDERR', 
+        check: async () => {
+          const terminal = page.locator('.terminal-body');
+          await expect(terminal.locator('.terminal-line.stdout')).toContainText('Compiling source code...');
+          await expect(terminal.locator('.terminal-line.stderr')).toContainText('Warning: low disk space');
+        }
+      },
+      { 
+        spec: 'Other events are displayed below terminal', 
         check: async () => {
           const event = page.locator('.event-card').first();
           await expect(event.locator('.event-type')).toHaveText('START');
@@ -92,7 +101,7 @@ Another log line
         }
       },
       { 
-        spec: 'Second event is displayed with persona', 
+        spec: 'Task event is displayed with persona', 
         check: async () => {
           const event = page.locator('.event-card').nth(1);
           await expect(event.locator('.event-type')).toHaveText('TASK');
