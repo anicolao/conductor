@@ -92,7 +92,9 @@ else
 fi
 
 # 6. Post a comment on the parent issue.
-COMMENT_BODY="### ❌ Validation Failed on PR #$PR_NUMBER
+COMMENT_BODY="I am the **automation**
+
+### ❌ Validation Failed on PR #$PR_NUMBER
 
 The validation workflows failed on the associated PR. This issue has been moved back to **In Progress** for further work.
 
