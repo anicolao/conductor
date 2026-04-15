@@ -40,3 +40,24 @@ export interface Issue {
 		html_url: string;
 	};
 }
+
+export interface WorkflowStep {
+	name: string;
+	status: string;
+	conclusion: string | null;
+	number: number;
+	started_at: string;
+	completed_at: string | null;
+}
+
+export interface WorkflowJob {
+	id: number;
+	run_id: number;
+	name: string;
+	status: string;
+	conclusion: string | null;
+	started_at: string;
+	completed_at: string | null;
+	steps: WorkflowStep[];
+	html_url: string;
+}

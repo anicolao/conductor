@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/state';
 	import { browser } from '$app/environment';
 	import { base } from '$app/paths';
 	import { parseLogs } from '$lib/parser';
 	import EventTimeline from '$lib/components/EventTimeline.svelte';
-	import type { ConductorEvent, WorkflowRun } from '$lib/types';
+	import type { ConductorEvent, WorkflowRun, WorkflowJob } from '$lib/types';
 
 	const id = $derived(browser ? page.url.searchParams.get('id') : null);
 	
@@ -13,15 +13,19 @@
 	let events = $state<ConductorEvent[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
+	let polling = $state(false);
+	let logsAvailable = $state(false);
+	let pollingInterval: any = null;
 
-	async function fetchData(currentId: string) {
-		loading = true;
+	async function fetchData(currentId: string, isInitial = false) {
+		if (isInitial) loading = true;
 		error = null;
 		
 		const token = sessionStorage.getItem('github_access_token');
 		if (!token) {
 			error = 'Not logged in. Please go to the home page to login.';
 			loading = false;
+			stopPolling();
 			return;
 		}
 
@@ -40,9 +44,13 @@
 			if (!jobsRes.ok) throw new Error(`Failed to fetch jobs: ${jobsRes.statusText}`);
 			const jobsData = await jobsRes.json();
 			
-			const conductorJob = jobsData.jobs.find((j: any) => j.name === 'run-conductor');
+			const conductorJob: WorkflowJob = jobsData.jobs.find((j: any) => j.name === 'run-conductor');
+			
 			if (!conductorJob) {
-				error = 'Conductor job (run-conductor) not found in this run. It might still be starting or failed early.';
+				if (run?.status === 'completed') {
+					error = 'Conductor job (run-conductor) not found in this run. It might have failed early.';
+					stopPolling();
+				}
 				loading = false;
 				return;
 			}
@@ -53,32 +61,72 @@
 			});
 			
 			if (logsRes.status === 404) {
-				error = 'Logs are not yet available for this job. They are usually available after the job completes.';
-				loading = false;
-				return;
+				// While logs are not available, map steps to temporary events
+				events = (conductorJob.steps || [])
+					.filter(s => s.status !== 'queued')
+					.map(step => ({
+						v: 1,
+						ts: step.started_at || new Date().toISOString(),
+						event: 'TASK',
+						data: {
+							text: `${step.name}: ${step.status}${step.conclusion ? ' (' + step.conclusion + ')' : ''}`
+						}
+					}));
+				logsAvailable = false;
+			} else if (logsRes.ok) {
+				const rawLogs = await logsRes.text();
+				const parsedEvents = parseLogs(rawLogs);
+				if (parsedEvents.length > 0) {
+					events = parsedEvents;
+					logsAvailable = true;
+				} else {
+					// Fallback to steps if logs exist but have no conductor events yet
+					events = (conductorJob.steps || [])
+						.filter(s => s.status !== 'queued')
+						.map(step => ({
+							v: 1,
+							ts: step.started_at || new Date().toISOString(),
+							event: 'TASK',
+							data: {
+								text: `${step.name}: ${step.status}${step.conclusion ? ' (' + step.conclusion + ')' : ''}`
+							}
+						}));
+					logsAvailable = false;
+				}
+			} else {
+				throw new Error(`Failed to fetch logs: ${logsRes.statusText}`);
 			}
 
-			if (!logsRes.ok) throw new Error(`Failed to fetch logs: ${logsRes.statusText}`);
-			const rawLogs = await logsRes.text();
-			
-			events = parseLogs(rawLogs);
-			
-			if (events.length === 0) {
-				console.log('No conductor events found in logs.');
+			// Stop polling if completed and logs fetched
+			if (run?.status === 'completed' && logsAvailable) {
+				stopPolling();
 			}
 		} catch (e: any) {
 			console.error(e);
 			error = e.message;
+			stopPolling();
 		} finally {
 			loading = false;
 		}
 	}
 
+	function startPolling(currentId: string) {
+		if (polling || !browser) return;
+		polling = true;
+		pollingInterval = setInterval(() => fetchData(currentId), 5000);
+	}
+
+	function stopPolling() {
+		polling = false;
+		if (pollingInterval) {
+			clearInterval(pollingInterval);
+			pollingInterval = null;
+		}
+	}
+
 	onMount(async () => {
-		// Wait for id to be available (handles hydration lag)
 		let currentId = id || page.url.searchParams.get('id');
 		
-		// If still not available, wait up to 1 second
 		if (!currentId) {
 			for (let i = 0; i < 20; i++) {
 				await new Promise(resolve => setTimeout(resolve, 50));
@@ -88,11 +136,18 @@
 		}
 
 		if (currentId) {
-			await fetchData(currentId);
+			await fetchData(currentId, true);
+			if (run?.status !== 'completed' || !logsAvailable) {
+				startPolling(currentId);
+			}
 		} else {
 			error = 'No run ID provided in the URL.';
 			loading = false;
 		}
+	});
+
+	onDestroy(() => {
+		stopPolling();
 	});
 </script>
 
@@ -105,7 +160,7 @@
 		<a href="{base}/">← Back to Dashboard</a>
 	</nav>
 
-	{#if loading}
+	{#if loading && !run}
 		<p class="status">Loading run details and logs...</p>
 	{:else if error}
 		<p class="error">{error}</p>
@@ -123,6 +178,11 @@
 				<span class="status-badge {run?.conclusion || run?.status}">
 					{run?.conclusion || run?.status}
 				</span>
+				{#if polling}
+					<span class="streaming-indicator">
+						<span class="dot"></span> Live
+					</span>
+				{/if}
 				<a href={run?.html_url} target="_blank" rel="noopener noreferrer" class="drill-down">
 					View on GitHub (Drill Down) ↗
 				</a>
@@ -133,8 +193,17 @@
 			<h2>Event Timeline</h2>
 			{#if events.length > 0}
 				<EventTimeline {events} />
+				{#if !logsAvailable && run?.status !== 'completed'}
+					<p class="status small">Waiting for logs to stream... Showing job steps for now.</p>
+				{/if}
 			{:else}
-				<p class="status">No conductor events found in the logs yet.</p>
+				<p class="status">
+					{#if polling}
+						Waiting for logs to stream...
+					{:else}
+						No conductor events found in the logs yet.
+					{/if}
+				</p>
 			{/if}
 		</section>
 	{/if}
@@ -185,6 +254,38 @@
 	.status-badge.failure { background: #fee2e2; color: #991b1b; }
 	.status-badge.in_progress { background: #fef9c3; color: #854d0e; }
 
+	.streaming-indicator {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.875rem;
+		color: #16a34a;
+		font-weight: 600;
+	}
+
+	.dot {
+		width: 8px;
+		height: 8px;
+		background-color: #16a34a;
+		border-radius: 50%;
+		animation: pulse 2s infinite;
+	}
+
+	@keyframes pulse {
+		0% {
+			transform: scale(0.95);
+			box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7);
+		}
+		70% {
+			transform: scale(1);
+			box-shadow: 0 0 0 10px rgba(22, 163, 74, 0);
+		}
+		100% {
+			transform: scale(0.95);
+			box-shadow: 0 0 0 0 rgba(22, 163, 74, 0);
+		}
+	}
+
 	.drill-down {
 		color: #4b5563;
 		text-decoration: none;
@@ -198,6 +299,11 @@
 	.status {
 		color: #6b7280;
 		font-style: italic;
+	}
+
+	.status.small {
+		font-size: 0.875rem;
+		margin-top: 1rem;
 	}
 
 	.error {
