@@ -58,7 +58,7 @@
 					const branchName = branchLabel ? branchLabel.name.replace('branch:', '').trim() : run.head_branch;
 
 					const res = await fetch(
-						`https://api.github.com/repos/${parsed.repo}/pulls?head=${owner}:${branchName}`,
+						`https://api.github.com/repos/${parsed.repo}/pulls?head=${owner}:${branchName}&state=all`,
 						{
 							headers: { Authorization: `Bearer ${token}` }
 						}
@@ -70,6 +70,23 @@
 								html_url: pulls[0].html_url,
 								number: pulls[0].number
 							};
+						} else {
+							// Fallback: Search for PRs referencing the issue number
+							const searchRes = await fetch(
+								`https://api.github.com/search/issues?q=repo:${parsed.repo}+type:pr+${parsed.issue}`,
+								{
+									headers: { Authorization: `Bearer ${token}` }
+								}
+							);
+							if (searchRes.ok) {
+								const searchData = await searchRes.json();
+								if (searchData.items && searchData.items.length > 0) {
+									prDetails[run.id.toString()] = {
+										html_url: searchData.items[0].html_url,
+										number: searchData.items[0].number
+									};
+								}
+							}
 						}
 					}
 				} catch (e) {
