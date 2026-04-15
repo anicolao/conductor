@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { logger } from './utils/logger';
 
 import {
   countRecoveryAttempts,
@@ -268,7 +269,7 @@ async function main(): Promise<void> {
   ]);
 
   const orphanedItems = findOrphanedItems(items, runs);
-  console.log(
+  logger.info(
     `Scanned ${items.length} project items; found ${orphanedItems.length} orphaned in-progress items ` +
     `(dryRun=${options.dryRun}, maxRetries=${options.maxRetries}).`
   );
@@ -276,7 +277,7 @@ async function main(): Promise<void> {
   for (const item of orphanedItems) {
     const retries = countRecoveryAttempts(item, runs);
     if (retries >= options.maxRetries) {
-      console.log(
+      logger.info(
         `Skipping ${item.repository}#${item.issueNumber}: recovery attempts exhausted ` +
         `(${retries}/${options.maxRetries}).`
       );
@@ -285,19 +286,19 @@ async function main(): Promise<void> {
 
     const persona = normalizePersona(item.persona);
     if (options.dryRun) {
-      console.log(
+      logger.info(
         `[dry-run] Would re-dispatch ${item.repository}#${item.issueNumber} as ${persona} ` +
         `(retry ${retries + 1}/${options.maxRetries}).`
       );
       continue;
     }
 
-    console.log(`Re-dispatching ${item.repository}#${item.issueNumber} as ${persona} (retry ${retries + 1}/${options.maxRetries}).`);
+    logger.info(`Re-dispatching ${item.repository}#${item.issueNumber} as ${persona} (retry ${retries + 1}/${options.maxRetries}).`);
     await dispatchRecovery(item, token);
   }
 }
 
 main().catch(error => {
-  console.error(error);
+  logger.error('Fatal error', { error: error instanceof Error ? error.message : String(error) });
   process.exit(1);
 });

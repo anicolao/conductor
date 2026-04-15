@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { logger } from './logger';
 
 export interface CommandResult {
   status: number;
@@ -47,11 +48,11 @@ export async function runStreamingCommand(command: string, args: string[], env: 
 
     const stdoutForwarder = createLineForwarder('stdout', (formatted, raw) => {
       stdout += raw;
-      process.stdout.write(formatted);
+      logger.stdout(formatted);
     });
     const stderrForwarder = createLineForwarder('stderr', (formatted, raw) => {
       stderr += raw;
-      process.stdout.write(formatted);
+      logger.stderr(formatted);
     });
 
     if (child.stdout) {

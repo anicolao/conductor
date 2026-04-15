@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 import { runStreamingCommand } from './utils/exec';
 import { DEFAULT_COMMENT_LIMIT, resolveCommentLimit } from './utils/comment-limit';
 import { GitHubEvent, extractEventData } from './utils/github';
-import { logEvent } from './utils/logger';
+import { logEvent, logger } from './utils/logger';
 
 function verifyGitHubCli(repository: string, issueNumber: number): string {
   const repoCheck = spawnSync('gh', ['repo', 'view', repository, '--json', 'nameWithOwner', '--jq', '.nameWithOwner'], {
@@ -22,7 +22,7 @@ function verifyGitHubCli(repository: string, issueNumber: number): string {
 
     const failureDetails = (repoCheck.stderr || repoCheck.stdout || authStatus.stderr || authStatus.stdout || 'No gh output captured').trim();
 
-    console.error(`GitHub CLI preflight failed for ${repository}.`);
+    logger.error(`GitHub CLI preflight failed for ${repository}.`);
     if (failureDetails) process.stderr.write(`${failureDetails}\n`);
 
     const body = `### ❌ GitHub CLI Preflight Failed
@@ -180,7 +180,7 @@ function loadIssueCommentBodies(repository: string, issueNumber: number, comment
 
     if (commentsData.status !== 0 || !commentsData.stdout.trim()) {
       const details = (commentsData.stderr || commentsData.stdout || 'No gh output captured').trim();
-      console.warn(
+      logger.warn(
         `Failed to load comment page ${page} for ${repository}#${issueNumber}; ` +
         'falling back to the default comment limit.'
       );
@@ -260,7 +260,7 @@ Then move the item back to \`In Progress\`.
 
   if (result.status !== 0) {
     const details = (result.stderr || result.stdout || 'No output captured').trim();
-    console.error(`Failed to move ${repository}#${issueNumber} to Human Review after comment-limit check.`);
+    logger.error(`Failed to move ${repository}#${issueNumber} to Human Review after comment-limit check.`);
     if (details) process.stderr.write(`${details}\n`);
     process.exit(result.status || 1);
   }
@@ -274,7 +274,7 @@ function activatePersonaLabel(repository: string, issueNumber: number, persona: 
 
   if (result.status !== 0) {
     const details = (result.stderr || result.stdout || 'No gh output captured').trim();
-    console.error(`Failed to activate ${persona} persona on issue #${issueNumber} in ${repository}`);
+    logger.error(`Failed to activate ${persona} persona on issue #${issueNumber} in ${repository}`);
     if (details) process.stderr.write(`${details}\n`);
   }
 }
@@ -282,7 +282,7 @@ function activatePersonaLabel(repository: string, issueNumber: number, persona: 
 function postPickupNote(repository: string, issueNumber: number, persona: string, branch: string): void {
   const body = `The **${persona}** has picked up this task and is working on **${branch}**.`;
   
-  console.log(`Posting pickup note to issue #${issueNumber} in ${repository}...`);
+  logger.info(`Posting pickup note to issue #${issueNumber} in ${repository}...`);
   
   try {
     const result = spawnSync('gh', ['issue', 'comment', String(issueNumber), '-R', repository, '--body', body], {
@@ -291,13 +291,13 @@ function postPickupNote(repository: string, issueNumber: number, persona: string
     });
 
     if (result.error || result.status !== 0) {
-      console.error(`Failed to post pickup note to issue #${issueNumber} in ${repository}`);
-      if (result.error) console.error(result.error.message);
+      logger.error(`Failed to post pickup note to issue #${issueNumber} in ${repository}`);
+      if (result.error) logger.error(result.error.message);
     } else {
-      console.log('Pickup note posted successfully.');
+      logger.info('Pickup note posted successfully.');
     }
   } catch (err) {
-    console.error(`Error attempting to post pickup note: ${err instanceof Error ? err.message : String(err)}`);
+    logger.error(`Error attempting to post pickup note: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -306,7 +306,7 @@ async function main() {
 
   const eventPath = process.env.GITHUB_EVENT_PATH;
   if (!eventPath) {
-    console.error('GITHUB_EVENT_PATH not set');
+    logger.error('GITHUB_EVENT_PATH not set');
     process.exit(1);
   }
 
@@ -333,12 +333,12 @@ async function main() {
 
   try {
     if (!issueNumber) {
-      console.error('No issue number found in event');
+      logger.error('No issue number found in event');
       process.exit(0);
     }
 
     if (!repository) {
-      console.error('No repository found in event');
+      logger.error('No repository found in event');
       process.exit(1);
     }
 
@@ -352,7 +352,7 @@ async function main() {
       issueNodeId = liveIssueState.nodeId;
       const commentLimit = getEffectiveCommentLimit(repository, issueNumber, liveIssueState.commentCount);
       if (liveIssueState.commentCount > commentLimit) {
-        console.log(
+        logger.info(
           `Comment limit exceeded for ${repository}#${issueNumber} ` +
           `(${liveIssueState.commentCount} > ${commentLimit}). Moving item to Human Review.`
         );
@@ -373,7 +373,7 @@ async function main() {
       const targetPersona = (event.client_payload?.persona === 'coder' || event.client_payload?.persona === 'conductor') 
         ? event.client_payload.persona 
         : 'conductor';
-      console.log(`repository_dispatch received for issue #${issueNumber} in ${repository}. Activating ${targetPersona} persona.`);
+      logger.info(`repository_dispatch received for issue #${issueNumber} in ${repository}. Activating ${targetPersona} persona.`);
       activatePersonaLabel(repository, issueNumber, targetPersona);
       labels.push(`persona: ${targetPersona}`);
     }
@@ -395,7 +395,7 @@ async function main() {
     }
 
     if (!persona) {
-      console.log('No active persona found. Exiting.');
+      logger.info('No active persona found. Exiting.');
       process.exit(0);
     }
 
@@ -403,7 +403,7 @@ async function main() {
     const branchLabel = labels.find(l => l.startsWith('branch:'));
     const currentBranch = branchLabel ? branchLabel.split(':')[1].trim() : 'main';
 
-    console.log(`Activating persona: ${persona} on branch: ${currentBranch}`);
+    logger.info(`Activating persona: ${persona} on branch: ${currentBranch}`);
 
     logEvent('session_start', { branch: currentBranch, labels }, { persona, issue: issueNumber });
 
@@ -413,7 +413,7 @@ async function main() {
     // 3. Load Prompt
     const promptPath = path.join(__dirname, '..', 'prompts', `${persona}.md`);
     if (!fs.existsSync(promptPath)) {
-      console.error(`Prompt not found for persona: ${persona}`);
+      logger.error(`Prompt not found for persona: ${persona}`);
       process.exit(1);
     }
     const systemPrompt = fs.readFileSync(promptPath, 'utf8');
@@ -438,7 +438,7 @@ ${commentBody}
 
     const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     if (!geminiApiKey && !hasGeminiOAuthCredentials()) {
-      console.error(
+      logger.error(
         'Gemini auth not set. Configure GEMINI_API_KEY or GEMINI_OAUTH_CREDS_JSON in GitHub Actions, ' +
         'or authenticate locally so ~/.gemini/oauth_creds.json exists.'
       );
@@ -446,7 +446,7 @@ ${commentBody}
     }
 
     const verifiedRepo = verifyGitHubCli(repository, issueNumber);
-    console.log(`Verified GitHub CLI access to ${verifiedRepo}`);
+    logger.info(`Verified GitHub CLI access to ${verifiedRepo}`);
 
     // Ensure downstream tools (like gh) use the correct repository
     process.env.GITHUB_REPOSITORY = repository;
@@ -467,7 +467,7 @@ ENVIRONMENT:
       'yolo'
     ];
 
-    console.log('Invoking Gemini CLI...');
+    logger.info('Invoking Gemini CLI...');
     const childEnv = buildGeminiEnv();
     childEnv.CONDUCTOR_PERSONA = persona;
     childEnv.CONDUCTOR_LAST_COMMENT_URL = lastCommentUrl;
@@ -478,7 +478,7 @@ ENVIRONMENT:
     const result = await runStreamingCommand('npx', args, childEnv, targetCwd);
 
     if (result.status !== 0) {
-      console.error('Gemini CLI execution failed');
+      logger.error('Gemini CLI execution failed');
 
       const errorOutput = (result.stderr || result.stdout || 'No output captured').trim();
       const lines = errorOutput.split('\n');
@@ -498,7 +498,7 @@ ${snippet}
 
 *Automated report by Conductor*`;
 
-      console.log('Posting failure comment to GitHub...');
+      logger.info('Posting failure comment to GitHub...');
       spawnSync('gh', ['issue', 'comment', String(issueNumber), '-R', repository, '--body', body], {
         stdio: 'inherit',
         env: childEnv
@@ -510,7 +510,7 @@ ${snippet}
 
     logEvent('session_end', { status: 'success' }, { persona, issue: issueNumber });
   } catch (error) {
-    console.error('An unexpected error occurred:', error);
+    logger.error('An unexpected error occurred', { error: error instanceof Error ? error.message : String(error) });
     logEvent('session_end', { 
       status: 'failure', 
       error: error instanceof Error ? error.message : String(error) 
@@ -520,6 +520,6 @@ ${snippet}
 }
 
 main().catch(err => {
-  console.error(err);
+  logger.error('Fatal error', { error: err instanceof Error ? err.message : String(err) });
   process.exit(1);
 });

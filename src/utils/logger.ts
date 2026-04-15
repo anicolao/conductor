@@ -41,3 +41,23 @@ export function logEvent(
 
   process.stdout.write(`::CONDUCTOR_EVENT::${JSON.stringify(payload)}\n`);
 }
+
+export const logger = {
+  info: (message: string, data?: any, context?: { persona?: string; issue?: number }) => 
+    logEvent('LOG_INFO', { message, ...data }, context),
+  
+  warn: (message: string, data?: any, context?: { persona?: string; issue?: number }) => 
+    logEvent('LOG_WARN', { message, ...data }, context),
+  
+  error: (message: string, data?: any, context?: { persona?: string; issue?: number }) => 
+    logEvent('LOG_ERROR', { message, ...data }, context),
+  
+  debug: (message: string, data?: any, context?: { persona?: string; issue?: number }) => 
+    logEvent('LOG_DEBUG', { message, ...data }, context),
+  
+  stdout: (text: string, context?: { persona?: string; issue?: number }) => 
+    logEvent('STDOUT', { text }, context),
+  
+  stderr: (text: string, context?: { persona?: string; issue?: number }) => 
+    logEvent('STDERR', { text }, context),
+};
