@@ -30,6 +30,7 @@ export interface Issue {
 	number: number;
 	title: string;
 	html_url: string;
+	labels: { name: string }[];
 	pull_request?: {
 		html_url: string;
 	};

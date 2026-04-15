@@ -41,7 +41,7 @@
 			})
 		);
 
-		// For runs without a PR in issueDetails, try to find by head_branch
+		// For runs without a PR in issueDetails, try to find by branch label or head_branch
 		await Promise.all(
 			runs.map(async (run) => {
 				const parsed = parseTitle(run.display_title);
@@ -53,8 +53,12 @@
 				// Try to find PR by branch
 				try {
 					const [owner, repo] = parsed.repo.split('/');
+					const issue = issueDetails[path];
+					const branchLabel = issue?.labels?.find((l) => l.name.startsWith('branch:'));
+					const branchName = branchLabel ? branchLabel.name.replace('branch:', '') : run.head_branch;
+
 					const res = await fetch(
-						`https://api.github.com/repos/${parsed.repo}/pulls?head=${owner}:${run.head_branch}`,
+						`https://api.github.com/repos/${parsed.repo}/pulls?head=${owner}:${branchName}`,
 						{
 							headers: { Authorization: `Bearer ${token}` }
 						}
