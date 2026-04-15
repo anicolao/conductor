@@ -9,114 +9,105 @@
 	let { runs }: Props = $props();
 	let issueDetails = $state<Record<string, Issue>>({});
 	let prDetails = $state<Record<string, { html_url: string; number: number }>>({});
+	
+	// Track in-flight requests to avoid redundant calls
+	const inFlight = new Set<string>();
 
 	$effect(() => {
 		const token = sessionStorage.getItem('github_access_token');
 		if (!token || !runs.length) return;
 
-		// Extract unique issues to fetch that haven't been fetched yet
-		const issuesToFetch = new Set<string>();
-		runs.forEach((run) => {
-			const parsed = parseTitle(run.display_title);
-			if (parsed) {
-				const path = `${parsed.repo}/issues/${parsed.issue}`;
-				if (!issueDetails[path]) {
-					issuesToFetch.add(path);
-				}
-			}
-		});
-
-		// Fetch each issue
-		Array.from(issuesToFetch).forEach(async (path) => {
-			try {
-				const res = await fetch(`https://api.github.com/repos/${path}`, {
-					headers: { Authorization: `Bearer ${token}` }
-				});
-				if (res.ok) {
-					const issue: Issue = await res.json();
-					issueDetails[path] = issue;
-				}
-			} catch (e) {
-				console.error(`Failed to fetch issue ${path}`, e);
-			}
-		});
-
-		// Process PRs for each run
 		runs.forEach(async (run) => {
-			// Skip if we already have PR info for this run
-			if (prDetails[run.id.toString()]) return;
+			const parsed = parseTitle(run.display_title);
+			if (!parsed) return;
 
-			// 1. Check if the run itself has PR info
+			const issuePath = `${parsed.repo}/issues/${parsed.issue}`;
+			const runId = run.id.toString();
+
+			// 1. Fetch issue details if missing
+			if (!issueDetails[issuePath] && !inFlight.has(issuePath)) {
+				inFlight.add(issuePath);
+				try {
+					const res = await fetch(`https://api.github.com/repos/${issuePath}`, {
+						headers: { Authorization: `Bearer ${token}` }
+					});
+					if (res.ok) {
+						issueDetails[issuePath] = await res.json();
+					}
+				} catch (e) {
+					console.error(`Failed to fetch issue ${issuePath}`, e);
+				} finally {
+					inFlight.delete(issuePath);
+				}
+			}
+
+			// 2. Determine PR details
+			if (prDetails[runId] || inFlight.has(`pr-${runId}`)) return;
+
+			// A. Check if run has PR info
 			if (run.pull_requests && run.pull_requests.length > 0) {
-				prDetails[run.id.toString()] = {
+				prDetails[runId] = {
 					html_url: run.pull_requests[0].html_url,
 					number: run.pull_requests[0].number
 				};
 				return;
 			}
 
-			const parsed = parseTitle(run.display_title);
-			if (!parsed) return;
+			// B. Check if issue is a PR (wait for issue details)
+			const issue = issueDetails[issuePath];
+			if (issue) {
+				if (issue.pull_request) {
+					prDetails[runId] = {
+						html_url: issue.pull_request.html_url,
+						number: issue.number
+					};
+					return;
+				}
 
-			const path = `${parsed.repo}/issues/${parsed.issue}`;
-			
-			// Wait for issueDetails to be populated. 
-			// Reading issueDetails[path] here makes the effect reactive to it.
-			const issue = issueDetails[path];
-			
-			// 2. Check if the issue itself is a PR
-			if (issue?.pull_request) {
-				prDetails[run.id.toString()] = {
-					html_url: issue.pull_request.html_url,
-					number: issue.number
-				};
-				return;
-			}
+				// C. Try fallback lookups (only if we have issue details but it's not a PR)
+				inFlight.add(`pr-${runId}`);
+				try {
+					const [owner] = parsed.repo.split('/');
+					const branchLabel = issue.labels?.find((l) => l.name.startsWith('branch:'));
+					const branchName = branchLabel ? branchLabel.name.replace('branch:', '').trim() : run.head_branch;
 
-			// 3. Try to find PR by branch
-			try {
-				const [owner, repo] = parsed.repo.split('/');
-				const branchLabel = issue?.labels?.find((l) => l.name.startsWith('branch:'));
-				const branchName = branchLabel ? branchLabel.name.replace('branch:', '').trim() : run.head_branch;
-
-				// Don't try to lookup by 'main' or common default branches as it's unlikely to be the feature PR
-				if (branchName && branchName !== 'main' && branchName !== 'master') {
-					const res = await fetch(
-						`https://api.github.com/repos/${parsed.repo}/pulls?head=${owner}:${branchName}&state=all`,
-						{
-							headers: { Authorization: `Bearer ${token}` }
+					// Try lookup by branch
+					if (branchName && branchName !== 'main' && branchName !== 'master') {
+						const res = await fetch(
+							`https://api.github.com/repos/${parsed.repo}/pulls?head=${owner}:${branchName}&state=all`,
+							{ headers: { Authorization: `Bearer ${token}` } }
+						);
+						if (res.ok) {
+							const pulls = await res.json();
+							if (pulls.length > 0) {
+								prDetails[runId] = {
+									html_url: pulls[0].html_url,
+									number: pulls[0].number
+								};
+								return;
+							}
 						}
+					}
+
+					// Fallback: Search for PRs referencing the issue number
+					const searchRes = await fetch(
+						`https://api.github.com/search/issues?q=repo:${parsed.repo}+type:pr+${parsed.issue}`,
+						{ headers: { Authorization: `Bearer ${token}` } }
 					);
-					if (res.ok) {
-						const pulls = await res.json();
-						if (pulls.length > 0) {
-							prDetails[run.id.toString()] = {
-								html_url: pulls[0].html_url,
-								number: pulls[0].number
+					if (searchRes.ok) {
+						const searchData = await searchRes.json();
+						if (searchData.items && searchData.items.length > 0) {
+							prDetails[runId] = {
+								html_url: searchData.items[0].html_url,
+								number: searchData.items[0].number
 							};
-							return;
 						}
 					}
+				} catch (e) {
+					console.error(`Failed to fetch PR for run ${run.id}`, e);
+				} finally {
+					inFlight.delete(`pr-${runId}`);
 				}
-
-				// 4. Fallback: Search for PRs referencing the issue number
-				const searchRes = await fetch(
-					`https://api.github.com/search/issues?q=repo:${parsed.repo}+type:pr+${parsed.issue}`,
-					{
-						headers: { Authorization: `Bearer ${token}` }
-					}
-				);
-				if (searchRes.ok) {
-					const searchData = await searchRes.json();
-					if (searchData.items && searchData.items.length > 0) {
-						prDetails[run.id.toString()] = {
-							html_url: searchData.items[0].html_url,
-							number: searchData.items[0].number
-						};
-					}
-				}
-			} catch (e) {
-				console.error(`Failed to fetch PR for run ${run.id}`, e);
 			}
 		});
 	});
