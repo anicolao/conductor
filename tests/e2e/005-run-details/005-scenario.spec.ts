@@ -41,10 +41,12 @@ test('Run Details Route', async ({ page }, testInfo) => {
   await page.route(`https://api.github.com/repos/LLM-Orchestration/conductor/actions/jobs/${jobId}/logs`, async (route) => {
     const logs = `
 Some random log line
-2026-04-14T12:00:00Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:00:00Z","event":"START","data":{"msg":"Starting workflow"}}
-2026-04-14T12:00:05Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:00:05Z","event":"STDOUT","data":"Compiling source code..."}
-2026-04-14T12:00:10Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:00:10Z","event":"STDERR","data":"Warning: low disk space"}
+2026-04-14T12:00:00Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:00:00Z","event":"session_start","persona":"conductor","data":{"branch":"main","labels":["bug"]}}
+2026-04-14T12:00:05Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:00:05Z","event":"STDOUT","data":{"text":"Compiling source code..."}}
+2026-04-14T12:00:10Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:00:10Z","event":"STDERR","data":{"text":"Warning: low disk space"}}
+2026-04-14T12:00:15Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:00:15Z","event":"LOG_INFO","data":{"message":"Build started"}}
 2026-04-14T12:01:00Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:01:00Z","event":"TASK","persona":"coder","data":{"task":"Implement feature"}}
+2026-04-14T12:02:00Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:02:00Z","event":"session_end","data":{"status":"success"}}
     `;
     await route.fulfill({
       status: 200,
@@ -93,20 +95,27 @@ Some random log line
         }
       },
       { 
-        spec: 'Other events are displayed below terminal', 
+        spec: 'Handled events are displayed with custom rendering', 
         check: async () => {
-          const event = page.locator('.event-card').first();
-          await expect(event.locator('.event-type')).toHaveText('START');
-          await expect(event.locator('.event-body')).toContainText('Starting workflow');
+          const sessionStart = page.locator('.event-card.session-start');
+          await expect(sessionStart.locator('.event-type')).toHaveText('Session Started');
+          await expect(sessionStart.locator('.event-body')).toContainText('Branch: main');
+
+          const logInfo = page.locator('.event-card.log_info');
+          await expect(logInfo.locator('.event-type')).toHaveText('INFO');
+          await expect(logInfo.locator('.event-body')).toContainText('Build started');
+
+          const sessionEnd = page.locator('.event-card.session-end.success');
+          await expect(sessionEnd.locator('.event-type')).toContainText('Session Ended (success)');
         }
       },
       { 
         spec: 'Task event is displayed with persona', 
         check: async () => {
-          const event = page.locator('.event-card').nth(1);
+          const event = page.locator('.event-card.task-card');
           await expect(event.locator('.event-type')).toHaveText('TASK');
           await expect(event.locator('.persona')).toHaveText('(coder)');
-          await expect(event.locator('.event-body')).toContainText('Implement feature');
+          await expect(event.locator('.task-content')).toContainText('Implement feature');
         }
       }
     ]
