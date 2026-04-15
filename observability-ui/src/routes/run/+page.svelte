@@ -57,7 +57,10 @@
 
 			// Fetch logs
 			const logsRes = await fetch(`https://api.github.com/repos/LLM-Orchestration/conductor/actions/jobs/${conductorJob.id}/logs`, {
-				headers: { Authorization: `Bearer ${token}` }
+				headers: { 
+					Authorization: `Bearer ${token}`,
+					Accept: 'application/vnd.github.v3.raw'
+				}
 			});
 			
 			if (logsRes.status === 404) {
@@ -97,8 +100,8 @@
 				throw new Error(`Failed to fetch logs: ${logsRes.statusText}`);
 			}
 
-			// Stop polling if completed and logs fetched
-			if (run?.status === 'completed' && logsAvailable) {
+			// Stop polling if completed
+			if (run?.status === 'completed') {
 				stopPolling();
 			}
 		} catch (e: any) {
