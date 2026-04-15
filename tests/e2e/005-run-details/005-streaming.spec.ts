@@ -87,7 +87,7 @@ test('Run Details Streaming Logs', async ({ page }, testInfo) => {
       },
       {
         spec: 'Waiting message is visible',
-        check: async () => expect(page.locator('.status.small')).toContainText('Waiting for logs to stream...')
+        check: async () => expect(page.locator('.status.small')).toContainText('Waiting for conductor events to stream... Showing job steps for now.')
       }
     ]
   });
