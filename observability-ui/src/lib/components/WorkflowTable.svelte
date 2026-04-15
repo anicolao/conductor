@@ -127,6 +127,13 @@
 	function formatDate(dateString: string) {
 		return new Date(dateString).toLocaleString();
 	}
+
+	function formatStatus(status: string) {
+		if (status === 'completed') return 'complete';
+		if (status === 'in_progress') return 'in progress';
+		if (status === 'queued') return 'queued';
+		return status.replace(/_/g, ' ');
+	}
 </script>
 
 <div class="table-container">
@@ -190,7 +197,7 @@
 						{/if}
 					</td>
 					<td>
-						<a href="{base}/run?id={run.id}"> View Run </a>
+						<a href="{base}/run?id={run.id}"> {formatStatus(run.status)} </a>
 					</td>
 					<td>{formatDate(run.created_at)}</td>
 				</tr>
