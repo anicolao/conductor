@@ -19,6 +19,11 @@ export interface WorkflowRun {
 	created_at: string;
 	updated_at: string;
 	head_branch: string;
+	head_sha: string;
+	pull_requests: {
+		number: number;
+		html_url: string;
+	}[];
 }
 
 export interface WorkflowRunsResponse {

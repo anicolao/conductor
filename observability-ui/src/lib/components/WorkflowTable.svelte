@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { base } from '$app/paths';
 	import type { WorkflowRun, Issue } from '$lib/types';
 
@@ -11,52 +10,77 @@
 	let issueDetails = $state<Record<string, Issue>>({});
 	let prDetails = $state<Record<string, { html_url: string; number: number }>>({});
 
-	onMount(async () => {
+	$effect(() => {
 		const token = sessionStorage.getItem('github_access_token');
-		if (!token) return;
+		if (!token || !runs.length) return;
 
-		// Extract unique issues to fetch
+		// Extract unique issues to fetch that haven't been fetched yet
 		const issuesToFetch = new Set<string>();
 		runs.forEach((run) => {
 			const parsed = parseTitle(run.display_title);
 			if (parsed) {
-				issuesToFetch.add(`${parsed.repo}/issues/${parsed.issue}`);
+				const path = `${parsed.repo}/issues/${parsed.issue}`;
+				if (!issueDetails[path]) {
+					issuesToFetch.add(path);
+				}
 			}
 		});
 
 		// Fetch each issue
-		await Promise.all(
-			Array.from(issuesToFetch).map(async (path) => {
-				try {
-					const res = await fetch(`https://api.github.com/repos/${path}`, {
-						headers: { Authorization: `Bearer ${token}` }
-					});
-					if (res.ok) {
-						const issue: Issue = await res.json();
-						issueDetails[path] = issue;
-					}
-				} catch (e) {
-					console.error(`Failed to fetch issue ${path}`, e);
+		Array.from(issuesToFetch).forEach(async (path) => {
+			try {
+				const res = await fetch(`https://api.github.com/repos/${path}`, {
+					headers: { Authorization: `Bearer ${token}` }
+				});
+				if (res.ok) {
+					const issue: Issue = await res.json();
+					issueDetails[path] = issue;
 				}
-			})
-		);
+			} catch (e) {
+				console.error(`Failed to fetch issue ${path}`, e);
+			}
+		});
 
-		// For runs without a PR in issueDetails, try to find by branch label or head_branch
-		await Promise.all(
-			runs.map(async (run) => {
-				const parsed = parseTitle(run.display_title);
-				if (!parsed) return;
+		// Process PRs for each run
+		runs.forEach(async (run) => {
+			// Skip if we already have PR info for this run
+			if (prDetails[run.id.toString()]) return;
 
-				const path = `${parsed.repo}/issues/${parsed.issue}`;
-				if (issueDetails[path]?.pull_request) return;
+			// 1. Check if the run itself has PR info
+			if (run.pull_requests && run.pull_requests.length > 0) {
+				prDetails[run.id.toString()] = {
+					html_url: run.pull_requests[0].html_url,
+					number: run.pull_requests[0].number
+				};
+				return;
+			}
 
-				// Try to find PR by branch
-				try {
-					const [owner, repo] = parsed.repo.split('/');
-					const issue = issueDetails[path];
-					const branchLabel = issue?.labels?.find((l) => l.name.startsWith('branch:'));
-					const branchName = branchLabel ? branchLabel.name.replace('branch:', '').trim() : run.head_branch;
+			const parsed = parseTitle(run.display_title);
+			if (!parsed) return;
 
+			const path = `${parsed.repo}/issues/${parsed.issue}`;
+			
+			// Wait for issueDetails to be populated. 
+			// Reading issueDetails[path] here makes the effect reactive to it.
+			const issue = issueDetails[path];
+			
+			// 2. Check if the issue itself is a PR
+			if (issue?.pull_request) {
+				prDetails[run.id.toString()] = {
+					html_url: issue.pull_request.html_url,
+					number: issue.number
+				};
+				return;
+			}
+
+			// 3. Try to find PR by branch
+			try {
+				const [owner, repo] = parsed.repo.split('/');
+				const branchLabel = issue?.labels?.find((l) => l.name.startsWith('branch:'));
+				const branchName = branchLabel ? branchLabel.name.replace('branch:', '').trim() : run.head_branch;
+
+				// Don't try to lookup by 'main' or common default branches as it's unlikely to be the feature PR
+				if (branchName && branchName !== 'main' && branchName !== 'master') {
 					const res = await fetch(
 						`https://api.github.com/repos/${parsed.repo}/pulls?head=${owner}:${branchName}&state=all`,
 						{
@@ -70,30 +94,31 @@
 								html_url: pulls[0].html_url,
 								number: pulls[0].number
 							};
-						} else {
-							// Fallback: Search for PRs referencing the issue number
-							const searchRes = await fetch(
-								`https://api.github.com/search/issues?q=repo:${parsed.repo}+type:pr+${parsed.issue}`,
-								{
-									headers: { Authorization: `Bearer ${token}` }
-								}
-							);
-							if (searchRes.ok) {
-								const searchData = await searchRes.json();
-								if (searchData.items && searchData.items.length > 0) {
-									prDetails[run.id.toString()] = {
-										html_url: searchData.items[0].html_url,
-										number: searchData.items[0].number
-									};
-								}
-							}
+							return;
 						}
 					}
-				} catch (e) {
-					console.error(`Failed to fetch PR for run ${run.id}`, e);
 				}
-			})
-		);
+
+				// 4. Fallback: Search for PRs referencing the issue number
+				const searchRes = await fetch(
+					`https://api.github.com/search/issues?q=repo:${parsed.repo}+type:pr+${parsed.issue}`,
+					{
+						headers: { Authorization: `Bearer ${token}` }
+					}
+				);
+				if (searchRes.ok) {
+					const searchData = await searchRes.json();
+					if (searchData.items && searchData.items.length > 0) {
+						prDetails[run.id.toString()] = {
+							html_url: searchData.items[0].html_url,
+							number: searchData.items[0].number
+						};
+					}
+				}
+			} catch (e) {
+				console.error(`Failed to fetch PR for run ${run.id}`, e);
+			}
+		});
 	});
 
 	function parseTitle(title: string) {
