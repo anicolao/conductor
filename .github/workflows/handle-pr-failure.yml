@@ -1,0 +1,43 @@
+name: Handle PR Failure
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+
+jobs:
+  on-failure:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'pull_request'
+    permissions:
+      issues: write
+      pull-requests: write
+      repository-projects: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Handle Failure
+        env:
+          GH_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          # Extract PR number from workflow_run event
+          PR_NUMBER=$(jq -r '.workflow_run.pull_requests[0].number // empty' "$GITHUB_EVENT_PATH")
+          
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
+            # Fallback: search for PR by head branch and SHA if not directly in the event
+            HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
+            HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
+            echo "PR info not in event, searching for PR with head $HEAD_BRANCH and SHA $HEAD_SHA"
+            PR_NUMBER=$(gh pr list --head "$HEAD_BRANCH" --json number,headRefOid --jq ".[] | select(.headRefOid == \"$HEAD_SHA\") | .number")
+          fi
+          
+          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
+            echo "Processing PR #$PR_NUMBER"
+            chmod +x ./scripts/handle-validation-failure.sh
+            ./scripts/handle-validation-failure.sh "$PR_NUMBER"
+          else
+            echo "Could not identify PR for this workflow run."
+          fi
