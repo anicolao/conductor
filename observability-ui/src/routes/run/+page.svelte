@@ -7,20 +7,17 @@
 	import EventTimeline from '$lib/components/EventTimeline.svelte';
 	import type { ConductorEvent, WorkflowRun } from '$lib/types';
 
-	const id = browser ? page.url.searchParams.get('id') : null;
+	const id = $derived(browser ? page.url.searchParams.get('id') : null);
 	
 	let run = $state<WorkflowRun | null>(null);
 	let events = $state<ConductorEvent[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 
-	onMount(async () => {
-		if (!id) {
-			error = 'No run ID provided in the URL.';
-			loading = false;
-			return;
-		}
-
+	async function fetchData(currentId: string) {
+		loading = true;
+		error = null;
+		
 		const token = sessionStorage.getItem('github_access_token');
 		if (!token) {
 			error = 'Not logged in. Please go to the home page to login.';
@@ -30,14 +27,14 @@
 
 		try {
 			// Fetch run details
-			const runRes = await fetch(`https://api.github.com/repos/LLM-Orchestration/conductor/actions/runs/${id}`, {
+			const runRes = await fetch(`https://api.github.com/repos/LLM-Orchestration/conductor/actions/runs/${currentId}`, {
 				headers: { Authorization: `Bearer ${token}` }
 			});
 			if (!runRes.ok) throw new Error(`Failed to fetch run details: ${runRes.statusText}`);
 			run = await runRes.json();
 
 			// Fetch jobs
-			const jobsRes = await fetch(`https://api.github.com/repos/LLM-Orchestration/conductor/actions/runs/${id}/jobs`, {
+			const jobsRes = await fetch(`https://api.github.com/repos/LLM-Orchestration/conductor/actions/runs/${currentId}/jobs`, {
 				headers: { Authorization: `Bearer ${token}` }
 			});
 			if (!jobsRes.ok) throw new Error(`Failed to fetch jobs: ${jobsRes.statusText}`);
@@ -67,14 +64,33 @@
 			events = parseLogs(rawLogs);
 			
 			if (events.length === 0) {
-				// We don't necessarily want an error if there are no events yet, 
-				// but it's good to know if the parsing failed or there just aren't any.
 				console.log('No conductor events found in logs.');
 			}
 		} catch (e: any) {
 			console.error(e);
 			error = e.message;
 		} finally {
+			loading = false;
+		}
+	}
+
+	onMount(async () => {
+		// Wait for id to be available (handles hydration lag)
+		let currentId = id || page.url.searchParams.get('id');
+		
+		// If still not available, wait up to 1 second
+		if (!currentId) {
+			for (let i = 0; i < 20; i++) {
+				await new Promise(resolve => setTimeout(resolve, 50));
+				currentId = id || page.url.searchParams.get('id');
+				if (currentId) break;
+			}
+		}
+
+		if (currentId) {
+			await fetchData(currentId);
+		} else {
+			error = 'No run ID provided in the URL.';
 			loading = false;
 		}
 	});
