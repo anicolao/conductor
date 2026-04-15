@@ -30,24 +30,19 @@ describe('extractMediaUrls', () => {
 });
 
 describe('collectAllMediaUrls', () => {
-  it('should collect unique URLs from all sources', () => {
+  it('should collect unique URLs from issue body and latest comment', () => {
     const issueBody = 'Issue: https://github.com/user-attachments/assets/1';
     const latestComment = 'Latest: https://github.com/user-attachments/assets/2';
-    const allComments = [
-      'Comment 1: https://github.com/user-attachments/assets/1', // duplicate from issue
-      'Comment 2: https://github.com/user-attachments/assets/3'
-    ];
 
-    const result = collectAllMediaUrls(issueBody, latestComment, allComments);
+    const result = collectAllMediaUrls(issueBody, latestComment);
     expect(result.sort()).toEqual([
       'https://github.com/user-attachments/assets/1',
-      'https://github.com/user-attachments/assets/2',
-      'https://github.com/user-attachments/assets/3'
+      'https://github.com/user-attachments/assets/2'
     ].sort());
   });
 
   it('should handle empty sources', () => {
-    const result = collectAllMediaUrls('', '', []);
+    const result = collectAllMediaUrls('', '');
     expect(result).toEqual([]);
   });
 });

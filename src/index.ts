@@ -457,8 +457,8 @@ ENVIRONMENT:
 - GitHub CLI repository access has been preflight-verified for ${verifiedRepo}.
 - If a gh command fails, report the exact command and stderr instead of inferring an authentication problem.`;
 
-    // Extract media URLs from issue body, latest comment, and any other loaded comments
-    const mediaUrls = collectAllMediaUrls(issueBody, commentBody, allCommentBodies);
+    // Extract media URLs from issue body and latest comment
+    const mediaUrls = collectAllMediaUrls(issueBody, commentBody);
 
     // Invoke the official CLI package in headless mode so Actions does not depend on a preinstalled binary.
     const args = [
