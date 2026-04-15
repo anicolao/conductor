@@ -55,7 +55,7 @@
 					const [owner, repo] = parsed.repo.split('/');
 					const issue = issueDetails[path];
 					const branchLabel = issue?.labels?.find((l) => l.name.startsWith('branch:'));
-					const branchName = branchLabel ? branchLabel.name.replace('branch:', '') : run.head_branch;
+					const branchName = branchLabel ? branchLabel.name.replace('branch:', '').trim() : run.head_branch;
 
 					const res = await fetch(
 						`https://api.github.com/repos/${parsed.repo}/pulls?head=${owner}:${branchName}`,

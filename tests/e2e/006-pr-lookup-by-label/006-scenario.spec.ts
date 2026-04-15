@@ -76,7 +76,7 @@ test('PR Lookup by Branch Label', async ({ page }, testInfo) => {
         html_url: 'https://github.com/LLM-Orchestration/conductor/issues/94',
         labels: [
           { name: 'persona: coder' },
-          { name: 'branch:issue-94' }
+          { name: 'branch: issue-94' }
         ]
         // No pull_request field here to force lookup by branch
       }),
