@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractEventData, GitHubEvent, extractMediaUrls } from '../../src/utils/github';
+import { extractEventData, GitHubEvent, extractMediaUrls, collectAllMediaUrls } from '../../src/utils/github';
 
 describe('extractMediaUrls', () => {
   it('should extract multiple URLs from text', () => {
@@ -26,6 +26,29 @@ describe('extractMediaUrls', () => {
   it('should return empty array for empty or null input', () => {
     expect(extractMediaUrls('')).toEqual([]);
     expect(extractMediaUrls(null as unknown as string)).toEqual([]);
+  });
+});
+
+describe('collectAllMediaUrls', () => {
+  it('should collect unique URLs from all sources', () => {
+    const issueBody = 'Issue: https://github.com/user-attachments/assets/1';
+    const latestComment = 'Latest: https://github.com/user-attachments/assets/2';
+    const allComments = [
+      'Comment 1: https://github.com/user-attachments/assets/1', // duplicate from issue
+      'Comment 2: https://github.com/user-attachments/assets/3'
+    ];
+
+    const result = collectAllMediaUrls(issueBody, latestComment, allComments);
+    expect(result.sort()).toEqual([
+      'https://github.com/user-attachments/assets/1',
+      'https://github.com/user-attachments/assets/2',
+      'https://github.com/user-attachments/assets/3'
+    ].sort());
+  });
+
+  it('should handle empty sources', () => {
+    const result = collectAllMediaUrls('', '', []);
+    expect(result).toEqual([]);
   });
 });
 

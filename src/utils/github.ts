@@ -67,3 +67,19 @@ export function extractMediaUrls(text: string): string[] {
   if (!matches) return [];
   return [...new Set(matches)];
 }
+
+/**
+ * Collects all unique media URLs from issue body, latest comment, and all other comment bodies.
+ */
+export function collectAllMediaUrls(
+  issueBody: string,
+  latestCommentBody: string,
+  allCommentBodies: string[]
+): string[] {
+  const mediaUrls = new Set<string>([
+    ...extractMediaUrls(issueBody),
+    ...extractMediaUrls(latestCommentBody),
+    ...allCommentBodies.flatMap(body => extractMediaUrls(body))
+  ]);
+  return [...mediaUrls];
+}

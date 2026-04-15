@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 
 import { runStreamingCommand } from './utils/exec';
 import { DEFAULT_COMMENT_LIMIT, resolveCommentLimit } from './utils/comment-limit';
-import { GitHubEvent, extractEventData, extractMediaUrls } from './utils/github';
+import { GitHubEvent, extractEventData, extractMediaUrls, collectAllMediaUrls } from './utils/github';
 import { logEvent, logger } from './utils/logger';
 
 function verifyGitHubCli(repository: string, issueNumber: number): string {
@@ -343,7 +343,7 @@ async function main() {
         issueUrl = liveIssueState.htmlUrl;
         issueNodeId = liveIssueState.nodeId;
 
-        if (liveIssueState.commentCount > DEFAULT_COMMENT_LIMIT) {
+        if (liveIssueState.commentCount > 0) {
           allCommentBodies = loadIssueCommentBodies(repository, issueNumber, liveIssueState.commentCount);
         }
 
@@ -458,11 +458,7 @@ ENVIRONMENT:
 - If a gh command fails, report the exact command and stderr instead of inferring an authentication problem.`;
 
     // Extract media URLs from issue body, latest comment, and any other loaded comments
-    const mediaUrls = new Set<string>([
-      ...extractMediaUrls(issueBody),
-      ...extractMediaUrls(commentBody),
-      ...allCommentBodies.flatMap(body => extractMediaUrls(body))
-    ]);
+    const mediaUrls = collectAllMediaUrls(issueBody, commentBody, allCommentBodies);
 
     // Invoke the official CLI package in headless mode so Actions does not depend on a preinstalled binary.
     const args = [
