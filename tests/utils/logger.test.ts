@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { logEvent } from '../../src/utils/logger';
+import { logEvent, logger } from '../../src/utils/logger';
 
 describe('logger', () => {
   let stdoutSpy: any;
@@ -45,5 +45,30 @@ describe('logger', () => {
 
     expect(payload.persona).toBe('env_persona');
     expect(payload.issue).toBe(99);
+  });
+
+  it('logger.info should log LOG_INFO event', () => {
+    logger.info('hello world');
+    const output = stdoutSpy.mock.calls[0][0];
+    const payload = JSON.parse(output.split('::CONDUCTOR_EVENT::')[1]);
+    expect(payload.event).toBe('LOG_INFO');
+    expect(payload.data.message).toBe('hello world');
+  });
+
+  it('logger.error should log LOG_ERROR event with extra data', () => {
+    logger.error('oops', { code: 500 });
+    const output = stdoutSpy.mock.calls[0][0];
+    const payload = JSON.parse(output.split('::CONDUCTOR_EVENT::')[1]);
+    expect(payload.event).toBe('LOG_ERROR');
+    expect(payload.data.message).toBe('oops');
+    expect(payload.data.code).toBe(500);
+  });
+
+  it('logger.stdout should log STDOUT event', () => {
+    logger.stdout('some command output');
+    const output = stdoutSpy.mock.calls[0][0];
+    const payload = JSON.parse(output.split('::CONDUCTOR_EVENT::')[1]);
+    expect(payload.event).toBe('STDOUT');
+    expect(payload.data.text).toBe('some command output');
   });
 });
