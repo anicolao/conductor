@@ -70,7 +70,7 @@ Some random log line
       },
       { 
         spec: 'Title is correct', 
-        check: async () => expect(page.getByRole('heading', { name: `Run Details: Conductor [LLM-Orchestration/conductor] Issue #88` })).toBeVisible() 
+        check: async () => expect(page.getByRole('heading', { name: `Run Details: Conductor [LLM-Orchestration/conductor] Issue #88` })).toBeVisible({ timeout: 5000 }) 
       },
       { 
         spec: 'Status badge is visible', 

@@ -1,1 +1,1 @@
-export const prerender = true;
+// Prerender is inherited from the root layout

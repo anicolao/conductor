@@ -16,7 +16,9 @@
 
   function formatTimestamp(ts: string) {
     try {
-      return new Date(ts).toLocaleTimeString();
+      const date = new Date(ts);
+      // Return HH:MM:SS in UTC for consistency
+      return date.toISOString().slice(11, 19);
     } catch (e) {
       return ts;
     }

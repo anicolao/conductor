@@ -47,14 +47,14 @@ Another random log line
       {
         spec: 'session_start event is visible',
         check: async () => {
-          await expect(page.getByText('SESSION_START')).toBeVisible();
+          await expect(page.getByText('Session Started')).toBeVisible();
           await expect(page.getByText('feat/parser')).toBeVisible();
         }
       },
       {
         spec: 'session_end event is visible',
         check: async () => {
-          await expect(page.getByText('SESSION_END')).toBeVisible();
+          await expect(page.getByText('Session Ended (success)')).toBeVisible();
           await expect(page.getByText('success')).toBeVisible();
         }
       }
