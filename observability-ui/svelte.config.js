@@ -10,6 +10,7 @@ const config = {
 	},
 	kit: {
 		adapter: adapter({
+			// Generate 404.html as a fallback for GitHub Pages to support SPA routing
 			fallback: '404.html'
 		}),
 		paths: {

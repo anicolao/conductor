@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
+	import { browser } from '$app/environment';
 	import { base } from '$app/paths';
 	import { parseLogs } from '$lib/parser';
 	import EventTimeline from '$lib/components/EventTimeline.svelte';
 	import type { ConductorEvent, WorkflowRun } from '$lib/types';
 
-	const id = page.url.searchParams.get('id');
+	const id = browser ? page.url.searchParams.get('id') : null;
 	
 	let run = $state<WorkflowRun | null>(null);
 	let events = $state<ConductorEvent[]>([]);
