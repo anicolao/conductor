@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 
 import { runStreamingCommand } from './utils/exec';
 import { DEFAULT_COMMENT_LIMIT, resolveCommentLimit } from './utils/comment-limit';
-import { GitHubEvent, extractEventData } from './utils/github';
+import { GitHubEvent, extractEventData, extractMediaUrls } from './utils/github';
 import { logEvent, logger } from './utils/logger';
 
 function verifyGitHubCli(repository: string, issueNumber: number): string {
@@ -197,15 +197,6 @@ function loadIssueCommentBodies(repository: string, issueNumber: number, comment
   return bodies;
 }
 
-function getEffectiveCommentLimit(repository: string, issueNumber: number, commentCount: number): number {
-  if (commentCount <= DEFAULT_COMMENT_LIMIT) {
-    return DEFAULT_COMMENT_LIMIT;
-  }
-
-  const commentBodies = loadIssueCommentBodies(repository, issueNumber, commentCount);
-  return resolveCommentLimit(commentBodies, DEFAULT_COMMENT_LIMIT);
-}
-
 function moveToHumanReview(
   repository: string,
   issueNumber: number,
@@ -328,46 +319,55 @@ async function main() {
     action
   } = extractEventData(event, process.env);
 
-  let persona: 'conductor' | 'coder' | null = null;
-  let lastCommentUrl = commentUrl;
+    let persona: 'conductor' | 'coder' | null = null;
+    let lastCommentUrl = commentUrl;
+    let allCommentBodies: string[] = [];
 
-  try {
-    if (!issueNumber) {
-      logger.error('No issue number found in event');
-      process.exit(0);
-    }
-
-    if (!repository) {
-      logger.error('No repository found in event');
-      process.exit(1);
-    }
-
-    const liveIssueState = loadIssueState(repository, issueNumber);
-    if (liveIssueState) {
-      labels = liveIssueState.labels;
-      issueBody = liveIssueState.body;
-      commentBody = liveIssueState.latestComment;
-      lastCommentUrl = liveIssueState.latestCommentUrl;
-      issueUrl = liveIssueState.htmlUrl;
-      issueNodeId = liveIssueState.nodeId;
-      const commentLimit = getEffectiveCommentLimit(repository, issueNumber, liveIssueState.commentCount);
-      if (liveIssueState.commentCount > commentLimit) {
-        logger.info(
-          `Comment limit exceeded for ${repository}#${issueNumber} ` +
-          `(${liveIssueState.commentCount} > ${commentLimit}). Moving item to Human Review.`
-        );
-        moveToHumanReview(
-          repository,
-          issueNumber,
-          issueNodeId,
-          projectNumber ?? null,
-          projectUrl || '',
-          liveIssueState.commentCount,
-          commentLimit
-        );
+    try {
+      if (!issueNumber) {
+        logger.error('No issue number found in event');
         process.exit(0);
       }
-    }
+
+      if (!repository) {
+        logger.error('No repository found in event');
+        process.exit(1);
+      }
+
+      const liveIssueState = loadIssueState(repository, issueNumber);
+      if (liveIssueState) {
+        labels = liveIssueState.labels;
+        issueBody = liveIssueState.body;
+        commentBody = liveIssueState.latestComment;
+        lastCommentUrl = liveIssueState.latestCommentUrl;
+        issueUrl = liveIssueState.htmlUrl;
+        issueNodeId = liveIssueState.nodeId;
+
+        if (liveIssueState.commentCount > DEFAULT_COMMENT_LIMIT) {
+          allCommentBodies = loadIssueCommentBodies(repository, issueNumber, liveIssueState.commentCount);
+        }
+
+        const commentLimit = allCommentBodies.length > 0
+          ? resolveCommentLimit(allCommentBodies, DEFAULT_COMMENT_LIMIT)
+          : DEFAULT_COMMENT_LIMIT;
+
+        if (liveIssueState.commentCount > commentLimit) {
+          logger.info(
+            `Comment limit exceeded for ${repository}#${issueNumber} ` +
+            `(${liveIssueState.commentCount} > ${commentLimit}). Moving item to Human Review.`
+          );
+          moveToHumanReview(
+            repository,
+            issueNumber,
+            issueNodeId,
+            projectNumber ?? null,
+            projectUrl || '',
+            liveIssueState.commentCount,
+            commentLimit
+          );
+          process.exit(0);
+        }
+      }
 
     if (eventName === 'repository_dispatch' && !labels.some(label => label.startsWith('persona:'))) {
       const targetPersona = (event.client_payload?.persona === 'coder' || event.client_payload?.persona === 'conductor') 
@@ -457,6 +457,13 @@ ENVIRONMENT:
 - GitHub CLI repository access has been preflight-verified for ${verifiedRepo}.
 - If a gh command fails, report the exact command and stderr instead of inferring an authentication problem.`;
 
+    // Extract media URLs from issue body, latest comment, and any other loaded comments
+    const mediaUrls = new Set<string>([
+      ...extractMediaUrls(issueBody),
+      ...extractMediaUrls(commentBody),
+      ...allCommentBodies.flatMap(body => extractMediaUrls(body))
+    ]);
+
     // Invoke the official CLI package in headless mode so Actions does not depend on a preinstalled binary.
     const args = [
       '-y',
@@ -466,6 +473,10 @@ ENVIRONMENT:
       '--approval-mode',
       'yolo'
     ];
+
+    for (const url of mediaUrls) {
+      args.push('--media', url);
+    }
 
     logger.info('Invoking Gemini CLI...');
     const childEnv = buildGeminiEnv();

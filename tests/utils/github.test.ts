@@ -1,5 +1,33 @@
 import { describe, it, expect } from 'vitest';
-import { extractEventData, GitHubEvent } from '../../src/utils/github';
+import { extractEventData, GitHubEvent, extractMediaUrls } from '../../src/utils/github';
+
+describe('extractMediaUrls', () => {
+  it('should extract multiple URLs from text', () => {
+    const text = 'Here are some images: https://github.com/user-attachments/assets/3c27f0cf-ed52-489a-bb2f-25f1f06891c8 and https://github.com/user-attachments/assets/12345678-1234-1234-1234-1234567890ab';
+    const result = extractMediaUrls(text);
+    expect(result).toEqual([
+      'https://github.com/user-attachments/assets/3c27f0cf-ed52-489a-bb2f-25f1f06891c8',
+      'https://github.com/user-attachments/assets/12345678-1234-1234-1234-1234567890ab'
+    ]);
+  });
+
+  it('should de-duplicate URLs', () => {
+    const text = 'Duplicate: https://github.com/user-attachments/assets/3c27f0cf-ed52-489a-bb2f-25f1f06891c8 and https://github.com/user-attachments/assets/3c27f0cf-ed52-489a-bb2f-25f1f06891c8';
+    const result = extractMediaUrls(text);
+    expect(result).toEqual(['https://github.com/user-attachments/assets/3c27f0cf-ed52-489a-bb2f-25f1f06891c8']);
+  });
+
+  it('should return empty array if no URLs found', () => {
+    const text = 'No URLs here';
+    const result = extractMediaUrls(text);
+    expect(result).toEqual([]);
+  });
+
+  it('should return empty array for empty or null input', () => {
+    expect(extractMediaUrls('')).toEqual([]);
+    expect(extractMediaUrls(null as unknown as string)).toEqual([]);
+  });
+});
 
 describe('extractEventData', () => {
   it('should extract data from issue event', () => {

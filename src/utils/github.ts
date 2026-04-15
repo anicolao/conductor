@@ -54,3 +54,16 @@ export function extractEventData(event: GitHubEvent, env: NodeJS.ProcessEnv) {
     action
   };
 }
+
+/**
+ * Extracts GitHub user-attachment URLs from a given text.
+ * @param text The text to scan for URLs.
+ * @returns An array of unique media URLs.
+ */
+export function extractMediaUrls(text: string): string[] {
+  if (!text) return [];
+  const regex = /https:\/\/github\.com\/user-attachments\/assets\/[0-9a-fA-F-]+/g;
+  const matches = text.match(regex);
+  if (!matches) return [];
+  return [...new Set(matches)];
+}
