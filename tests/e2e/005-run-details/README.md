@@ -20,7 +20,7 @@ Verify that the run details route fetches and displays conductor events.
 
 ### Verifications
 - [x] Terminal window shows STDOUT and STDERR
-- [x] Other events are displayed below terminal
+- [x] Handled events are displayed with custom rendering
 - [x] Task event is displayed with persona
 
 ---
