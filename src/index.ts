@@ -25,7 +25,9 @@ function verifyGitHubCli(repository: string, issueNumber: number): string {
     logger.error(`GitHub CLI preflight failed for ${repository}.`);
     if (failureDetails) process.stderr.write(`${failureDetails}\n`);
 
-    const body = `### ❌ GitHub CLI Preflight Failed
+    const body = `I am the **automation**
+
+### ❌ GitHub CLI Preflight Failed
 
 Issue #${issueNumber} could not verify \`gh\` access to \`${repository}\` before invoking Gemini.
 
@@ -215,7 +217,9 @@ function moveToHumanReview(
   commentCount: number,
   commentLimit: number
 ): void {
-  const body = `### Comment Limit Reached
+  const body = `I am the **automation**
+
+### Comment Limit Reached
 
 Automation is aborting for this issue because the comment count exceeded the configured limit.
 
@@ -280,7 +284,9 @@ function activatePersonaLabel(repository: string, issueNumber: number, persona: 
 }
 
 function postPickupNote(repository: string, issueNumber: number, persona: string, branch: string): void {
-  const body = `The **${persona}** has picked up this task and is working on **${branch}**.`;
+  const body = `I am the **automation**
+
+The **${persona}** has picked up this task and is working on **${branch}**.`;
   
   logger.info(`Posting pickup note to issue #${issueNumber} in ${repository}...`);
   
@@ -484,7 +490,9 @@ ENVIRONMENT:
       const lines = errorOutput.split('\n');
       const snippet = lines.length > 50 ? lines.slice(-50).join('\n') : errorOutput;
 
-      const body = `### ❌ Gemini CLI Execution Failed
+      const body = `I am the **automation**
+
+### ❌ Gemini CLI Execution Failed
 
 **Exit Code**: ${result.status}
 

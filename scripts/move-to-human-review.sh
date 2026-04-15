@@ -104,7 +104,7 @@ trap 'rm -f "$body_file"' EXIT
 if [ -n "${CONDUCTOR_PERSONA:-}" ] && [ -n "${CONDUCTOR_LAST_COMMENT_URL:-}" ]; then
   branch_name="$(git branch --show-current)"
   comment_id="${CONDUCTOR_LAST_COMMENT_URL##*-}"
-  echo "I am the $CONDUCTOR_PERSONA, and I am responding to comment [$comment_id]($CONDUCTOR_LAST_COMMENT_URL) on branch ${branch_name:-unknown}." > "$body_file"
+  echo "I am the **$CONDUCTOR_PERSONA**, and I am responding to comment [$comment_id]($CONDUCTOR_LAST_COMMENT_URL) on branch ${branch_name:-unknown}." > "$body_file"
   echo "" >> "$body_file"
 fi
 

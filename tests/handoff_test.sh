@@ -599,7 +599,7 @@ chmod +x "$TEST_DIR/gh"
 echo "Running handoff.sh (checking for header)..."
 echo "Original body" | bash scripts/handoff.sh conductor
 
-if grep -q "I am the coder, and I am responding to comment \[456789\](https://github.com/LLM-Orchestration/conductor/issues/123#issuecomment-456789) on branch test-branch." "$TEST_DIR/captured_body.md"; then
+if grep -Fq "I am the **coder**, and I am responding to comment [456789](https://github.com/LLM-Orchestration/conductor/issues/123#issuecomment-456789) on branch test-branch." "$TEST_DIR/captured_body.md"; then
   echo "Success: Header prepended correctly"
 else
   echo "Error: Header NOT prepended correctly"
