@@ -57,8 +57,6 @@ export function extractEventData(event: GitHubEvent, env: NodeJS.ProcessEnv) {
 
 /**
  * Extracts GitHub user-attachment URLs from a given text.
- * @param text The text to scan for URLs.
- * @returns An array of unique media URLs.
  */
 export function extractMediaUrls(text: string): string[] {
   if (!text) return [];
@@ -80,4 +78,12 @@ export function collectAllMediaUrls(
     ...extractMediaUrls(latestCommentBody)
   ]);
   return [...mediaUrls];
+}
+
+/**
+ * Identifies if a comment was made by a persona (conductor, coder, automation).
+ * Persona comments always start with "I am the **persona**".
+ */
+export function isPersonaComment(body: string): boolean {
+  return /^I am the \*\*(conductor|coder|automation|human)\*\*/.test(body.trim());
 }

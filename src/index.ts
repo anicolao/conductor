@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 
 import { runStreamingCommand } from './utils/exec';
 import { DEFAULT_COMMENT_LIMIT, resolveCommentLimit } from './utils/comment-limit';
-import { GitHubEvent, extractEventData, extractMediaUrls, collectAllMediaUrls } from './utils/github';
+import { GitHubEvent, extractEventData, isPersonaComment, collectAllMediaUrls } from './utils/github';
 import { logEvent, logger } from './utils/logger';
 
 function verifyGitHubCli(repository: string, issueNumber: number): string {
@@ -25,7 +25,9 @@ function verifyGitHubCli(repository: string, issueNumber: number): string {
     logger.error(`GitHub CLI preflight failed for ${repository}.`);
     if (failureDetails) process.stderr.write(`${failureDetails}\n`);
 
-    const body = `### ❌ GitHub CLI Preflight Failed
+    const body = `I am the **automation**
+
+### ❌ GitHub CLI Preflight Failed
 
 Issue #${issueNumber} could not verify \`gh\` access to \`${repository}\` before invoking Gemini.
 
@@ -116,11 +118,14 @@ function hasGeminiOAuthCredentials(): boolean {
   }
 }
 
+interface Comment {
+  body: string;
+  html_url: string;
+}
+
 function loadIssueState(repository: string, issueNumber: number): { 
   labels: string[]; 
   body: string; 
-  latestComment: string;
-  latestCommentUrl: string;
   commentCount: number;
   htmlUrl: string;
   nodeId: string;
@@ -136,41 +141,21 @@ function loadIssueState(repository: string, issueNumber: number): {
 
   const parsed = JSON.parse(issueData.stdout);
 
-  // Fetch latest comment
-  const commentsData = spawnSync('gh', ['api', `repos/${repository}/issues/${issueNumber}/comments`, '--jq', '. [-1] | {body: .body, html_url: .html_url} // empty'], {
-    encoding: 'utf8',
-    env: process.env
-  });
-
-  let latestComment = '';
-  let latestCommentUrl = '';
-  if (commentsData.status === 0 && commentsData.stdout.trim()) {
-    try {
-      const commentParsed = JSON.parse(commentsData.stdout);
-      latestComment = commentParsed.body || '';
-      latestCommentUrl = commentParsed.html_url || '';
-    } catch {
-      // ignore
-    }
-  }
-
   return {
     labels: Array.isArray(parsed.labels) ? parsed.labels.map((label: { name: string }) => label.name) : [],
     body: parsed.body || '',
-    latestComment,
-    latestCommentUrl,
     commentCount: typeof parsed.comments === 'number' ? parsed.comments : 0,
     htmlUrl: parsed.html_url || '',
     nodeId: parsed.node_id || ''
   };
 }
 
-function loadIssueCommentBodies(repository: string, issueNumber: number, commentCount: number): string[] {
+function loadIssueComments(repository: string, issueNumber: number, commentCount: number): Comment[] {
   if (commentCount < 1) return [];
 
   const perPage = 100;
   const pages = Math.ceil(commentCount / perPage);
-  const bodies: string[] = [];
+  const allComments: Comment[] = [];
 
   for (let page = 1; page <= pages; page += 1) {
     const commentsData = spawnSync('gh', ['api', `repos/${repository}/issues/${issueNumber}/comments?per_page=${perPage}&page=${page}`], {
@@ -181,22 +166,23 @@ function loadIssueCommentBodies(repository: string, issueNumber: number, comment
     if (commentsData.status !== 0 || !commentsData.stdout.trim()) {
       const details = (commentsData.stderr || commentsData.stdout || 'No gh output captured').trim();
       logger.warn(
-        `Failed to load comment page ${page} for ${repository}#${issueNumber}; ` +
-        'falling back to the default comment limit.'
+        `Failed to load comment page ${page} for ${repository}#${issueNumber}.`
       );
       if (details) process.stderr.write(`${details}\n`);
-      return [];
+      return allComments;
     }
 
-    const parsed = JSON.parse(commentsData.stdout) as Array<{ body?: string | null }>;
-    for (const comment of parsed) {
-      bodies.push(comment.body || '');
-    }
+    const parsed = JSON.parse(commentsData.stdout) as Comment[];
+    allComments.push(...parsed);
   }
 
-  return bodies;
+  return allComments;
 }
 
+function getEffectiveCommentLimit(comments: Comment[]): number {
+  const bodies = comments.map(c => c.body);
+  return resolveCommentLimit(bodies, DEFAULT_COMMENT_LIMIT);
+}
 function moveToHumanReview(
   repository: string,
   issueNumber: number,
@@ -206,7 +192,9 @@ function moveToHumanReview(
   commentCount: number,
   commentLimit: number
 ): void {
-  const body = `### Comment Limit Reached
+  const body = `I am the **automation**
+
+### Comment Limit Reached
 
 Automation is aborting for this issue because the comment count exceeded the configured limit.
 
@@ -271,7 +259,9 @@ function activatePersonaLabel(repository: string, issueNumber: number, persona: 
 }
 
 function postPickupNote(repository: string, issueNumber: number, persona: string, branch: string): void {
-  const body = `The **${persona}** has picked up this task and is working on **${branch}**.`;
+  const body = `I am the **automation**
+
+The **${persona}** has picked up this task and is working on **${branch}**.`;
   
   logger.info(`Posting pickup note to issue #${issueNumber} in ${repository}...`);
   
@@ -319,55 +309,54 @@ async function main() {
     action
   } = extractEventData(event, process.env);
 
-    let persona: 'conductor' | 'coder' | null = null;
-    let lastCommentUrl = commentUrl;
-    let allCommentBodies: string[] = [];
+  let persona: 'conductor' | 'coder' | null = null;
+  let lastCommentUrl = commentUrl;
+  let comments: Comment[] = [];
 
-    try {
-      if (!issueNumber) {
-        logger.error('No issue number found in event');
+  try {
+    if (!issueNumber) {
+      logger.error('No issue number found in event');
+      process.exit(0);
+    }
+
+    if (!repository) {
+      logger.error('No repository found in event');
+      process.exit(1);
+    }
+
+    const liveIssueState = loadIssueState(repository, issueNumber);
+    if (liveIssueState) {
+      labels = liveIssueState.labels;
+      issueBody = liveIssueState.body;
+      issueUrl = liveIssueState.htmlUrl;
+      issueNodeId = liveIssueState.nodeId;
+      
+      comments = loadIssueComments(repository, issueNumber, liveIssueState.commentCount);
+      const commentLimit = getEffectiveCommentLimit(comments);
+      
+      if (liveIssueState.commentCount > commentLimit) {
+        logger.info(
+          `Comment limit exceeded for ${repository}#${issueNumber} ` +
+          `(${liveIssueState.commentCount} > ${commentLimit}). Moving item to Human Review.`
+        );
+        moveToHumanReview(
+          repository,
+          issueNumber,
+          issueNodeId,
+          projectNumber ?? null,
+          projectUrl || '',
+          liveIssueState.commentCount,
+          commentLimit
+        );
         process.exit(0);
       }
 
-      if (!repository) {
-        logger.error('No repository found in event');
-        process.exit(1);
+      if (comments.length > 0) {
+        const last = comments[comments.length - 1];
+        commentBody = last.body;
+        lastCommentUrl = last.html_url;
       }
-
-      const liveIssueState = loadIssueState(repository, issueNumber);
-      if (liveIssueState) {
-        labels = liveIssueState.labels;
-        issueBody = liveIssueState.body;
-        commentBody = liveIssueState.latestComment;
-        lastCommentUrl = liveIssueState.latestCommentUrl;
-        issueUrl = liveIssueState.htmlUrl;
-        issueNodeId = liveIssueState.nodeId;
-
-        if (liveIssueState.commentCount > 0) {
-          allCommentBodies = loadIssueCommentBodies(repository, issueNumber, liveIssueState.commentCount);
-        }
-
-        const commentLimit = allCommentBodies.length > 0
-          ? resolveCommentLimit(allCommentBodies, DEFAULT_COMMENT_LIMIT)
-          : DEFAULT_COMMENT_LIMIT;
-
-        if (liveIssueState.commentCount > commentLimit) {
-          logger.info(
-            `Comment limit exceeded for ${repository}#${issueNumber} ` +
-            `(${liveIssueState.commentCount} > ${commentLimit}). Moving item to Human Review.`
-          );
-          moveToHumanReview(
-            repository,
-            issueNumber,
-            issueNodeId,
-            projectNumber ?? null,
-            projectUrl || '',
-            liveIssueState.commentCount,
-            commentLimit
-          );
-          process.exit(0);
-        }
-      }
+    }
 
     if (eventName === 'repository_dispatch' && !labels.some(label => label.startsWith('persona:'))) {
       const targetPersona = (event.client_payload?.persona === 'coder' || event.client_payload?.persona === 'conductor') 
@@ -411,14 +400,34 @@ async function main() {
     postPickupNote(repository, issueNumber, persona, currentBranch);
 
     // 3. Load Prompt
-    const promptPath = path.join(__dirname, '..', 'prompts', `${persona}.md`);
+    const conductorRoot = process.env.CONDUCTOR_ROOT || path.join(__dirname, '..', '..');
+    const promptPath = path.join(conductorRoot, 'prompts', `${persona}.md`);
     if (!fs.existsSync(promptPath)) {
-      logger.error(`Prompt not found for persona: ${persona}`);
+      logger.error(`Prompt not found at ${promptPath} for persona: ${persona}`);
       process.exit(1);
     }
     const systemPrompt = fs.readFileSync(promptPath, 'utf8');
 
     // 4. Prepare Context
+    let lastHumanCommentBody = 'N/A (No human comments found)';
+    let activitySinceLastHumanComment = 'N/A';
+
+    const reversedComments = [...comments].reverse();
+    const lastHumanCommentIndex = reversedComments.findIndex(c => !isPersonaComment(c.body));
+
+    if (lastHumanCommentIndex !== -1) {
+      const actualIndex = comments.length - 1 - lastHumanCommentIndex;
+      lastHumanCommentBody = comments[actualIndex].body;
+      const activityComments = comments.slice(actualIndex + 1);
+      if (activityComments.length > 0) {
+        activitySinceLastHumanComment = activityComments.map(c => c.body).join('\n\n---\n\n');
+      } else {
+        activitySinceLastHumanComment = 'None';
+      }
+    } else if (comments.length > 0) {
+      activitySinceLastHumanComment = comments.map(c => c.body).join('\n\n---\n\n');
+    }
+
     const context = `
 Issue #${issueNumber}
 Repository: ${repository}
@@ -432,8 +441,11 @@ Labels: ${labels.join(', ')}
 ISSUE BODY:
 ${issueBody}
 ---
-LATEST COMMENT:
-${commentBody}
+LAST HUMAN COMMENT:
+${lastHumanCommentBody}
+---
+ACTIVITY SINCE LAST HUMAN COMMENT:
+${activitySinceLastHumanComment}
 `;
 
     const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
@@ -478,10 +490,12 @@ ENVIRONMENT:
     const childEnv = buildGeminiEnv();
     childEnv.CONDUCTOR_PERSONA = persona;
     childEnv.CONDUCTOR_LAST_COMMENT_URL = lastCommentUrl;
+    childEnv.CONDUCTOR_ROOT = conductorRoot;
     
-    // The target repository is at the root (../ from .conductor/dist/src or ../ from .conductor if running via npm start)
-    // In Actions, GITHUB_WORKSPACE is the root.
-    const targetCwd = process.env.GITHUB_WORKSPACE || path.resolve(process.cwd(), '..');
+    // The target repository directory
+    const targetCwd = process.env.CONDUCTOR_TARGET_DIR || process.env.GITHUB_WORKSPACE || path.resolve(process.cwd(), '..');
+    childEnv.CONDUCTOR_TARGET_DIR = targetCwd;
+
     const result = await runStreamingCommand('npx', args, childEnv, targetCwd);
 
     if (result.status !== 0) {
@@ -491,7 +505,9 @@ ENVIRONMENT:
       const lines = errorOutput.split('\n');
       const snippet = lines.length > 50 ? lines.slice(-50).join('\n') : errorOutput;
 
-      const body = `### ❌ Gemini CLI Execution Failed
+      const body = `I am the **automation**
+
+### ❌ Gemini CLI Execution Failed
 
 **Exit Code**: ${result.status}
 

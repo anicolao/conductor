@@ -201,16 +201,20 @@ The Conductor is designed to be a central orchestrator for an entire organizatio
 
 1.  **Trigger**: An event occurs in any repository (e.g., an issue is moved to "In Progress" in an org-level project, or `@conductor` is mentioned in an issue comment).
 2.  **Bridge**: The Firebase Bridge function receives the org-level webhook and dispatches a `repository_dispatch` event to the central `LLM-Orchestration/conductor` repository.
-3.  **Workflow**: The Conductor workflow starts and:
+3. **Workflow**: The Conductor workflow starts and:
     *   Determines the target repository and issue number from the payload.
-    *   Performs a **Dual Checkout**:
-        *   Target Repo is checked out to `.` (the root).
-        *   Conductor Repo is checked out to `.conductor/`.
-    *   The Conductor logic runs from `.conductor/` but executes the Gemini CLI with the working directory set to the root (`.`), where the target repo resides.
-4.  **Handoff**: The agents use the handoff script located at `.conductor/scripts/handoff.sh`, which explicitly targets the target repository using the `-R` flag.
+    *   Performs a **Sibling Workspace Checkout**:
+        *   Target Repo is checked out to `target/`.
+        *   Conductor Repo is checked out to `conductor/`.
+    *   The Conductor logic runs from `conductor/` but executes the Gemini CLI with the working directory set to `target/`.
+    *   Environment variables `CONDUCTOR_ROOT` and `CONDUCTOR_TARGET_DIR` are set to provide explicit paths.
+4. **Handoff**: The agents use the handoff script located at `${CONDUCTOR_ROOT}/scripts/handoff.sh`, which explicitly targets the target repository using the `-R` flag.
 
 ### Deployment Notes
 
 *   **GitHub Token**: The `CONDUCTOR_TOKEN` secret in the central repository must have `write` access to all repositories it is expected to orchestrate.
 *   **Webhook**: The GitHub App or Webhook must be configured at the **Organization** level to receive events from all repositories.
 *   **Standard Labels**: All repositories should use the same `persona:` and `branch:` label conventions for seamless orchestration.
+*   **Environment Variables**: The following variables are used for path resolution:
+    *   `CONDUCTOR_ROOT`: Absolute path to the conductor repository.
+    *   `CONDUCTOR_TARGET_DIR`: Absolute path to the target repository.

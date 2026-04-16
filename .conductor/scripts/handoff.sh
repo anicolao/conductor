@@ -61,31 +61,23 @@ existing_labels="$(current_labels)"
 # Conductor Guardrail: Verify no unauthorized changes if current persona is conductor
 current_persona=$(echo "$existing_labels" | grep "^persona: " | head -n 1 | cut -d' ' -f2 || true)
 if [ "$current_persona" == "conductor" ]; then
-  verify_script="${CONDUCTOR_ROOT:-.}/scripts/conductor-verify.sh"
-  if [ -f "$verify_script" ]; then
-    bash "$verify_script"
+  if [ -f "./scripts/conductor-verify.sh" ]; then
+    bash ./scripts/conductor-verify.sh
+  elif [ -f ".conductor/scripts/conductor-verify.sh" ]; then
+    bash .conductor/scripts/conductor-verify.sh
   else
-    # Fallback for local dev or transition
-    if [ -f "./scripts/conductor-verify.sh" ]; then
-      bash ./scripts/conductor-verify.sh
-    else
-      echo "Warning: conductor-verify.sh not found, skipping verification" >&2
-    fi
+    echo "Warning: conductor-verify.sh not found, skipping verification" >&2
   fi
 fi
 
 body_file="$(mktemp)"
 trap 'rm -f "$body_file"' EXIT
 
-persona="${CONDUCTOR_PERSONA:-human}"
-if [ -n "${CONDUCTOR_LAST_COMMENT_URL:-}" ]; then
+if [ -n "${CONDUCTOR_PERSONA:-}" ] && [ -n "${CONDUCTOR_LAST_COMMENT_URL:-}" ]; then
   comment_id="${CONDUCTOR_LAST_COMMENT_URL##*-}"
-  echo "I am the **$persona**, and I am responding to comment [$comment_id]($CONDUCTOR_LAST_COMMENT_URL) on branch $branch_name." > "$body_file"
-else
-  issue_url="$(gh issue view "$issue_number" -R "$target_repo" --json url --jq .url)"
-  echo "I am the **$persona**, and I am responding to the [original issue]($issue_url) on branch $branch_name." > "$body_file"
+  echo "I am the **$CONDUCTOR_PERSONA**, and I am responding to comment [$comment_id]($CONDUCTOR_LAST_COMMENT_URL) on branch $branch_name." > "$body_file"
+  echo "" >> "$body_file"
 fi
-echo "" >> "$body_file"
 
 cat >> "$body_file"
 
