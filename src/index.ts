@@ -401,9 +401,10 @@ async function main() {
     postPickupNote(repository, issueNumber, persona, currentBranch);
 
     // 3. Load Prompt
-    const promptPath = path.join(__dirname, '..', 'prompts', `${persona}.md`);
+    const conductorRoot = process.env.CONDUCTOR_ROOT || path.join(__dirname, '..', '..');
+    const promptPath = path.join(conductorRoot, 'prompts', `${persona}.md`);
     if (!fs.existsSync(promptPath)) {
-      logger.error(`Prompt not found for persona: ${persona}`);
+      logger.error(`Prompt not found at ${promptPath} for persona: ${persona}`);
       process.exit(1);
     }
     const systemPrompt = fs.readFileSync(promptPath, 'utf8');
@@ -483,10 +484,12 @@ ENVIRONMENT:
     const childEnv = buildGeminiEnv();
     childEnv.CONDUCTOR_PERSONA = persona;
     childEnv.CONDUCTOR_LAST_COMMENT_URL = lastCommentUrl;
+    childEnv.CONDUCTOR_ROOT = conductorRoot;
     
-    // The target repository is at the root (../ from .conductor/dist/src or ../ from .conductor if running via npm start)
-    // In Actions, GITHUB_WORKSPACE is the root.
-    const targetCwd = process.env.GITHUB_WORKSPACE || path.resolve(process.cwd(), '..');
+    // The target repository directory
+    const targetCwd = process.env.CONDUCTOR_TARGET_DIR || process.env.GITHUB_WORKSPACE || path.resolve(process.cwd(), '..');
+    childEnv.CONDUCTOR_TARGET_DIR = targetCwd;
+
     const result = await runStreamingCommand('npx', args, childEnv, targetCwd);
 
     if (result.status !== 0) {

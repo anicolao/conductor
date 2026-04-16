@@ -32,7 +32,7 @@ jobs:
           repository: ${{ steps.metadata.outputs.repository }}
           fetch-depth: 0
           token: ${{ secrets.CONDUCTOR_TOKEN }}
-          path: '.'
+          path: 'target'
 
       - name: Checkout Conductor Repo
         uses: actions/checkout@v4
@@ -40,7 +40,7 @@ jobs:
           repository: LLM-Orchestration/conductor
           fetch-depth: 0
           token: ${{ secrets.CONDUCTOR_TOKEN }}
-          path: '.conductor'
+          path: 'conductor'
 
       - name: Determine Branch
         id: branch
@@ -57,6 +57,7 @@ jobs:
           echo "Selected branch: $BRANCH"
 
       - name: Switch Target Repo to Branch
+        working-directory: target
         run: |
           BRANCH=${{ steps.branch.outputs.branch }}
           git checkout "$BRANCH" || git checkout -b "$BRANCH"
@@ -66,29 +67,31 @@ jobs:
         with:
           node-version: 24
           cache: 'npm'
-          cache-dependency-path: .conductor/package-lock.json
+          cache-dependency-path: conductor/package-lock.json
 
       - name: Install Dependencies
-        working-directory: .conductor
+        working-directory: conductor
         run: npm install
 
       - name: Build
-        working-directory: .conductor
+        working-directory: conductor
         run: npm run build
 
       - name: Prepare Gemini Auth
-        working-directory: .conductor
+        working-directory: conductor
         env:
           GEMINI_API_KEY_SECRET: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_OAUTH_CREDS_JSON: ${{ secrets.GEMINI_OAUTH_CREDS_JSON }}
         run: npm run gemini:prepare-auth
 
       - name: Run Conductor
-        working-directory: .conductor
+        working-directory: conductor
         env:
           CONDUCTOR_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
           GH_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
           GITHUB_REPOSITORY: ${{ steps.metadata.outputs.repository }}
+          CONDUCTOR_ROOT: ${{ github.workspace }}/conductor
+          CONDUCTOR_TARGET_DIR: ${{ github.workspace }}/target
         run: npm start

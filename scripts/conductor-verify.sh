@@ -8,6 +8,12 @@ forbidden_dirs=("src" "functions" "tests")
 
 echo "Running conductor verification..."
 
+# If CONDUCTOR_TARGET_DIR is set, we need to check THAT directory, not the current one.
+if [ -n "${CONDUCTOR_TARGET_DIR:-}" ]; then
+  cd "$CONDUCTOR_TARGET_DIR"
+  echo "Checking target directory: $CONDUCTOR_TARGET_DIR"
+fi
+
 # Check for uncommitted changes (including untracked files) in forbidden directories
 # We use 'git status --porcelain' to catch both modified and untracked files.
 uncommitted_changes=$(git status --porcelain -- "${forbidden_dirs[@]}" | awk '{print $2}')

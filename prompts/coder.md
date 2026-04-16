@@ -13,10 +13,10 @@ You are the **Coder**, responsible for implementing features as directed by the 
 4. **Report**: When done:
    - Ensure your summary includes a reference to the issue (e.g., "Closes #<issue_number>") to assist the `@conductor` in PR creation.
    - Hand off by running:
-     `.conductor/scripts/handoff.sh conductor <<'EOF'`
+     `${CONDUCTOR_ROOT}/scripts/handoff.sh conductor <<'EOF'`
      `<markdown summary>`
      `EOF`
 
 ## State Management
 
-- Use `.conductor/scripts/handoff.sh conductor` to hand back.
+- Use `${CONDUCTOR_ROOT}/scripts/handoff.sh conductor` to hand back.

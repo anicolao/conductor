@@ -61,12 +61,18 @@ existing_labels="$(current_labels)"
 # Conductor Guardrail: Verify no unauthorized changes if current persona is conductor
 current_persona=$(echo "$existing_labels" | grep "^persona: " | head -n 1 | cut -d' ' -f2 || true)
 if [ "$current_persona" == "conductor" ]; then
-  if [ -f "./scripts/conductor-verify.sh" ]; then
-    bash ./scripts/conductor-verify.sh
-  elif [ -f ".conductor/scripts/conductor-verify.sh" ]; then
-    bash .conductor/scripts/conductor-verify.sh
+  verify_script="${CONDUCTOR_ROOT:-.}/scripts/conductor-verify.sh"
+  if [ -f "$verify_script" ]; then
+    bash "$verify_script"
   else
-    echo "Warning: conductor-verify.sh not found, skipping verification" >&2
+    # Fallback for local dev or transition
+    if [ -f "./scripts/conductor-verify.sh" ]; then
+      bash ./scripts/conductor-verify.sh
+    elif [ -f ".conductor/scripts/conductor-verify.sh" ]; then
+      bash .conductor/scripts/conductor-verify.sh
+    else
+      echo "Warning: conductor-verify.sh not found, skipping verification" >&2
+    fi
   fi
 fi
 
