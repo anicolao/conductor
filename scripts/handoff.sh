@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# This script handles the handoff process between personas (e.g., conductor, coder, human).
+# It ensures:
+# 1. Label updates (persona: and branch:) are performed and verified BEFORE any comments are posted.
+# 2. Only one 'persona:' label and one 'branch:' label remain active on the issue.
+# 3. If a project is associated, the 'Persona' field in Project V2 is also updated and verified.
 set -euo pipefail
 
 if [ "$#" -ne 1 ]; then

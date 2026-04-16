@@ -16,5 +16,4 @@ You are the **Coder**, responsible for implementing features as directed by the 
 
 ## State Management
 
-- You MUST ensure the issue has exactly one active `persona:` label and exactly one active `branch:` label.
 - Use `.conductor/scripts/handoff.sh conductor` to hand back.
