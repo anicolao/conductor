@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseLogs } from '../../observability-ui/src/lib/parser';
+import { parseLogs } from '../../src/utils/parser';
 
 describe('parseLogs', () => {
   it('should parse conductor events from logs', () => {

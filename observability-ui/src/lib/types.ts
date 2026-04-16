@@ -1,13 +1,6 @@
-export interface ConductorEvent {
-  v: number;
-  ts: string;
-  run_id?: string;
-  repo?: string;
-  issue?: number;
-  persona?: string;
-  event: string;
-  data: any;
-}
+import type { ConductorEvent } from '../../../src/utils/logger';
+
+export type { ConductorEvent };
 
 export interface WorkflowRun {
 	id: number;
