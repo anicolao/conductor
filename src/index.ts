@@ -1,11 +1,12 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { spawnSync } from 'child_process';
 import dotenv from 'dotenv';
 
 import { runStreamingCommand } from './utils/exec';
 import { DEFAULT_COMMENT_LIMIT, resolveCommentLimit } from './utils/comment-limit';
-import { GitHubEvent, extractEventData, isPersonaComment, collectAllMediaUrls } from './utils/github';
+import { GitHubEvent, extractEventData, isPersonaComment, collectAllMediaUrls, downloadMedia, injectMediaPaths } from './utils/github';
 import { logEvent, logger } from './utils/logger';
 
 function verifyGitHubCli(repository: string, issueNumber: number): string {
@@ -428,7 +429,30 @@ async function main() {
       activitySinceLastHumanComment = comments.map(c => c.body).join('\n\n---\n\n');
     }
 
-    const context = `
+    // Extract and download media URLs
+    const mediaUrls = collectAllMediaUrls(issueBody, commentBody);
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-media-'));
+    const urlToPath = new Map<string, string>();
+
+    try {
+      for (const url of mediaUrls) {
+        const fileName = path.basename(url);
+        const localPath = path.join(tmpDir, fileName);
+        logger.info(`Downloading media: ${url} -> ${localPath}`);
+        try {
+          await downloadMedia(url, localPath);
+          urlToPath.set(url, localPath);
+        } catch (error) {
+          logger.error(`Failed to download media: ${url}`, { error: error instanceof Error ? error.message : String(error) });
+        }
+      }
+
+      // Inject paths into components
+      const injectedIssueBody = injectMediaPaths(issueBody, urlToPath);
+      const injectedLastHumanCommentBody = injectMediaPaths(lastHumanCommentBody, urlToPath);
+      const injectedActivity = injectMediaPaths(activitySinceLastHumanComment, urlToPath);
+
+      const context = `
 Issue #${issueNumber}
 Repository: ${repository}
 Issue URL: ${issueUrl}
@@ -439,73 +463,66 @@ Current Branch: ${currentBranch}
 Labels: ${labels.join(', ')}
 ---
 ISSUE BODY:
-${issueBody}
+${injectedIssueBody}
 ---
 LAST HUMAN COMMENT:
-${lastHumanCommentBody}
+${injectedLastHumanCommentBody}
 ---
 ACTIVITY SINCE LAST HUMAN COMMENT:
-${activitySinceLastHumanComment}
+${injectedActivity}
 `;
 
-    const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    if (!geminiApiKey && !hasGeminiOAuthCredentials()) {
-      logger.error(
-        'Gemini auth not set. Configure GEMINI_API_KEY or GEMINI_OAUTH_CREDS_JSON in GitHub Actions, ' +
-        'or authenticate locally so ~/.gemini/oauth_creds.json exists.'
-      );
-      process.exit(1);
-    }
+      const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+      if (!geminiApiKey && !hasGeminiOAuthCredentials()) {
+        logger.error(
+          'Gemini auth not set. Configure GEMINI_API_KEY or GEMINI_OAUTH_CREDS_JSON in GitHub Actions, ' +
+          'or authenticate locally so ~/.gemini/oauth_creds.json exists.'
+        );
+        process.exit(1);
+      }
 
-    const verifiedRepo = verifyGitHubCli(repository, issueNumber);
-    logger.info(`Verified GitHub CLI access to ${verifiedRepo}`);
+      const verifiedRepo = verifyGitHubCli(repository, issueNumber);
+      logger.info(`Verified GitHub CLI access to ${verifiedRepo}`);
 
-    // Ensure downstream tools (like gh) use the correct repository
-    process.env.GITHUB_REPOSITORY = repository;
+      // Ensure downstream tools (like gh) use the correct repository
+      process.env.GITHUB_REPOSITORY = repository;
 
-    const prompt = `${systemPrompt}\n\n${context}
+      const prompt = `${systemPrompt}\n\n${context}
 ---
 ENVIRONMENT:
 - GitHub CLI repository access has been preflight-verified for ${verifiedRepo}.
 - If a gh command fails, report the exact command and stderr instead of inferring an authentication problem.`;
 
-    // Extract media URLs from issue body and latest comment
-    const mediaUrls = collectAllMediaUrls(issueBody, commentBody);
+      // Invoke the official CLI package in headless mode so Actions does not depend on a preinstalled binary.
+      const args = [
+        '-y',
+        '@google/gemini-cli',
+        '--prompt',
+        prompt,
+        '--approval-mode',
+        'yolo'
+      ];
 
-    // Invoke the official CLI package in headless mode so Actions does not depend on a preinstalled binary.
-    const args = [
-      '-y',
-      '@google/gemini-cli',
-      '--prompt',
-      prompt,
-      '--approval-mode',
-      'yolo'
-    ];
+      logger.info('Invoking Gemini CLI...');
+      const childEnv = buildGeminiEnv();
+      childEnv.CONDUCTOR_PERSONA = persona;
+      childEnv.CONDUCTOR_LAST_COMMENT_URL = lastCommentUrl;
+      childEnv.CONDUCTOR_ROOT = conductorRoot;
+      
+      // The target repository directory
+      const targetCwd = process.env.CONDUCTOR_TARGET_DIR || process.env.GITHUB_WORKSPACE || path.resolve(process.cwd(), '..');
+      childEnv.CONDUCTOR_TARGET_DIR = targetCwd;
 
-    for (const url of mediaUrls) {
-      args.push('--media', url);
-    }
+      const result = await runStreamingCommand('npx', args, childEnv, targetCwd);
 
-    logger.info('Invoking Gemini CLI...');
-    const childEnv = buildGeminiEnv();
-    childEnv.CONDUCTOR_PERSONA = persona;
-    childEnv.CONDUCTOR_LAST_COMMENT_URL = lastCommentUrl;
-    childEnv.CONDUCTOR_ROOT = conductorRoot;
-    
-    // The target repository directory
-    const targetCwd = process.env.CONDUCTOR_TARGET_DIR || process.env.GITHUB_WORKSPACE || path.resolve(process.cwd(), '..');
-    childEnv.CONDUCTOR_TARGET_DIR = targetCwd;
+      if (result.status !== 0) {
+        logger.error('Gemini CLI execution failed');
 
-    const result = await runStreamingCommand('npx', args, childEnv, targetCwd);
+        const errorOutput = (result.stderr || result.stdout || 'No output captured').trim();
+        const lines = errorOutput.split('\n');
+        const snippet = lines.length > 50 ? lines.slice(-50).join('\n') : errorOutput;
 
-    if (result.status !== 0) {
-      logger.error('Gemini CLI execution failed');
-
-      const errorOutput = (result.stderr || result.stdout || 'No output captured').trim();
-      const lines = errorOutput.split('\n');
-      const snippet = lines.length > 50 ? lines.slice(-50).join('\n') : errorOutput;
-
-      const body = `I am the **automation**
+        const body = `I am the **automation**
 
 ### ❌ Gemini CLI Execution Failed
 
@@ -521,14 +538,24 @@ ${snippet}
 
 *Automated report by Conductor*`;
 
-      logger.info('Posting failure comment to GitHub...');
-      spawnSync('gh', ['issue', 'comment', String(issueNumber), '-R', repository, '--body', body], {
-        stdio: 'inherit',
-        env: childEnv
-      });
+        logger.info('Posting failure comment to GitHub...');
+        spawnSync('gh', ['issue', 'comment', String(issueNumber), '-R', repository, '--body', body], {
+          stdio: 'inherit',
+          env: childEnv
+        });
 
-      logEvent('session_end', { status: 'failure', exitCode: result.status }, { persona, issue: issueNumber });
-      process.exit(result.status || 1);
+        logEvent('session_end', { status: 'failure', exitCode: result.status }, { persona, issue: issueNumber });
+        process.exit(result.status || 1);
+      }
+    } finally {
+      // Cleanup temp dir
+      try {
+        if (fs.existsSync(tmpDir)) {
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
+      } catch (e) {
+        logger.error(`Failed to cleanup temp dir: ${tmpDir}`, { error: e instanceof Error ? e.message : String(e) });
+      }
     }
 
     logEvent('session_end', { status: 'success' }, { persona, issue: issueNumber });

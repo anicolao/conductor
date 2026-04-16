@@ -1,3 +1,6 @@
+import { spawnSync } from 'child_process';
+import * as path from 'path';
+
 export interface GitHubEvent {
   action?: string;
   issue?: {
@@ -78,6 +81,30 @@ export function collectAllMediaUrls(
     ...extractMediaUrls(latestCommentBody)
   ]);
   return [...mediaUrls];
+}
+
+/**
+ * Downloads a media file from a URL to a local path using curl.
+ */
+export async function downloadMedia(url: string, destPath: string): Promise<void> {
+  const result = spawnSync('curl', ['-L', '-s', '-o', destPath, url]);
+  if (result.status !== 0) {
+    throw new Error(`Failed to download media from ${url}: ${result.stderr?.toString() || 'Unknown error'}`);
+  }
+}
+
+/**
+ * Injects local media paths into text after their corresponding URLs.
+ */
+export function injectMediaPaths(text: string, urlToPath: Map<string, string>): string {
+  if (!text) return '';
+  let updatedText = text;
+  for (const [url, localPath] of urlToPath.entries()) {
+    const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escapedUrl, 'g');
+    updatedText = updatedText.replace(regex, `${url}\n@${localPath}`);
+  }
+  return updatedText;
 }
 
 /**

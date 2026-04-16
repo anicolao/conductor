@@ -1,5 +1,33 @@
 import { describe, it, expect } from 'vitest';
-import { extractEventData, GitHubEvent, extractMediaUrls, collectAllMediaUrls } from '../../src/utils/github';
+import { extractEventData, GitHubEvent, extractMediaUrls, collectAllMediaUrls, injectMediaPaths } from '../../src/utils/github';
+
+describe('injectMediaPaths', () => {
+  it('should inject paths after URLs', () => {
+    const text = 'Check this: https://github.com/user-attachments/assets/1\nAnd this: https://github.com/user-attachments/assets/2';
+    const urlToPath = new Map([
+      ['https://github.com/user-attachments/assets/1', '/tmp/1.png'],
+      ['https://github.com/user-attachments/assets/2', '/tmp/2.png']
+    ]);
+    const result = injectMediaPaths(text, urlToPath);
+    expect(result).toBe('Check this: https://github.com/user-attachments/assets/1\n@/tmp/1.png\nAnd this: https://github.com/user-attachments/assets/2\n@/tmp/2.png');
+  });
+
+  it('should handle duplicate URLs in text', () => {
+    const text = 'URL: https://github.com/user-attachments/assets/1 and again: https://github.com/user-attachments/assets/1';
+    const urlToPath = new Map([
+      ['https://github.com/user-attachments/assets/1', '/tmp/1.png']
+    ]);
+    const result = injectMediaPaths(text, urlToPath);
+    expect(result).toBe('URL: https://github.com/user-attachments/assets/1\n@/tmp/1.png and again: https://github.com/user-attachments/assets/1\n@/tmp/1.png');
+  });
+
+  it('should return original text if no matches', () => {
+    const text = 'No URLs here';
+    const urlToPath = new Map([['https://example.com', '/tmp/ex.png']]);
+    const result = injectMediaPaths(text, urlToPath);
+    expect(result).toBe(text);
+  });
+});
 
 describe('extractMediaUrls', () => {
   it('should extract multiple URLs from text', () => {
