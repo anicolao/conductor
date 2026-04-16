@@ -54,3 +54,11 @@ export function extractEventData(event: GitHubEvent, env: NodeJS.ProcessEnv) {
     action
   };
 }
+
+/**
+ * Identifies if a comment was made by a persona (conductor, coder, automation).
+ * Persona comments always start with "I am the **persona**".
+ */
+export function isPersonaComment(body: string): boolean {
+  return /^I am the \*\*(conductor|coder|automation|human)\*\*/.test(body.trim());
+}

@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 
 import { runStreamingCommand } from './utils/exec';
 import { DEFAULT_COMMENT_LIMIT, resolveCommentLimit } from './utils/comment-limit';
-import { GitHubEvent, extractEventData } from './utils/github';
+import { GitHubEvent, extractEventData, isPersonaComment } from './utils/github';
 import { logEvent, logger } from './utils/logger';
 
 function verifyGitHubCli(repository: string, issueNumber: number): string {
@@ -118,11 +118,14 @@ function hasGeminiOAuthCredentials(): boolean {
   }
 }
 
+interface Comment {
+  body: string;
+  html_url: string;
+}
+
 function loadIssueState(repository: string, issueNumber: number): { 
   labels: string[]; 
   body: string; 
-  latestComment: string;
-  latestCommentUrl: string;
   commentCount: number;
   htmlUrl: string;
   nodeId: string;
@@ -138,41 +141,21 @@ function loadIssueState(repository: string, issueNumber: number): {
 
   const parsed = JSON.parse(issueData.stdout);
 
-  // Fetch latest comment
-  const commentsData = spawnSync('gh', ['api', `repos/${repository}/issues/${issueNumber}/comments`, '--jq', '. [-1] | {body: .body, html_url: .html_url} // empty'], {
-    encoding: 'utf8',
-    env: process.env
-  });
-
-  let latestComment = '';
-  let latestCommentUrl = '';
-  if (commentsData.status === 0 && commentsData.stdout.trim()) {
-    try {
-      const commentParsed = JSON.parse(commentsData.stdout);
-      latestComment = commentParsed.body || '';
-      latestCommentUrl = commentParsed.html_url || '';
-    } catch {
-      // ignore
-    }
-  }
-
   return {
     labels: Array.isArray(parsed.labels) ? parsed.labels.map((label: { name: string }) => label.name) : [],
     body: parsed.body || '',
-    latestComment,
-    latestCommentUrl,
     commentCount: typeof parsed.comments === 'number' ? parsed.comments : 0,
     htmlUrl: parsed.html_url || '',
     nodeId: parsed.node_id || ''
   };
 }
 
-function loadIssueCommentBodies(repository: string, issueNumber: number, commentCount: number): string[] {
+function loadIssueComments(repository: string, issueNumber: number, commentCount: number): Comment[] {
   if (commentCount < 1) return [];
 
   const perPage = 100;
   const pages = Math.ceil(commentCount / perPage);
-  const bodies: string[] = [];
+  const allComments: Comment[] = [];
 
   for (let page = 1; page <= pages; page += 1) {
     const commentsData = spawnSync('gh', ['api', `repos/${repository}/issues/${issueNumber}/comments?per_page=${perPage}&page=${page}`], {
@@ -183,29 +166,22 @@ function loadIssueCommentBodies(repository: string, issueNumber: number, comment
     if (commentsData.status !== 0 || !commentsData.stdout.trim()) {
       const details = (commentsData.stderr || commentsData.stdout || 'No gh output captured').trim();
       logger.warn(
-        `Failed to load comment page ${page} for ${repository}#${issueNumber}; ` +
-        'falling back to the default comment limit.'
+        `Failed to load comment page ${page} for ${repository}#${issueNumber}.`
       );
       if (details) process.stderr.write(`${details}\n`);
-      return [];
+      return allComments;
     }
 
-    const parsed = JSON.parse(commentsData.stdout) as Array<{ body?: string | null }>;
-    for (const comment of parsed) {
-      bodies.push(comment.body || '');
-    }
+    const parsed = JSON.parse(commentsData.stdout) as Comment[];
+    allComments.push(...parsed);
   }
 
-  return bodies;
+  return allComments;
 }
 
-function getEffectiveCommentLimit(repository: string, issueNumber: number, commentCount: number): number {
-  if (commentCount <= DEFAULT_COMMENT_LIMIT) {
-    return DEFAULT_COMMENT_LIMIT;
-  }
-
-  const commentBodies = loadIssueCommentBodies(repository, issueNumber, commentCount);
-  return resolveCommentLimit(commentBodies, DEFAULT_COMMENT_LIMIT);
+function getEffectiveCommentLimit(comments: Comment[]): number {
+  const bodies = comments.map(c => c.body);
+  return resolveCommentLimit(bodies, DEFAULT_COMMENT_LIMIT);
 }
 
 function moveToHumanReview(
@@ -336,6 +312,7 @@ async function main() {
 
   let persona: 'conductor' | 'coder' | null = null;
   let lastCommentUrl = commentUrl;
+  let comments: Comment[] = [];
 
   try {
     if (!issueNumber) {
@@ -352,11 +329,12 @@ async function main() {
     if (liveIssueState) {
       labels = liveIssueState.labels;
       issueBody = liveIssueState.body;
-      commentBody = liveIssueState.latestComment;
-      lastCommentUrl = liveIssueState.latestCommentUrl;
       issueUrl = liveIssueState.htmlUrl;
       issueNodeId = liveIssueState.nodeId;
-      const commentLimit = getEffectiveCommentLimit(repository, issueNumber, liveIssueState.commentCount);
+      
+      comments = loadIssueComments(repository, issueNumber, liveIssueState.commentCount);
+      const commentLimit = getEffectiveCommentLimit(comments);
+      
       if (liveIssueState.commentCount > commentLimit) {
         logger.info(
           `Comment limit exceeded for ${repository}#${issueNumber} ` +
@@ -372,6 +350,12 @@ async function main() {
           commentLimit
         );
         process.exit(0);
+      }
+
+      if (comments.length > 0) {
+        const last = comments[comments.length - 1];
+        commentBody = last.body;
+        lastCommentUrl = last.html_url;
       }
     }
 
@@ -425,6 +409,25 @@ async function main() {
     const systemPrompt = fs.readFileSync(promptPath, 'utf8');
 
     // 4. Prepare Context
+    let lastHumanCommentBody = 'N/A (No human comments found)';
+    let activitySinceLastHumanComment = 'N/A';
+
+    const reversedComments = [...comments].reverse();
+    const lastHumanCommentIndex = reversedComments.findIndex(c => !isPersonaComment(c.body));
+
+    if (lastHumanCommentIndex !== -1) {
+      const actualIndex = comments.length - 1 - lastHumanCommentIndex;
+      lastHumanCommentBody = comments[actualIndex].body;
+      const activityComments = comments.slice(actualIndex + 1);
+      if (activityComments.length > 0) {
+        activitySinceLastHumanComment = activityComments.map(c => c.body).join('\n\n---\n\n');
+      } else {
+        activitySinceLastHumanComment = 'None';
+      }
+    } else if (comments.length > 0) {
+      activitySinceLastHumanComment = comments.map(c => c.body).join('\n\n---\n\n');
+    }
+
     const context = `
 Issue #${issueNumber}
 Repository: ${repository}
@@ -438,8 +441,11 @@ Labels: ${labels.join(', ')}
 ISSUE BODY:
 ${issueBody}
 ---
-LATEST COMMENT:
-${commentBody}
+LAST HUMAN COMMENT:
+${lastHumanCommentBody}
+---
+ACTIVITY SINCE LAST HUMAN COMMENT:
+${activitySinceLastHumanComment}
 `;
 
     const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
