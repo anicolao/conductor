@@ -31,16 +31,21 @@
 		}
 
 		try {
+			const commonHeaders = {
+				Authorization: `Bearer ${token}`,
+				'X-GitHub-Api-Version': '2022-11-28'
+			};
+
 			// Fetch run details
 			const runRes = await fetch(`https://api.github.com/repos/LLM-Orchestration/conductor/actions/runs/${currentId}`, {
-				headers: { Authorization: `Bearer ${token}` }
+				headers: commonHeaders
 			});
 			if (!runRes.ok) throw new Error(`Failed to fetch run details: ${runRes.statusText}`);
 			run = await runRes.json();
 
 			// Fetch jobs
 			const jobsRes = await fetch(`https://api.github.com/repos/LLM-Orchestration/conductor/actions/runs/${currentId}/jobs`, {
-				headers: { Authorization: `Bearer ${token}` }
+				headers: commonHeaders
 			});
 			if (!jobsRes.ok) throw new Error(`Failed to fetch jobs: ${jobsRes.statusText}`);
 			const jobsData = await jobsRes.json();
@@ -59,7 +64,7 @@
 			// Fetch logs
 			const logsRes = await fetch(`https://api.github.com/repos/LLM-Orchestration/conductor/actions/jobs/${conductorJob.id}/logs`, {
 				headers: { 
-					Authorization: `Bearer ${token}`,
+					...commonHeaders,
 					Accept: 'application/vnd.github.v3.raw'
 				}
 			});
@@ -100,7 +105,9 @@
 				}
 				logsAvailable = true;
 			} else {
-				throw new Error(`Failed to fetch logs: ${logsRes.statusText}`);
+				// Some other error, but we might want to keep polling if the run is still in progress
+				console.warn(`Failed to fetch logs: ${logsRes.status} ${logsRes.statusText}`);
+				logsAvailable = false;
 			}
 
 			// Stop polling only if completed and logs are available (not 404)
@@ -119,7 +126,7 @@
 	function startPolling(currentId: string) {
 		if (polling || !browser) return;
 		polling = true;
-		pollingInterval = setInterval(() => fetchData(currentId), 5000);
+		pollingInterval = setInterval(() => fetchData(currentId), 2000);
 	}
 
 	function stopPolling() {
