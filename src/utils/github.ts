@@ -56,6 +56,31 @@ export function extractEventData(event: GitHubEvent, env: NodeJS.ProcessEnv) {
 }
 
 /**
+ * Extracts GitHub user-attachment URLs from a given text.
+ */
+export function extractMediaUrls(text: string): string[] {
+  if (!text) return [];
+  const regex = /https:\/\/github\.com\/user-attachments\/assets\/[0-9a-fA-F-]+/g;
+  const matches = text.match(regex);
+  if (!matches) return [];
+  return [...new Set(matches)];
+}
+
+/**
+ * Collects all unique media URLs from issue body and latest comment.
+ */
+export function collectAllMediaUrls(
+  issueBody: string,
+  latestCommentBody: string
+): string[] {
+  const mediaUrls = new Set<string>([
+    ...extractMediaUrls(issueBody),
+    ...extractMediaUrls(latestCommentBody)
+  ]);
+  return [...mediaUrls];
+}
+
+/**
  * Identifies if a comment was made by a persona (conductor, coder, automation).
  * Persona comments always start with "I am the **persona**".
  */

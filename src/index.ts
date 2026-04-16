@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 
 import { runStreamingCommand } from './utils/exec';
 import { DEFAULT_COMMENT_LIMIT, resolveCommentLimit } from './utils/comment-limit';
-import { GitHubEvent, extractEventData, isPersonaComment } from './utils/github';
+import { GitHubEvent, extractEventData, isPersonaComment, collectAllMediaUrls } from './utils/github';
 import { logEvent, logger } from './utils/logger';
 
 function verifyGitHubCli(repository: string, issueNumber: number): string {
@@ -183,7 +183,6 @@ function getEffectiveCommentLimit(comments: Comment[]): number {
   const bodies = comments.map(c => c.body);
   return resolveCommentLimit(bodies, DEFAULT_COMMENT_LIMIT);
 }
-
 function moveToHumanReview(
   repository: string,
   issueNumber: number,
@@ -470,6 +469,9 @@ ENVIRONMENT:
 - GitHub CLI repository access has been preflight-verified for ${verifiedRepo}.
 - If a gh command fails, report the exact command and stderr instead of inferring an authentication problem.`;
 
+    // Extract media URLs from issue body and latest comment
+    const mediaUrls = collectAllMediaUrls(issueBody, commentBody);
+
     // Invoke the official CLI package in headless mode so Actions does not depend on a preinstalled binary.
     const args = [
       '-y',
@@ -479,6 +481,10 @@ ENVIRONMENT:
       '--approval-mode',
       'yolo'
     ];
+
+    for (const url of mediaUrls) {
+      args.push('--media', url);
+    }
 
     logger.info('Invoking Gemini CLI...');
     const childEnv = buildGeminiEnv();
