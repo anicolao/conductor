@@ -41,4 +41,16 @@ some suffix
     expect(events).toHaveLength(1);
     expect(events[0].event).toBe('test');
   });
+
+  it('should handle partial lines silently', () => {
+    const logs = `
+2026-04-15T12:00:00Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:00Z","event":"session_start","data":{"branch":"main"}}
+2026-04-15T12:00:05Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:0
+2026-04-15T12:00:10Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:10Z","event":"session_end","data":{"status":"success"}}
+    `;
+    const events = parseLogs(logs);
+    expect(events).toHaveLength(2);
+    expect(events[0].event).toBe('session_start');
+    expect(events[1].event).toBe('session_end');
+  });
 });
