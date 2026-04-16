@@ -73,11 +73,15 @@ fi
 body_file="$(mktemp)"
 trap 'rm -f "$body_file"' EXIT
 
-if [ -n "${CONDUCTOR_PERSONA:-}" ] && [ -n "${CONDUCTOR_LAST_COMMENT_URL:-}" ]; then
+persona="${CONDUCTOR_PERSONA:-human}"
+if [ -n "${CONDUCTOR_LAST_COMMENT_URL:-}" ]; then
   comment_id="${CONDUCTOR_LAST_COMMENT_URL##*-}"
-  echo "I am the **$CONDUCTOR_PERSONA**, and I am responding to comment [$comment_id]($CONDUCTOR_LAST_COMMENT_URL) on branch $branch_name." > "$body_file"
-  echo "" >> "$body_file"
+  echo "I am the **$persona**, and I am responding to comment [$comment_id]($CONDUCTOR_LAST_COMMENT_URL) on branch $branch_name." > "$body_file"
+else
+  issue_url="$(gh issue view "$issue_number" -R "$target_repo" --json url --jq .url)"
+  echo "I am the **$persona**, and I am responding to the [original issue]($issue_url) on branch $branch_name." > "$body_file"
 fi
+echo "" >> "$body_file"
 
 cat >> "$body_file"
 
