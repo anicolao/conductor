@@ -68,8 +68,6 @@ if [ "$current_persona" == "conductor" ]; then
     # Fallback for local dev or transition
     if [ -f "./scripts/conductor-verify.sh" ]; then
       bash ./scripts/conductor-verify.sh
-    elif [ -f ".conductor/scripts/conductor-verify.sh" ]; then
-      bash .conductor/scripts/conductor-verify.sh
     else
       echo "Warning: conductor-verify.sh not found, skipping verification" >&2
     fi
