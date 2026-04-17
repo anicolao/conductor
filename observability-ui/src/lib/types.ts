@@ -30,7 +30,12 @@ export interface GeminiToolResultEvent {
 	name?: string;
 	tool_name?: string;
 	tool_id?: string;
-	result: any;
+	result?: any;
+	data?: {
+		status?: string;
+		output?: string;
+		[key: string]: any;
+	};
 }
 
 export interface GeminiUnknownEvent {

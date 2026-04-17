@@ -502,8 +502,7 @@ ENVIRONMENT:
         '--approval-mode',
         'yolo',
         '-o',
-        'stream-json',
-        '--debug'
+        'stream-json'
       ];
 
       logger.info('Invoking Gemini CLI...');
