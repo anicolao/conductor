@@ -21,6 +21,14 @@ test('Observability UI Landing Page', async ({ page }, testInfo) => {
         check: async () => {
           await expect(page.getByRole('heading', { name: 'Conductor Observability' })).toBeVisible();
         }
+      },
+      {
+        spec: 'Version indicator is visible in the footer',
+        check: async () => {
+          const footer = page.locator('footer.version-info');
+          await expect(footer).toBeVisible();
+          await expect(footer).toHaveText(/v\d+\.\d+\.\d+/);
+        }
       }
     ]
   });
