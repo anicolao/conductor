@@ -25,6 +25,7 @@ Verify that Gemini JSON events are correctly aggregated and rendered.
 - [x] Tool result is visible
 - [x] Tool result with data and status is visible
 - [x] Tool result with status as name is visible
+- [x] Tool result with recovered name is visible
 - [x] Copy button is visible in JsonTree
 - [x] Final result is visible with stats
 

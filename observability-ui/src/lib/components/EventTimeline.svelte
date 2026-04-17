@@ -36,6 +36,23 @@
   const terminalEvents = $derived(processedEvents.filter(e => e.event === 'STDOUT' || e.event === 'STDERR'));
   const otherEvents = $derived(processedEvents.filter(e => e.event !== 'STDOUT' && e.event !== 'STDERR'));
 
+  const toolNameMap = $derived.by(() => {
+    const map = new Map<string, string>();
+    for (const event of events) {
+      if (event.event === 'GEMINI_EVENT') {
+        const data = event.data as GeminiEventData;
+        if (data.type === 'tool_use' || data.type === 'tool_result') {
+          const tool_id = data.tool_id;
+          const name = data.tool_name || data.name || data.tool;
+          if (tool_id && name) {
+            map.set(tool_id, name);
+          }
+        }
+      }
+    }
+    return map;
+  });
+
   let terminalBody: HTMLDivElement;
 
   $effect(() => {
@@ -162,7 +179,7 @@
             </div>
           </div>
         {:else if event.event === 'GEMINI_EVENT'}
-          <GeminiEvent {event} />
+          <GeminiEvent {event} {toolNameMap} />
         {:else}
           <div class="event-card">
             <div class="event-header">
