@@ -18,13 +18,18 @@ export interface GeminiToolUseEvent {
 	type: 'tool_use';
 	tool?: string;
 	name?: string;
-	args: Record<string, any>;
+	tool_name?: string;
+	tool_id?: string;
+	args?: Record<string, any>;
+	parameters?: Record<string, any>;
 }
 
 export interface GeminiToolResultEvent {
 	type: 'tool_result';
 	tool?: string;
 	name?: string;
+	tool_name?: string;
+	tool_id?: string;
 	result: any;
 }
 

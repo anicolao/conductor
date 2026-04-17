@@ -1,8 +1,9 @@
 <script lang="ts">
-  import type { GeminiEventData } from '../types';
+  import type { ConductorEvent, GeminiEventData } from '../types';
   import JsonTree from './JsonTree.svelte';
 
-  let { eventData }: { eventData: GeminiEventData } = $props();
+  let { event }: { event: ConductorEvent } = $props();
+  const eventData = $derived(event.data as GeminiEventData);
 
   const getEventClass = (data: GeminiEventData) => {
     const base = `gemini-event ${data.type.replace(/_/g, '-')}`;
@@ -11,6 +12,14 @@
     }
     return base;
   };
+
+  function getToolName(data: any) {
+    return data.tool_name || data.name || data.tool || 'unknown';
+  }
+
+  function getToolArgs(data: any) {
+    return data.parameters || data.args || {};
+  }
 </script>
 
 <div class={getEventClass(eventData)}>
@@ -34,15 +43,21 @@
   {:else if eventData.type === 'tool_use'}
     <div class="event-header">
       <span class="icon">🛠️</span>
-      <span class="event-type">Tool Use: {eventData.name || eventData.tool || 'unknown'}</span>
+      <span class="event-type">Tool Use: {getToolName(eventData)}</span>
+      {#if eventData.tool_id}
+        <span class="tool-id">({eventData.tool_id})</span>
+      {/if}
     </div>
     <div class="event-body">
-      <pre><code>{JSON.stringify(eventData.args, null, 2)}</code></pre>
+      <pre><code>{JSON.stringify(getToolArgs(eventData), null, 2)}</code></pre>
     </div>
   {:else if eventData.type === 'tool_result'}
     <div class="event-header">
       <span class="icon">📤</span>
-      <span class="event-type">Tool Result: {eventData.name || eventData.tool || 'unknown'}</span>
+      <span class="event-type">Tool Result: {getToolName(eventData)}</span>
+      {#if eventData.tool_id}
+        <span class="tool-id">({eventData.tool_id})</span>
+      {/if}
     </div>
     <div class="event-body">
       <pre><code>{typeof eventData.result === 'string' ? eventData.result : JSON.stringify(eventData.result, null, 2)}</code></pre>
@@ -85,7 +100,7 @@
   {/if}
 
   <div class="raw-json-section">
-    <JsonTree data={eventData} isRoot={true} label="Event JSON" />
+    <JsonTree data={event} isRoot={true} label="Event JSON" />
   </div>
 </div>
 
@@ -113,6 +128,12 @@
     text-transform: uppercase;
     font-size: 0.85rem;
     color: #555;
+  }
+
+  .tool-id {
+    font-family: monospace;
+    font-size: 0.75rem;
+    color: #888;
   }
 
   .icon {
