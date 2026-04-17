@@ -28,6 +28,7 @@ test('Gemini JSON Mode Observability', async ({ page }, testInfo) => {
     '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:04.100Z","event":"GEMINI_EVENT","data":{"type":"tool_result","tool_name":"run_shell_command","data":{"status":"success","output":"Done."}}}',
     '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:04.500Z","event":"GEMINI_EVENT","data":{"type":"tool_use","name":"list_dir","args":{"path":"src"}}}',
     '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:04.550Z","event":"GEMINI_EVENT","data":{"type":"tool_use","tool_name":"list_directory","tool_id":"1o6dfh4u","parameters":{"dir_path":"observability-ui/src/lib/components/"}}}',
+    '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:04.580Z","event":"GEMINI_EVENT","data":{"type":"tool_result","status":"SUCCESS","output":"File1.svelte\\nFile2.svelte"}}',
     '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:04.600Z","event":"GEMINI_EVENT","data":{"type":"unknown_event","foo":"bar"}}',
     '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:05.000Z","event":"GEMINI_EVENT","data":{"type":"result","response":"Finished.","stats":{"tokens":{"total":100,"prompt":40,"completion":60},"latency":500}}}'
   ].join('\n');
@@ -93,6 +94,20 @@ test('Gemini JSON Mode Observability', async ({ page }, testInfo) => {
           await expect(page.getByText('Tool Result: run_shell_command', { exact: true })).toBeVisible();
           await expect(page.getByText('Status: success')).toBeVisible();
           await expect(page.getByText('Done.')).toBeVisible();
+        }
+      },
+      {
+        spec: 'Tool result with status as name is visible',
+        check: async () => {
+          await expect(page.getByText('Tool Result: SUCCESS', { exact: true })).toBeVisible();
+          await expect(page.getByText('File1.svelte')).toBeVisible();
+          await expect(page.getByText('File2.svelte')).toBeVisible();
+        }
+      },
+      {
+        spec: 'Copy button is visible in JsonTree',
+        check: async () => {
+          await expect(page.getByRole('button', { name: 'copy' }).first()).toBeVisible();
         }
       },
       {

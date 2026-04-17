@@ -31,6 +31,8 @@ export interface GeminiToolResultEvent {
 	tool_name?: string;
 	tool_id?: string;
 	result?: any;
+	status?: string;
+	output?: string;
 	data?: {
 		status?: string;
 		output?: string;
