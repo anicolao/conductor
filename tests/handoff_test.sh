@@ -12,6 +12,15 @@ export PATH="$TEST_DIR:$PATH"
 export GITHUB_EVENT_PATH="$TEST_DIR/event.json"
 export GITHUB_REPOSITORY="LLM-Orchestration/conductor"
 
+# Unset variables that might bleed through from the environment
+unset issue_number
+unset target_repo
+unset project_number
+unset project_url
+unset issue_node_id
+unset CONDUCTOR_PERSONA
+unset CONDUCTOR_LAST_COMMENT_URL
+
 # Mock sleep to speed up tests
 cat > "$TEST_DIR/sleep" <<EOF
 #!/usr/bin/env bash
