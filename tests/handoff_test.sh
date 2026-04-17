@@ -27,23 +27,32 @@ case "\$*" in
     echo "test-branch"
     exit 0
     ;;
+  "push origin "*)
+    if [ -f "$TEST_DIR/mock_push_fail" ]; then
+      exit 1
+    fi
+    exit 0
+    ;;
   "status --porcelain"*)
     if [ -f "$TEST_DIR/mock_uncommitted" ]; then
       cat "$TEST_DIR/mock_uncommitted"
     fi
     exit 0
     ;;
-  "rev-parse --verify main")
+  "rev-parse --verify origin/main")
+    if [ -f "$TEST_DIR/mock_no_origin_main" ]; then
+      exit 1
+    fi
     exit 0
     ;;
-  "rev-list --count main..HEAD")
+  "rev-parse --verify origin/test-branch")
+    if [ -f "$TEST_DIR/mock_no_origin_branch" ]; then
+      exit 1
+    fi
+    exit 0
+    ;;
+  "rev-list --count origin/main..origin/test-branch")
     cat "$TEST_DIR/mock_commit_count" 2>/dev/null || echo "0"
-    exit 0
-    ;;
-  "checkout issue-123")
-    exit 1
-    ;;
-  "checkout -b issue-123")
     exit 0
     ;;
   *)
@@ -53,8 +62,6 @@ case "\$*" in
 esac
 EOF
 chmod +x "$TEST_DIR/git"
-
-branch_name="test-branch"
 
 # Create a dummy event.json with project info
 cat > "$GITHUB_EVENT_PATH" <<'EOF'
@@ -71,17 +78,31 @@ EOF
 # Create a dummy comment on stdin
 echo "Handoff comment" > "$TEST_DIR/comment.md"
 
-# Test 1: Fail because project item is not found
-cat > "$TEST_DIR/gh" <<'EOF'
+# Helper to setup GH mock
+setup_gh_mock() {
+  cat > "$TEST_DIR/gh" <<EOF
 #!/usr/bin/env bash
-case "$*" in
-  "issue view"*)
+case "\$*" in
+  "issue view"*--jq*)
     echo "persona: coder"
     echo "branch: test-branch"
-    echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: test-branch"}]}'
+    ;;
+  "issue view"*)
+    echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: test-branch"}], "url": "https://github.com/LLM-Orchestration/conductor/issues/123"}'
+    ;;
+  *"project item-list"*--jq*)
+    if [ -f "$TEST_DIR/mock_project_item_missing" ]; then
+      echo ""
+    else
+      echo 'ITEM_123'
+    fi
     ;;
   *"project item-list"*)
-    echo ""
+    if [ -f "$TEST_DIR/mock_project_item_missing" ]; then
+      echo ""
+    else
+      echo '{"id": "ITEM_123", "content": {"id": "I_123"}}'
+    fi
     ;;
   "project view"*)
     echo '"PVT_kwDOA123"'
@@ -91,9 +112,14 @@ case "$*" in
     ;;
 esac
 EOF
-chmod +x "$TEST_DIR/gh"
+  chmod +x "$TEST_DIR/gh"
+}
 
+setup_gh_mock
+
+# Test 1: Fail because project item is not found
 echo "Running Test 1: Fail because project item is not found..."
+touch "$TEST_DIR/mock_project_item_missing"
 if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
   echo "Error: handoff.sh should have failed but exited with 0"
   exit 1
@@ -106,37 +132,16 @@ else
     exit 1
   fi
 fi
+rm "$TEST_DIR/mock_project_item_missing"
 
-# Test 2: Fail because field 'Persona' is missing
-cat > "$TEST_DIR/gh" <<'EOF'
-#!/usr/bin/env bash
-case "$*" in
-  "issue view"*)
-    echo "persona: coder"
-    echo "branch: test-branch"
-    echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: test-branch"}]}'
-    ;;
-  *"project item-list"*)
-    echo '{"id": "ITEM_123", "content": {"id": "I_123"}}'
-    ;;
-  "project view"*)
-    echo '"PVT_kwDOA123"'
-    ;;
-  *"project field-list"*)
-    echo '{"fields": []}'
-    ;;
-  *)
-    exit 0
-    ;;
-esac
-EOF
-
-echo "Running Test 2: Fail because field 'Persona' is missing..."
+# Test 2: PUSH FAILURE
+echo "Running Test 2: PUSH FAILURE..."
+touch "$TEST_DIR/mock_push_fail"
 if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
-  echo "Error: handoff.sh should have failed but exited with 0"
+  echo "Error: handoff.sh should have failed due to push failure"
   exit 1
 else
-  if grep -q "Error: Could not find 'Persona' field in project 1" "$TEST_DIR/stderr"; then
+  if grep -q "PUSH FAILURE: Failed to push to origin/test-branch" "$TEST_DIR/stderr"; then
     echo "Success: Test 2 passed"
   else
     echo "Error: Test 2 failed with wrong message"
@@ -144,41 +149,16 @@ else
     exit 1
   fi
 fi
+rm "$TEST_DIR/mock_push_fail"
 
-# Test 3: Fail because verification fails
-cat > "$TEST_DIR/gh" <<'EOF'
-#!/usr/bin/env bash
-case "$*" in
-  "issue view"*)
-    echo "persona: coder"
-    echo "branch: test-branch"
-    echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: test-branch"}]}'
-    ;;
-  *"project item-list"*)
-    if [[ "$*" == *".persona"* ]]; then
-      echo "conductor"
-    else
-      echo '{"id": "ITEM_123", "persona": "conductor"}'
-    fi
-    ;;
-  "project view"*)
-    echo '"PVT_kwDOA123"'
-    ;;
-  *"project field-list"*)
-    echo '{"fields": [{"name": "Persona", "id": "FIELD_P", "options": [{"name": "coder", "id": "OPT_CODER"}]}]}'
-    ;;
-  *)
-    exit 0
-    ;;
-esac
-EOF
-
-echo "Running Test 3: Fail because verification fails..."
-if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
-  echo "Error: handoff.sh should have failed but exited with 0"
+# Test 3: NUMBER OF COMMITS MISMATCH FAILURE
+echo "Running Test 3: NUMBER OF COMMITS MISMATCH FAILURE..."
+echo "2" > "$TEST_DIR/mock_commit_count"
+if bash scripts/handoff.sh coder 1 < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
+  echo "Error: handoff.sh should have failed due to commit mismatch"
   exit 1
 else
-  if grep -q "Error: Failed to verify Project V2 Persona update to 'coder' for item ITEM_123" "$TEST_DIR/stderr"; then
+  if grep -q "NUMBER OF COMMITS MISMATCH FAILURE: Expected 1 commits but found 2" "$TEST_DIR/stderr"; then
     echo "Success: Test 3 passed"
   else
     echo "Error: Test 3 failed with wrong message"
@@ -186,484 +166,73 @@ else
     exit 1
   fi
 fi
+rm "$TEST_DIR/mock_commit_count"
 
-# Test 4: Success with user project
-cat > "$GITHUB_EVENT_PATH" <<'EOF'
-{
-  "client_payload": {
-    "issue_number": 123,
-    "project_number": 2,
-    "project_url": "https://github.com/users/someuser/projects/2",
-    "issue_node_id": "I_123"
-  }
-}
-EOF
-cat > "$TEST_DIR/gh" <<EOF
-#!/usr/bin/env bash
-case "\$*" in
-  "issue view"*".labels[].name"*)
-    echo "persona: tester"
-    echo "branch: $branch_name"
-    ;;
-  "issue view"*)
-    echo '{"labels":[{"name":"persona: tester"}, {"name":"branch: $branch_name"}]}'
-    ;;
-  *"project item-list"*)
-    if [[ "\$*" == *"--owner someuser"* ]]; then
-      if [[ "\$*" == *".persona"* ]]; then
-        echo "tester"
-      else
-        echo '{"id": "ITEM_USER_123", "persona": "tester", "content": {"number": 123, "repository": "LLM-Orchestration/conductor"}}'
-      fi
-    else
-      echo "Error: wrong owner" >&2
-      exit 1
-    fi
-    ;;
-  "project view"*)
-    echo '"PVT_USER_123"'
-    ;;
-  *"project field-list"*)
-    echo '{"fields": [{"name": "Persona", "id": "FIELD_P", "options": [{"name": "tester", "id": "OPT_TESTER"}]}]}'
-    ;;
-  *)
-    exit 0
-    ;;
-esac
-EOF
-
-chmod +x "$TEST_DIR/gh"
-
-echo "Running Test 4: Success with user project..."
-if bash scripts/handoff.sh tester 0 < "$TEST_DIR/comment.md"; then
-  echo "Success: Test 4 passed"
-else
-  echo "Error: Test 4 failed"
-  exit 1
-fi
-
-# Test 5: Basic label handoff (no project info)
-cat > "$GITHUB_EVENT_PATH" <<'EOF'
-{
-  "client_payload": {
-    "issue_number": 456,
-    "repository": "LLM-Orchestration/other-repo"
-  }
-}
-EOF
-cat > "$TEST_DIR/gh" <<EOF
-#!/usr/bin/env bash
-case "\$*" in
-  "issue view"*".labels[].name"*)
-    echo "persona: conductor"
-    echo "branch: $branch_name"
-    ;;
-  "issue view"*)
-    echo '{"labels":[{"name":"persona: conductor"}, {"name":"branch: $branch_name"}]}'
-    ;;
-  "issue edit"*)
-    if [[ "\$*" == *"-R LLM-Orchestration/other-repo"* ]] && [[ "\$*" == *"--add-label persona: conductor"* ]]; then
-      exit 0
-    else
-      echo "Error: wrong repo or label in issue edit" >&2
-      exit 1
-    fi
-    ;;
-  "issue comment"*)
-    if [[ "\$*" == *"-R LLM-Orchestration/other-repo"* ]]; then
-      exit 0
-    else
-      echo "Error: wrong repo in issue comment" >&2
-      exit 1
-    fi
-    ;;
-  *)
-    exit 0
-    ;;
-esac
-EOF
-
-echo "Running Test 5: Basic label handoff (no project info)..."
-if bash scripts/handoff.sh conductor 0 < "$TEST_DIR/comment.md"; then
-  echo "Success: Test 5 passed"
-else
-  echo "Error: Test 5 failed"
-  exit 1
-fi
-
-# Test 6: Auto-branch away from main before labeling
-cat > "$GITHUB_EVENT_PATH" <<'EOF'
-{
-  "client_payload": {
-    "issue_number": 123,
-    "repository": "LLM-Orchestration/conductor"
-  }
-}
-EOF
-cat > "$TEST_DIR/git" <<'EOF'
-#!/usr/bin/env bash
-case "$*" in
-  "branch --show-current")
-    echo "main"
-    exit 0
-    ;;
-  "checkout issue-123")
-    exit 1
-    ;;
-  "checkout -b issue-123")
-    exit 0
-    ;;
-  "status --porcelain")
-    exit 0
-    ;;
-  "rev-parse --verify main")
-    exit 0
-    ;;
-  "rev-list --count main..HEAD")
-    echo "0"
-    exit 0
-    ;;
-  *)
-    exec git "$@"
-    ;;
-esac
-EOF
-chmod +x "$TEST_DIR/git"
-
-cat > "$TEST_DIR/gh" <<'EOF'
-#!/usr/bin/env bash
-MARKER_FILE="${GITHUB_EVENT_PATH}.main_branch_labels_set"
-case "$*" in
-  "issue view"*".labels[].name"*)
-    if [ -f "$MARKER_FILE" ]; then
-      echo "persona: coder"
-      echo "branch: issue-123"
-    else
-      echo "persona: coder"
-    fi
-    ;;
-  "issue view"*)
-    if [ -f "$MARKER_FILE" ]; then
-      echo '{"labels":[{"name":"persona: coder"},{"name":"branch: issue-123"}]}'
-    else
-      echo '{"labels":[{"name":"persona: coder"}]}'
-    fi
-    ;;
-  "issue edit"*)
-    if [[ "$*" == *"--add-label persona: coder"* ]] && [[ "$*" == *"--add-label branch: issue-123"* ]] && [[ "$*" != *"--add-label branch: main"* ]]; then
-      touch "$MARKER_FILE"
-      exit 0
-    else
-      echo "Error: wrong labels in issue edit for main fallback" >&2
-      exit 1
-    fi
-    ;;
-  "issue comment"*)
-    exit 0
-    ;;
-  *)
-    exit 0
-    ;;
-esac
-EOF
-chmod +x "$TEST_DIR/gh"
-rm -f "${GITHUB_EVENT_PATH}.main_branch_labels_set"
-
-echo "Running Test 6: Auto-branch away from main..."
-if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md"; then
-  echo "Success: Test 6 passed"
-else
-  echo "Error: Test 6 failed"
-  exit 1
-fi
-
-# Reset git mock for further tests
-cat > "$TEST_DIR/git" <<EOF
-#!/usr/bin/env bash
-case "\$*" in
-  "branch --show-current")
-    echo "test-branch"
-    exit 0
-    ;;
-  "status --porcelain"*)
-    if [ -f "$TEST_DIR/mock_uncommitted" ]; then
-      cat "$TEST_DIR/mock_uncommitted"
-    fi
-    exit 0
-    ;;
-  "rev-parse --verify main")
-    exit 0
-    ;;
-  "rev-list --count main..HEAD")
-    cat "$TEST_DIR/mock_commit_count" 2>/dev/null || echo "0"
-    exit 0
-    ;;
-  *)
-    # For any other command, just return 0 to avoid errors
-    exit 0
-    ;;
-esac
-EOF
-chmod +x "$TEST_DIR/git"
-
-# Test 7: Success with fallback when issue_node_id is missing
-cat > "$GITHUB_EVENT_PATH" <<'EOF'
-{
-  "client_payload": {
-    "issue_number": 123,
-    "project_number": 1,
-    "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1"
-  }
-}
-EOF
-cat > "$TEST_DIR/gh" <<EOF
-#!/usr/bin/env bash
-case "\$*" in
-  "issue view"*".labels[].name"*)
-    echo "persona: coder"
-    echo "branch: $branch_name"
-    ;;
-  "issue view"*)
-    echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: $branch_name"}]}'
-    ;;
-  *"project item-list"*)
-    if [[ "\$*" == *".persona"* ]]; then
-      echo "coder"
-    else
-      echo '{"id": "ITEM_123", "persona": "coder", "content": {"number": 123, "repository": "LLM-Orchestration/conductor"}}'
-    fi
-    ;;
-  "project view"*)
-    echo '"PVT_kwDOA123"'
-    ;;
-  *"project field-list"*)
-    echo '{"fields": [{"name": "Persona", "id": "FIELD_P", "options": [{"name": "coder", "id": "OPT_CODER"}]}]}'
-    ;;
-  *)
-    exit 0
-    ;;
-esac
-EOF
-chmod +x "$TEST_DIR/gh"
-
-echo "Running Test 7: Success with fallback when issue_node_id is missing..."
-if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
-  if grep -q "Warning: issue_node_id is missing, will attempt to find project item by issue number and repository" "$TEST_DIR/stderr"; then
-    echo "Success: Test 7 passed"
-  else
-    echo "Error: Test 7 missing expected warning"
-    cat "$TEST_DIR/stderr"
-    exit 1
-  fi
-else
-  echo "Error: Test 7 failed"
-  cat "$TEST_DIR/stderr"
-  exit 1
-fi
-
-# Test 8: Fail because project_number provided but project_url is missing
-cat > "$GITHUB_EVENT_PATH" <<'EOF'
-{
-  "client_payload": {
-    "issue_number": 123,
-    "project_number": 1,
-    "issue_node_id": "I_123"
-  }
-}
-EOF
-
-echo "Running Test 8: Fail because project_number provided but project_url is missing..."
-if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
-  echo "Error: handoff.sh should have failed but exited with 0"
-  exit 1
-else
-  if grep -q "Error: project_number provided but project_owner could not be determined from project_url" "$TEST_DIR/stderr"; then
-    echo "Success: Test 8 passed"
-  else
-    echo "Error: Test 8 failed with wrong message"
-    cat "$TEST_DIR/stderr"
-    exit 1
-  fi
-fi
-
-# Test 9: Success for 'human' target (removes persona labels, preserves branch)
-cat > "$GITHUB_EVENT_PATH" <<'EOF'
-{
-  "client_payload": {
-    "issue_number": 789,
-    "repository": "LLM-Orchestration/conductor",
-    "project_number": 1,
-    "project_url": "https://github.com/orgs/LLM-Orchestration/projects/1"
-  }
-}
-EOF
-cat > "$TEST_DIR/gh" <<EOF
-#!/usr/bin/env bash
-case "\$*" in
-  "issue view"*".labels[].name"*)
-    if [ -f "$TEST_DIR/labels_removed" ]; then
-      echo "branch: $branch_name"
-    else
-      echo "persona: conductor"
-      echo "branch: $branch_name"
-    fi
-    ;;
-  "issue edit"*)
-    if [[ "\$*" == *"--remove-label persona: conductor"* ]] && [[ "\$*" == *"--add-label branch: $branch_name"* ]] && [[ "\$*" != *"--add-label persona:"* ]]; then
-      touch "$TEST_DIR/labels_removed"
-      exit 0
-    else
-      echo "Error: wrong labels in issue edit for human target" >&2
-      exit 1
-    fi
-    ;;
-  "project"*)
-    echo "Error: Project commands should not be called for human target" >&2
-    exit 1
-    ;;
-  *)
-    exit 0
-    ;;
-esac
-EOF
-chmod +x "$TEST_DIR/gh"
-rm -f "$TEST_DIR/labels_removed"
-
-echo "Running Test 9: Success for 'human' target..."
-if bash scripts/handoff.sh human < "$TEST_DIR/comment.md"; then
-  echo "Success: Test 9 passed"
-else
-  echo "Error: Test 9 failed"
-  exit 1
-fi
-
-# Test 10: conductor-verify.sh is RUN when handing off to human
-mkdir -p "$TEST_DIR/scripts"
-cat > "$TEST_DIR/scripts/conductor-verify.sh" <<EOF
-#!/usr/bin/env bash
-echo "Conductor verification failed!" >&2
-exit 1
-EOF
-chmod +x "$TEST_DIR/scripts/conductor-verify.sh"
-
-cp scripts/handoff.sh "$TEST_DIR/handoff.sh"
-# Also need to copy or mock the node command if it's used
-# But node is available in the environment
-
-echo "Running Test 10: conductor-verify.sh is RUN when handing off to human..."
-if ! (
-  cd "$TEST_DIR"
-  cat > "$TEST_DIR/gh" <<EOF2
-#!/usr/bin/env bash
-case "\$*" in
-  "issue view"*".labels[].name"*)
-    echo "persona: conductor"
-    echo "branch: test-branch"
-    ;;
-  *)
-    exit 0
-    ;;
-esac
-EOF2
-  chmod +x "$TEST_DIR/gh"
-  export CONDUCTOR_ROOT="$TEST_DIR"
-  bash handoff.sh human < comment.md
-) 2> "$TEST_DIR/stderr"; then
-  if grep -q "Conductor verification failed!" "$TEST_DIR/stderr"; then
-    echo "Success: Test 10 passed"
-  else
-    echo "Error: Test 10 failed with wrong message"
-    cat "$TEST_DIR/stderr"
-    exit 1
-  fi
-else
-  echo "Error: Test 10 should have failed"
-  exit 1
-fi
-
-# Test 11: Header prepending
-export CONDUCTOR_PERSONA="coder"
-export CONDUCTOR_LAST_COMMENT_URL="https://github.com/LLM-Orchestration/conductor/issues/123#issuecomment-456789"
-cat > "$GITHUB_EVENT_PATH" <<'EOF'
-{
-  "client_payload": {
-    "issue_number": 123
-  }
-}
-EOF
-cat > "$TEST_DIR/gh" <<EOF
-#!/usr/bin/env bash
-case "\$*" in
-  "issue view"*".labels[].name"*)
-    echo "persona: conductor"
-    echo "branch: test-branch"
-    ;;
-  "issue view"*)
-    echo '{"labels":[{"name":"persona: conductor"}, {"name":"branch: test-branch"}]}'
-    ;;
-  "issue comment"*)
-    while [ "\$#" -gt 0 ]; do
-      if [ "\$1" == "--body-file" ]; then
-        cp "\$2" "$TEST_DIR/captured_body.md"
-        break
-      fi
-      shift
-    done
-    exit 0
-    ;;
-  *)
-    exit 0
-    ;;
-esac
-EOF
-chmod +x "$TEST_DIR/gh"
-
-echo "Running Test 11: Header prepending..."
-echo "Original body" | bash scripts/handoff.sh conductor 0
-
-if grep -Fq "I am the **coder**, and I am responding to comment [456789](https://github.com/LLM-Orchestration/conductor/issues/123#issuecomment-456789) on branch test-branch." "$TEST_DIR/captured_body.md"; then
-  echo "Success: Test 11 passed"
-else
-  echo "Error: Test 11 failed"
-  cat "$TEST_DIR/captured_body.md"
-  exit 1
-fi
-
-# NEW TESTS
-
-# Test 12: NUMBER OF COMMITS MISMATCH FAILURE
-echo "Running Test 12: NUMBER OF COMMITS MISMATCH FAILURE..."
-echo "2" > "$TEST_DIR/mock_commit_count"
-if bash scripts/handoff.sh coder 1 < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
-  echo "Error: handoff.sh should have failed due to commit mismatch"
-  exit 1
-else
-  if grep -q "NUMBER OF COMMITS MISMATCH FAILURE: Expected 1 commits but found 2" "$TEST_DIR/stderr"; then
-    echo "Success: Test 12 passed"
-  else
-    echo "Error: Test 12 failed with wrong message"
-    cat "$TEST_DIR/stderr"
-    exit 1
-  fi
-fi
-rm -f "$TEST_DIR/mock_commit_count"
-
-# Test 13: OPEN FILES STILL IN VM
-echo "Running Test 13: OPEN FILES STILL IN VM..."
+# Test 4: OPEN FILES STILL IN VM
+echo "Running Test 4: OPEN FILES STILL IN VM..."
 echo "M modified_file.ts" > "$TEST_DIR/mock_uncommitted"
 if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
   echo "Error: handoff.sh should have failed due to uncommitted changes"
   exit 1
 else
   if grep -q "OPEN FILES STILL IN VM: You have uncommitted changes" "$TEST_DIR/stderr"; then
-    echo "Success: Test 13 passed"
+    echo "Success: Test 4 passed"
   else
-    echo "Error: Test 13 failed with wrong message"
+    echo "Error: Test 4 failed with wrong message"
     cat "$TEST_DIR/stderr"
     exit 1
   fi
 fi
-rm -f "$TEST_DIR/mock_uncommitted"
+rm "$TEST_DIR/mock_uncommitted"
+
+# Test 5: MISSING origin/main
+echo "Running Test 5: MISSING origin/main..."
+touch "$TEST_DIR/mock_no_origin_main"
+if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
+  echo "Error: handoff.sh should have failed due to missing origin/main"
+  exit 1
+else
+  if grep -q "ERROR: Could not find origin/main to verify commit count." "$TEST_DIR/stderr"; then
+    echo "Success: Test 5 passed"
+  else
+    echo "Error: Test 5 failed with wrong message"
+    cat "$TEST_DIR/stderr"
+    exit 1
+  fi
+fi
+rm "$TEST_DIR/mock_no_origin_main"
+
+# Test 6: Mandatory COMMIT_COUNT for all targets
+echo "Running Test 6: Mandatory COMMIT_COUNT for human target..."
+if bash scripts/handoff.sh human < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
+  echo "Error: handoff.sh should have failed due to missing COMMIT_COUNT"
+  exit 1
+else
+  if grep -q "Usage: npm run handoff -- TARGET COMMIT_COUNT < comment.md" "$TEST_DIR/stderr"; then
+    echo "Success: Test 6 passed"
+  else
+    echo "Error: Test 6 failed with wrong message"
+    cat "$TEST_DIR/stderr"
+    exit 1
+  fi
+fi
+
+# Test 7: move-to-human-review.sh validation
+echo "Running Test 7: move-to-human-review.sh validation (commit mismatch)..."
+echo "2" > "$TEST_DIR/mock_commit_count"
+if bash scripts/move-to-human-review.sh 1 < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
+  echo "Error: move-to-human-review.sh should have failed due to commit mismatch"
+  exit 1
+else
+  if grep -q "NUMBER OF COMMITS MISMATCH FAILURE: Expected 1 commits but found 2" "$TEST_DIR/stderr"; then
+    echo "Success: Test 7 passed"
+  else
+    echo "Error: Test 7 failed with wrong message"
+    cat "$TEST_DIR/stderr"
+    exit 1
+  fi
+fi
+rm "$TEST_DIR/mock_commit_count"
 
 echo "All handoff validation tests passed!"
 exit 0

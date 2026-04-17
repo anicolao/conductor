@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ "$#" -lt 1 ]; then
+  echo "Usage: $0 COMMIT_COUNT [--issue-number NUM] [--repo REPO] ..." >&2
+  exit 1
+fi
+
+claimed_commits="$1"
+shift
+
 issue_number=""
 target_repo=""
 project_number=""
@@ -96,6 +104,46 @@ const fs = require('fs');
 const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
 process.stdout.write(event.issue?.node_id || event.client_payload?.issue_node_id || '');
 ")"
+fi
+
+# Validation logic
+branch_name="$(git branch --show-current)"
+if [ -z "$branch_name" ]; then
+  echo "Could not determine current branch" >&2
+  exit 1
+fi
+
+# Auto-push
+echo "Attempting to push changes to origin/$branch_name..."
+if ! git push origin "$branch_name"; then
+  echo "PUSH FAILURE: Failed to push to origin/$branch_name. Please check for merge conflicts, network issues, or permissions. Ensure you have committed your changes." >&2
+  exit 1
+fi
+
+# Validation: Check commit count on origin
+if ! git rev-parse --verify origin/main >/dev/null 2>&1; then
+  echo "ERROR: Could not find origin/main to verify commit count." >&2
+  exit 1
+fi
+
+if ! git rev-parse --verify "origin/$branch_name" >/dev/null 2>&1; then
+  echo "ERROR: Could not find origin/$branch_name to verify commit count." >&2
+  exit 1
+fi
+
+actual_commits=$(git rev-list --count "origin/main..origin/$branch_name")
+if [ "$actual_commits" -ne "$claimed_commits" ]; then
+  echo "NUMBER OF COMMITS MISMATCH FAILURE: Expected $claimed_commits commits but found $actual_commits on origin/$branch_name (relative to origin/main). Please commit your changes, push them (or let the script try), and re-attempt handoff with the correct count." >&2
+  exit 1
+fi
+
+# Validation: Check for uncommitted changes
+uncommitted_changes=$(git status --porcelain)
+if [ -n "$uncommitted_changes" ]; then
+  echo "OPEN FILES STILL IN VM: You have uncommitted changes. Please commit or stash them before handoff." >&2
+  echo "Uncommitted files:" >&2
+  echo "$uncommitted_changes" >&2
+  exit 1
 fi
 
 body_file="$(mktemp)"
