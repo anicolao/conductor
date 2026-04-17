@@ -67,21 +67,20 @@ export async function runStreamingCommand(command: string, args: string[], env: 
     const stderrForwarder = createLineForwarder('stderr', (formatted, raw) => {
       stderr += raw;
 
-      const trimmed = raw.trim();
+      const ANSI_REGEX = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+      const cleanRaw = raw.replace(ANSI_REGEX, '');
+      const trimmed = cleanRaw.trim();
 
       // Intercept MESSAGE_BUS debug messages
-      if (trimmed.includes('[MESSAGE_BUS] publish:')) {
-        const prefix = '[MESSAGE_BUS] publish:';
-        const index = trimmed.indexOf(prefix);
-        if (index !== -1) {
-          const jsonStr = trimmed.slice(index + prefix.length).trim();
-          try {
-            const parsed = JSON.parse(jsonStr);
-            logEvent('GEMINI_EVENT', parsed);
-            return;
-          } catch (e) {
-            // Not valid JSON, fallback
-          }
+      const messageBusMatch = trimmed.match(/\[MESSAGE_BUS\] publish:\s*(\{.*\})/);
+      if (messageBusMatch) {
+        try {
+          const parsed = JSON.parse(messageBusMatch[1]);
+          parsed._isMessageBus = true;
+          logEvent('GEMINI_EVENT', parsed);
+          return;
+        } catch (e) {
+          // Not valid JSON, fallback
         }
       }
 

@@ -67,7 +67,7 @@ describe('exec utility', () => {
       expect(fs.realpathSync(result.stdout.trim())).toBe(fs.realpathSync('/tmp'));
     });
 
-    it('should intercept MESSAGE_BUS messages in stderr', async () => {
+    it('should intercept MESSAGE_BUS messages in stderr and add _isMessageBus flag', async () => {
       const logEventSpy = vi.spyOn(loggerModule, 'logEvent');
       const msg = '[MESSAGE_BUS] publish: {"type":"tool-calls-update","toolCalls":[],"schedulerId":"root"}';
       const result = await runStreamingCommand('sh', ['-c', `echo '${msg}' >&2`], process.env);
@@ -76,10 +76,25 @@ describe('exec utility', () => {
       expect(logEventSpy).toHaveBeenCalledWith('GEMINI_EVENT', {
         type: 'tool-calls-update',
         toolCalls: [],
-        schedulerId: 'root'
+        schedulerId: 'root',
+        _isMessageBus: true
       });
-      // Should still be in the result.stderr buffer
-      expect(result.stderr).toContain(msg);
+      // It should NOT have been logged to stderr (terminal log)
+      expect(logEventSpy).not.toHaveBeenCalledWith('STDERR', expect.anything());
+    });
+
+    it('should handle MESSAGE_BUS messages with ANSI colors and prefixes', async () => {
+      const logEventSpy = vi.spyOn(loggerModule, 'logEvent');
+      // Simulated message with ANSI colors and a prefix
+      const msg = '\x1b[34mDEBUG\x1b[0m [21:05:22] [MESSAGE_BUS] publish: {"type":"test-message"}';
+      const result = await runStreamingCommand('sh', ['-c', `echo '${msg}' >&2`], process.env);
+      
+      expect(result.status).toBe(0);
+      expect(logEventSpy).toHaveBeenCalledWith('GEMINI_EVENT', {
+        type: 'test-message',
+        _isMessageBus: true
+      });
+      expect(logEventSpy).not.toHaveBeenCalledWith('STDERR', expect.anything());
     });
   });
 });
