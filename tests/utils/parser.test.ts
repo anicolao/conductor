@@ -53,4 +53,20 @@ some suffix
     expect(events[0].event).toBe('session_start');
     expect(events[1].event).toBe('session_end');
   });
+
+  it('should parse message bus debug logs', () => {
+    const logs = `
+[stderr] [MESSAGE_BUS] publish: {"type":"tool-calls-update","toolCalls":[],"schedulerId":"root"}
+some other log
+[stderr] [MESSAGE_BUS] publish: {"type":"tool-calls-update","toolCalls":[{"id":"call_1","function":{"name":"read_file"}}],"schedulerId":"root"}
+    `;
+    const events = parseLogs(logs);
+    expect(events).toHaveLength(2);
+    expect(events[0].event).toBe('GEMINI_EVENT');
+    expect(events[0].data.type).toBe('tool-calls-update');
+    expect(events[0].data._isMessageBus).toBe(true);
+    expect(events[1].event).toBe('GEMINI_EVENT');
+    expect(events[1].data.toolCalls).toHaveLength(1);
+    expect(events[1].data.toolCalls[0].function.name).toBe('read_file');
+  });
 });
