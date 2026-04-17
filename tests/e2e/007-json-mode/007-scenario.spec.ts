@@ -92,7 +92,7 @@ test('Gemini JSON Mode Observability', async ({ page }, testInfo) => {
         spec: 'Tool result with data and status is visible',
         check: async () => {
           await expect(page.getByText('Tool Result: run_shell_command', { exact: true })).toBeVisible();
-          await expect(page.getByText('Status: success')).toBeVisible();
+          await expect(page.getByText('Status: success', { exact: true })).toBeVisible();
           await expect(page.getByText('Done.')).toBeVisible();
         }
       },
