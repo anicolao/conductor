@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# This script tests handoff.sh failure modes by mocking the 'gh' command.
+# This script tests handoff.sh failure modes by mocking the 'gh' and 'git' commands.
 
 # Create a temporary directory for our test environment
 TEST_DIR=$(mktemp -d)
@@ -11,6 +11,14 @@ trap 'rm -rf "$TEST_DIR"' EXIT
 export PATH="$TEST_DIR:$PATH"
 export GITHUB_EVENT_PATH="$TEST_DIR/event.json"
 export GITHUB_REPOSITORY="LLM-Orchestration/conductor"
+
+# Mock sleep to speed up tests
+cat > "$TEST_DIR/sleep" <<EOF
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$TEST_DIR/sleep"
+
 # Create a dummy git mock
 cat > "$TEST_DIR/git" <<EOF
 #!/usr/bin/env bash
@@ -19,17 +27,28 @@ case "\$*" in
     echo "test-branch"
     exit 0
     ;;
-  "status --porcelain -- src functions tests")
+  "status --porcelain"*)
+    if [ -f "$TEST_DIR/mock_uncommitted" ]; then
+      cat "$TEST_DIR/mock_uncommitted"
+    fi
     exit 0
     ;;
   "rev-parse --verify main")
     exit 0
     ;;
-  "diff --name-only main...test-branch -- src functions tests")
+  "rev-list --count main..HEAD")
+    cat "$TEST_DIR/mock_commit_count" 2>/dev/null || echo "0"
+    exit 0
+    ;;
+  "checkout issue-123")
+    exit 1
+    ;;
+  "checkout -b issue-123")
     exit 0
     ;;
   *)
-    exec git "\$@"
+    # For any other command, just return 0 to avoid errors
+    exit 0
     ;;
 esac
 EOF
@@ -62,8 +81,6 @@ case "$*" in
     echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: test-branch"}]}'
     ;;
   *"project item-list"*)
-    # Return empty string to simulate item not found after jq filter
-    # Note: handoff.sh uses --jq, so gh CLI would return nothing if select() matches nothing.
     echo ""
     ;;
   "project view"*)
@@ -76,15 +93,15 @@ esac
 EOF
 chmod +x "$TEST_DIR/gh"
 
-echo "Running handoff.sh (expecting failure due to missing project item)..."
-if bash scripts/handoff.sh coder < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
+echo "Running Test 1: Fail because project item is not found..."
+if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
   echo "Error: handoff.sh should have failed but exited with 0"
   exit 1
 else
   if grep -q "Error: Could not find project item for issue node ID I_123 in project 1 (owner: LLM-Orchestration)" "$TEST_DIR/stderr"; then
-    echo "Success: handoff.sh failed with correct error message"
+    echo "Success: Test 1 passed"
   else
-    echo "Error: handoff.sh failed but with wrong message"
+    echo "Error: Test 1 failed with wrong message"
     cat "$TEST_DIR/stderr"
     exit 1
   fi
@@ -114,15 +131,15 @@ case "$*" in
 esac
 EOF
 
-echo "Running handoff.sh (expecting failure due to missing Persona field)..."
-if bash scripts/handoff.sh coder < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
+echo "Running Test 2: Fail because field 'Persona' is missing..."
+if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
   echo "Error: handoff.sh should have failed but exited with 0"
   exit 1
 else
   if grep -q "Error: Could not find 'Persona' field in project 1" "$TEST_DIR/stderr"; then
-    echo "Success: handoff.sh failed with correct error message"
+    echo "Success: Test 2 passed"
   else
-    echo "Error: handoff.sh failed but with wrong message"
+    echo "Error: Test 2 failed with wrong message"
     cat "$TEST_DIR/stderr"
     exit 1
   fi
@@ -138,8 +155,6 @@ case "$*" in
     echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: test-branch"}]}'
     ;;
   *"project item-list"*)
-    # Verification readback or item finding
-    # Note: handoff.sh uses --jq, so we return the unwrapped persona name or item object
     if [[ "$*" == *".persona"* ]]; then
       echo "conductor"
     else
@@ -158,17 +173,15 @@ case "$*" in
 esac
 EOF
 
-echo "Running handoff.sh (expecting failure due to verification timeout)..."
-# We'll reduce the sleep/retries in handoff.sh if we could, but let's just wait or mock sleep
-# Actually, I'll just wait, it's 5 * 2 seconds = 10 seconds.
-if bash scripts/handoff.sh coder < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
+echo "Running Test 3: Fail because verification fails..."
+if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
   echo "Error: handoff.sh should have failed but exited with 0"
   exit 1
 else
   if grep -q "Error: Failed to verify Project V2 Persona update to 'coder' for item ITEM_123" "$TEST_DIR/stderr"; then
-    echo "Success: handoff.sh failed with correct verification error"
+    echo "Success: Test 3 passed"
   else
-    echo "Error: handoff.sh failed but with wrong message"
+    echo "Error: Test 3 failed with wrong message"
     cat "$TEST_DIR/stderr"
     exit 1
   fi
@@ -221,11 +234,11 @@ EOF
 
 chmod +x "$TEST_DIR/gh"
 
-echo "Running handoff.sh (expecting success with user project)..."
-if bash scripts/handoff.sh tester < "$TEST_DIR/comment.md"; then
-  echo "Success: handoff.sh succeeded with user project"
+echo "Running Test 4: Success with user project..."
+if bash scripts/handoff.sh tester 0 < "$TEST_DIR/comment.md"; then
+  echo "Success: Test 4 passed"
 else
-  echo "Error: handoff.sh failed with user project"
+  echo "Error: Test 4 failed"
   exit 1
 fi
 
@@ -270,11 +283,11 @@ case "\$*" in
 esac
 EOF
 
-echo "Running handoff.sh (expecting success for basic label handoff)..."
-if bash scripts/handoff.sh conductor < "$TEST_DIR/comment.md"; then
-  echo "Success: handoff.sh succeeded with basic label handoff"
+echo "Running Test 5: Basic label handoff (no project info)..."
+if bash scripts/handoff.sh conductor 0 < "$TEST_DIR/comment.md"; then
+  echo "Success: Test 5 passed"
 else
-  echo "Error: handoff.sh failed with basic label handoff"
+  echo "Error: Test 5 failed"
   exit 1
 fi
 
@@ -300,13 +313,14 @@ case "$*" in
   "checkout -b issue-123")
     exit 0
     ;;
-  "status --porcelain -- src functions tests")
+  "status --porcelain")
     exit 0
     ;;
   "rev-parse --verify main")
     exit 0
     ;;
-  "diff --name-only main...issue-123 -- src functions tests")
+  "rev-list --count main..HEAD")
+    echo "0"
     exit 0
     ;;
   *)
@@ -315,6 +329,7 @@ case "$*" in
 esac
 EOF
 chmod +x "$TEST_DIR/git"
+
 cat > "$TEST_DIR/gh" <<'EOF'
 #!/usr/bin/env bash
 MARKER_FILE="${GITHUB_EVENT_PATH}.main_branch_labels_set"
@@ -340,7 +355,6 @@ case "$*" in
       exit 0
     else
       echo "Error: wrong labels in issue edit for main fallback" >&2
-      echo "Args: $*" >&2
       exit 1
     fi
     ;;
@@ -355,14 +369,15 @@ EOF
 chmod +x "$TEST_DIR/gh"
 rm -f "${GITHUB_EVENT_PATH}.main_branch_labels_set"
 
-echo "Running handoff.sh from main (expecting success with branch issue-123)..."
-if bash scripts/handoff.sh coder < "$TEST_DIR/comment.md"; then
-  echo "Success: handoff.sh switched away from main and used issue-123"
+echo "Running Test 6: Auto-branch away from main..."
+if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md"; then
+  echo "Success: Test 6 passed"
 else
-  echo "Error: handoff.sh failed to switch away from main"
+  echo "Error: Test 6 failed"
   exit 1
 fi
 
+# Reset git mock for further tests
 cat > "$TEST_DIR/git" <<EOF
 #!/usr/bin/env bash
 case "\$*" in
@@ -370,17 +385,22 @@ case "\$*" in
     echo "test-branch"
     exit 0
     ;;
-  "status --porcelain -- src functions tests")
+  "status --porcelain"*)
+    if [ -f "$TEST_DIR/mock_uncommitted" ]; then
+      cat "$TEST_DIR/mock_uncommitted"
+    fi
     exit 0
     ;;
   "rev-parse --verify main")
     exit 0
     ;;
-  "diff --name-only main...test-branch -- src functions tests")
+  "rev-list --count main..HEAD")
+    cat "$TEST_DIR/mock_commit_count" 2>/dev/null || echo "0"
     exit 0
     ;;
   *)
-    exec git "\$@"
+    # For any other command, just return 0 to avoid errors
+    exit 0
     ;;
 esac
 EOF
@@ -407,7 +427,6 @@ case "\$*" in
     echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: $branch_name"}]}'
     ;;
   *"project item-list"*)
-    # Return success by finding item via issue number and repository
     if [[ "\$*" == *".persona"* ]]; then
       echo "coder"
     else
@@ -425,20 +444,19 @@ case "\$*" in
     ;;
 esac
 EOF
-
 chmod +x "$TEST_DIR/gh"
 
-echo "Running handoff.sh (expecting success with fallback for missing issue_node_id)..."
-if bash scripts/handoff.sh coder < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
+echo "Running Test 7: Success with fallback when issue_node_id is missing..."
+if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
   if grep -q "Warning: issue_node_id is missing, will attempt to find project item by issue number and repository" "$TEST_DIR/stderr"; then
-    echo "Success: handoff.sh succeeded with fallback warning"
+    echo "Success: Test 7 passed"
   else
-    echo "Error: handoff.sh succeeded but missing expected warning"
+    echo "Error: Test 7 missing expected warning"
     cat "$TEST_DIR/stderr"
     exit 1
   fi
 else
-  echo "Error: handoff.sh should have succeeded with fallback"
+  echo "Error: Test 7 failed"
   cat "$TEST_DIR/stderr"
   exit 1
 fi
@@ -454,15 +472,15 @@ cat > "$GITHUB_EVENT_PATH" <<'EOF'
 }
 EOF
 
-echo "Running handoff.sh (expecting failure due to missing project_owner)..."
-if bash scripts/handoff.sh coder < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
+echo "Running Test 8: Fail because project_number provided but project_url is missing..."
+if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
   echo "Error: handoff.sh should have failed but exited with 0"
   exit 1
 else
   if grep -q "Error: project_number provided but project_owner could not be determined from project_url" "$TEST_DIR/stderr"; then
-    echo "Success: handoff.sh failed with correct error message"
+    echo "Success: Test 8 passed"
   else
-    echo "Error: handoff.sh failed but with wrong message"
+    echo "Error: Test 8 failed with wrong message"
     cat "$TEST_DIR/stderr"
     exit 1
   fi
@@ -496,7 +514,6 @@ case "\$*" in
       exit 0
     else
       echo "Error: wrong labels in issue edit for human target" >&2
-      echo "Args: \$*" >&2
       exit 1
     fi
     ;;
@@ -512,16 +529,15 @@ EOF
 chmod +x "$TEST_DIR/gh"
 rm -f "$TEST_DIR/labels_removed"
 
-echo "Running handoff.sh human (expecting success, persona label removed, branch preserved, no project updates)..."
+echo "Running Test 9: Success for 'human' target..."
 if bash scripts/handoff.sh human < "$TEST_DIR/comment.md"; then
-  echo "Success: handoff.sh human succeeded correctly"
+  echo "Success: Test 9 passed"
 else
-  echo "Error: handoff.sh human failed"
+  echo "Error: Test 9 failed"
   exit 1
 fi
 
-# Test 10: conductor-verify.sh is RUN when handing off to human and can block it
-# We mock conductor-verify.sh to fail
+# Test 10: conductor-verify.sh is RUN when handing off to human
 mkdir -p "$TEST_DIR/scripts"
 cat > "$TEST_DIR/scripts/conductor-verify.sh" <<EOF
 #!/usr/bin/env bash
@@ -531,11 +547,12 @@ EOF
 chmod +x "$TEST_DIR/scripts/conductor-verify.sh"
 
 cp scripts/handoff.sh "$TEST_DIR/handoff.sh"
+# Also need to copy or mock the node command if it's used
+# But node is available in the environment
 
-echo "Running handoff.sh human with failing conductor-verify.sh (expecting failure as it should NOT be skipped)..."
+echo "Running Test 10: conductor-verify.sh is RUN when handing off to human..."
 if ! (
   cd "$TEST_DIR"
-  # Mock gh again for this specific test
   cat > "$TEST_DIR/gh" <<EOF2
 #!/usr/bin/env bash
 case "\$*" in
@@ -549,12 +566,18 @@ case "\$*" in
 esac
 EOF2
   chmod +x "$TEST_DIR/gh"
-  
+  export CONDUCTOR_ROOT="$TEST_DIR"
   bash handoff.sh human < comment.md
-); then
-  echo "Success: conductor-verify.sh was NOT skipped for human target and correctly blocked handoff"
+) 2> "$TEST_DIR/stderr"; then
+  if grep -q "Conductor verification failed!" "$TEST_DIR/stderr"; then
+    echo "Success: Test 10 passed"
+  else
+    echo "Error: Test 10 failed with wrong message"
+    cat "$TEST_DIR/stderr"
+    exit 1
+  fi
 else
-  echo "Error: handoff.sh succeeded for human target even with failing conductor-verify.sh"
+  echo "Error: Test 10 should have failed"
   exit 1
 fi
 
@@ -579,7 +602,6 @@ case "\$*" in
     echo '{"labels":[{"name":"persona: conductor"}, {"name":"branch: test-branch"}]}'
     ;;
   "issue comment"*)
-    # Capture the body file content
     while [ "\$#" -gt 0 ]; do
       if [ "\$1" == "--body-file" ]; then
         cp "\$2" "$TEST_DIR/captured_body.md"
@@ -596,16 +618,52 @@ esac
 EOF
 chmod +x "$TEST_DIR/gh"
 
-echo "Running handoff.sh (checking for header)..."
-echo "Original body" | bash scripts/handoff.sh conductor
+echo "Running Test 11: Header prepending..."
+echo "Original body" | bash scripts/handoff.sh conductor 0
 
 if grep -Fq "I am the **coder**, and I am responding to comment [456789](https://github.com/LLM-Orchestration/conductor/issues/123#issuecomment-456789) on branch test-branch." "$TEST_DIR/captured_body.md"; then
-  echo "Success: Header prepended correctly"
+  echo "Success: Test 11 passed"
 else
-  echo "Error: Header NOT prepended correctly"
+  echo "Error: Test 11 failed"
   cat "$TEST_DIR/captured_body.md"
   exit 1
 fi
+
+# NEW TESTS
+
+# Test 12: NUMBER OF COMMITS MISMATCH FAILURE
+echo "Running Test 12: NUMBER OF COMMITS MISMATCH FAILURE..."
+echo "2" > "$TEST_DIR/mock_commit_count"
+if bash scripts/handoff.sh coder 1 < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
+  echo "Error: handoff.sh should have failed due to commit mismatch"
+  exit 1
+else
+  if grep -q "NUMBER OF COMMITS MISMATCH FAILURE: Expected 1 commits but found 2" "$TEST_DIR/stderr"; then
+    echo "Success: Test 12 passed"
+  else
+    echo "Error: Test 12 failed with wrong message"
+    cat "$TEST_DIR/stderr"
+    exit 1
+  fi
+fi
+rm -f "$TEST_DIR/mock_commit_count"
+
+# Test 13: OPEN FILES STILL IN VM
+echo "Running Test 13: OPEN FILES STILL IN VM..."
+echo "M modified_file.ts" > "$TEST_DIR/mock_uncommitted"
+if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr"; then
+  echo "Error: handoff.sh should have failed due to uncommitted changes"
+  exit 1
+else
+  if grep -q "OPEN FILES STILL IN VM: You have uncommitted changes" "$TEST_DIR/stderr"; then
+    echo "Success: Test 13 passed"
+  else
+    echo "Error: Test 13 failed with wrong message"
+    cat "$TEST_DIR/stderr"
+    exit 1
+  fi
+fi
+rm -f "$TEST_DIR/mock_uncommitted"
 
 echo "All handoff validation tests passed!"
 exit 0
