@@ -7,8 +7,32 @@
   const processedEvents = $derived.by(() => {
     const result: ConductorEvent[] = [];
     let lastMessage: GeminiEventData | null = null;
+    let currentDebugGroup: ConductorEvent[] = [];
+
+    const flushDebugGroup = () => {
+      if (currentDebugGroup.length > 1) {
+        result.push({
+          v: 1,
+          ts: currentDebugGroup[0].ts,
+          event: 'LOG_DEBUG_GROUP',
+          persona: currentDebugGroup[0].persona,
+          data: { events: [...currentDebugGroup] }
+        });
+      } else if (currentDebugGroup.length === 1) {
+        result.push(currentDebugGroup[0]);
+      }
+      currentDebugGroup = [];
+    };
 
     for (const event of events) {
+      if (event.event === 'LOG_DEBUG') {
+        currentDebugGroup.push(event);
+        lastMessage = null;
+        continue;
+      } else {
+        flushDebugGroup();
+      }
+
       if (event.event === 'GEMINI_EVENT') {
         const data = event.data as GeminiEventData;
         if (data.type === 'message') {
@@ -30,6 +54,7 @@
         result.push(event);
       }
     }
+    flushDebugGroup();
     return result;
   });
 
@@ -145,7 +170,31 @@
               {/if}
             </div>
           </div>
-        {:else if event.event.startsWith('LOG_')}
+        {:else if event.event === 'LOG_DEBUG_GROUP'}
+            <details class="event-card log-card log_debug_group">
+              <summary class="event-header group-header">
+                <span class="icon">🔍</span>
+                <span class="event-type">DEBUG MESSAGES ({event.data.events.length})</span>
+                {#if event.persona}
+                  <span class="persona">({event.persona})</span>
+                {/if}
+                <span class="timestamp">{formatTimestamp(event.ts)}</span>
+              </summary>
+              <div class="event-body group-body">
+                {#each event.data.events as debugEvent}
+                  <div class="nested-debug-event">
+                    <div class="nested-header">
+                      <span class="timestamp">{formatTimestamp(debugEvent.ts)}</span>
+                    </div>
+                    <p>{getMessage(debugEvent)}</p>
+                    {#if Object.keys(debugEvent.data || {}).filter(k => k !== 'message').length > 0}
+                      <pre>{JSON.stringify(Object.fromEntries(Object.entries(debugEvent.data).filter(([k]) => k !== 'message')), null, 2)}</pre>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            </details>
+          {:else if event.event.startsWith('LOG_')}
           <div class="event-card log-card {event.event.toLowerCase()}">
             <div class="event-header">
               <span class="icon">
@@ -333,6 +382,39 @@
   .log-card.log_warn { border-left: 4px solid #ffc107; }
   .log-card.log_error { border-left: 4px solid #dc3545; }
   .log-card.log_debug { border-left: 4px solid #6c757d; }
+  .log-card.log_debug_group { border-left: 4px solid #6c757d; }
+  
+  .group-header {
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    display: flex;
+  }
+  .group-header::-webkit-details-marker {
+    display: none;
+  }
+  .group-header:hover {
+    background-color: rgba(0,0,0,0.02);
+  }
+  
+  .nested-debug-event {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed #ccc;
+  }
+  .nested-debug-event:first-child {
+    margin-top: 0;
+    padding-top: 0.5rem;
+    border-top: none;
+  }
+  .nested-header {
+    margin-bottom: 0.25rem;
+  }
+  .nested-header .timestamp {
+    font-size: 0.75rem;
+    color: #888;
+    margin-left: 0;
+  }
   
   .task-card { 
     border-left: 4px solid #6f42c1;
