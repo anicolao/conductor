@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import { logger } from './logger';
+import { logger, logEvent } from './logger';
 
 export interface CommandResult {
   status: number;
@@ -48,10 +48,32 @@ export async function runStreamingCommand(command: string, args: string[], env: 
 
     const stdoutForwarder = createLineForwarder('stdout', (formatted, raw) => {
       stdout += raw;
+
+      const trimmed = raw.trim();
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (parsed && typeof parsed === 'object' && 'type' in parsed) {
+            logEvent('GEMINI_EVENT', parsed);
+            return;
+          }
+        } catch (e) {
+          // Not JSON or missing type, fallback to default logging
+        }
+      }
+
       logger.stdout(formatted);
     });
     const stderrForwarder = createLineForwarder('stderr', (formatted, raw) => {
       stderr += raw;
+
+      const trimmed = raw.trim();
+      // Intercept debug logs from Gemini CLI
+      if (trimmed.includes('[Routing]') || trimmed.includes('[Memory]') || trimmed.includes('[Status]')) {
+        logEvent('LOG_DEBUG', { message: trimmed });
+        return;
+      }
+
       logger.stderr(formatted);
     });
 

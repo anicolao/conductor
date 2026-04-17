@@ -1,10 +1,40 @@
 <script lang="ts">
-  import type { ConductorEvent } from '../types';
+  import type { ConductorEvent, GeminiEventData } from '../types';
+  import GeminiEvent from './GeminiEvent.svelte';
 
   let { events = [] }: { events: ConductorEvent[] } = $props();
 
-  const terminalEvents = $derived(events.filter(e => e.event === 'STDOUT' || e.event === 'STDERR'));
-  const otherEvents = $derived(events.filter(e => e.event !== 'STDOUT' && e.event !== 'STDERR'));
+  const processedEvents = $derived.by(() => {
+    const result: ConductorEvent[] = [];
+    let lastMessage: GeminiEventData | null = null;
+
+    for (const event of events) {
+      if (event.event === 'GEMINI_EVENT') {
+        const data = event.data as GeminiEventData;
+        if (data.type === 'message') {
+          if (lastMessage && lastMessage.type === 'message' && lastMessage.role === data.role) {
+            // Aggregate content
+            lastMessage.content += data.content;
+            continue;
+          } else {
+            // New message turn
+            lastMessage = { ...data };
+            result.push({ ...event, data: lastMessage });
+          }
+        } else {
+          lastMessage = null;
+          result.push(event);
+        }
+      } else {
+        lastMessage = null;
+        result.push(event);
+      }
+    }
+    return result;
+  });
+
+  const terminalEvents = $derived(processedEvents.filter(e => e.event === 'STDOUT' || e.event === 'STDERR'));
+  const otherEvents = $derived(processedEvents.filter(e => e.event !== 'STDOUT' && e.event !== 'STDERR'));
 
   let terminalBody: HTMLDivElement;
 
@@ -131,6 +161,8 @@
               {getMessage(event)}
             </div>
           </div>
+        {:else if event.event === 'GEMINI_EVENT'}
+          <GeminiEvent eventData={event.data} />
         {:else}
           <div class="event-card">
             <div class="event-header">

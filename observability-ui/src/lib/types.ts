@@ -2,6 +2,50 @@ import type { ConductorEvent } from '../../../src/utils/logger';
 
 export type { ConductorEvent };
 
+export interface GeminiInitEvent {
+	type: 'init';
+	sessionId: string;
+	model: string;
+}
+
+export interface GeminiMessageEvent {
+	type: 'message';
+	role: 'user' | 'assistant';
+	content: string;
+}
+
+export interface GeminiToolUseEvent {
+	type: 'tool_use';
+	tool: string;
+	args: Record<string, any>;
+}
+
+export interface GeminiToolResultEvent {
+	type: 'tool_result';
+	tool: string;
+	result: any;
+}
+
+export interface GeminiResultEvent {
+	type: 'result';
+	response: string;
+	stats: {
+		tokens?: {
+			prompt?: number;
+			completion?: number;
+			total?: number;
+		};
+		latency?: number;
+	};
+}
+
+export type GeminiEventData =
+	| GeminiInitEvent
+	| GeminiMessageEvent
+	| GeminiToolUseEvent
+	| GeminiToolResultEvent
+	| GeminiResultEvent;
+
 export interface WorkflowRun {
 	id: number;
 	name: string;
