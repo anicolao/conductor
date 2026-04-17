@@ -18,6 +18,7 @@ Verify that consecutive debug messages are grouped into a collapsed card.
 - [x] Two debug groups, two info messages, and one single debug message are visible
 - [x] Single debug message is visible
 - [x] First group shows (2) and is collapsed
+- [x] Second group shows (2) and contains Gemini event
 
 ---
 
@@ -26,7 +27,7 @@ Verify that consecutive debug messages are grouped into a collapsed card.
 ![User expands a debug group](./screenshots/002-expand-debug-group.png)
 
 ### Verifications
-- [x] Group is now expanded and messages are visible
+- [x] Group is now expanded and Gemini message is visible
 
 ---
 
