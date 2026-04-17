@@ -102,7 +102,9 @@ export function injectMediaPaths(text: string, urlToPath: Map<string, string>): 
   for (const [url, localPath] of urlToPath.entries()) {
     const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(escapedUrl, 'g');
-    updatedText = updatedText.replace(regex, `${url}\n@${localPath}`);
+    // Using a marker that is less likely to break HTML attributes if Gemini repeats it,
+    // but primarily so we can strip it before posting back to GitHub.
+    updatedText = updatedText.replace(regex, `${url} <!-- CONDUCTOR_MEDIA_PATH: ${localPath} -->`);
   }
   return updatedText;
 }

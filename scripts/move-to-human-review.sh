@@ -67,6 +67,12 @@ if [ ! -t 0 ]; then
 fi
 
 if [ -s "$body_file" ]; then
+  # Strip local media path markers that might have been repeated by the LLM
+  # This prevents broken image tags in GitHub comments.
+  sed -i 's/ <!-- CONDUCTOR_MEDIA_PATH: [^>]* -->//g' "$body_file"
+  # Also strip the old format just in case
+  sed -i 's/ @\/tmp\/gemini-media-[^ ]*//g' "$body_file"
+  
   gh issue comment "$issue_number" -R "$target_repo" --body-file "$body_file"
 fi
 

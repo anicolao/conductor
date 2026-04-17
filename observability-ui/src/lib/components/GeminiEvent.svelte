@@ -29,7 +29,7 @@
   <div class="gemini-event tool-use">
     <div class="event-header">
       <span class="icon">🛠️</span>
-      <span class="event-type">Tool Use: {eventData.tool}</span>
+      <span class="event-type">Tool Use: {eventData.name || eventData.tool || 'unknown'}</span>
     </div>
     <div class="event-body">
       <pre><code>{JSON.stringify(eventData.args, null, 2)}</code></pre>
@@ -39,7 +39,7 @@
   <div class="gemini-event tool-result">
     <div class="event-header">
       <span class="icon">📤</span>
-      <span class="event-type">Tool Result: {eventData.tool}</span>
+      <span class="event-type">Tool Result: {eventData.name || eventData.tool || 'unknown'}</span>
     </div>
     <div class="event-body">
       <pre><code>{typeof eventData.result === 'string' ? eventData.result : JSON.stringify(eventData.result, null, 2)}</code></pre>
@@ -69,6 +69,16 @@
           {/if}
         </div>
       {/if}
+    </div>
+  </div>
+{:else}
+  <div class="gemini-event unknown">
+    <div class="event-header">
+      <span class="icon">❓</span>
+      <span class="event-type">Unknown Event: {eventData.type}</span>
+    </div>
+    <div class="event-body">
+      <pre><code>{JSON.stringify(eventData, null, 2)}</code></pre>
     </div>
   </div>
 {/if}
@@ -127,6 +137,7 @@
   .tool-use { border-left-color: #ffc107; }
   .tool-result { border-left-color: #28a745; }
   .result { border-left-color: #6f42c1; }
+  .unknown { border-left-color: #dc3545; }
 
   .stats {
     display: flex;
