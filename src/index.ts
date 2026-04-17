@@ -497,6 +497,7 @@ ENVIRONMENT:
       const args = [
         '-y',
         '@google/gemini-cli',
+        '--debug',
         '--prompt',
         prompt,
         '--approval-mode',
