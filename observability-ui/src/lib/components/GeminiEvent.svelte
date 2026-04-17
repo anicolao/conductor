@@ -61,7 +61,7 @@
   {:else if eventData.type === 'tool_result'}
     <div class="event-header">
       <span class="icon">📤</span>
-      <span class="event-type">Tool Result: {getToolName(eventData)}</span>
+      <span class="event-type">TOOL RESULT: {getToolName(eventData)}</span>
       {#if eventData.tool_id}
         <span class="tool-id">({eventData.tool_id})</span>
       {/if}

@@ -84,14 +84,14 @@ test('Gemini JSON Mode Observability', async ({ page }, testInfo) => {
       {
         spec: 'Tool result is visible',
         check: async () => {
-          await expect(page.getByText('Tool Result: read_file', { exact: true })).toBeVisible();
+          await expect(page.getByText('TOOL RESULT: read_file', { exact: true })).toBeVisible();
           await expect(page.getByText('File content...')).toBeVisible();
         }
       },
       {
         spec: 'Tool result with data and status is visible',
         check: async () => {
-          await expect(page.getByText('Tool Result: run_shell_command', { exact: true })).toBeVisible();
+          await expect(page.getByText('TOOL RESULT: run_shell_command', { exact: true })).toBeVisible();
           await expect(page.getByText('Status: success', { exact: true })).toBeVisible();
           await expect(page.getByText('Done.')).toBeVisible();
         }
@@ -99,7 +99,7 @@ test('Gemini JSON Mode Observability', async ({ page }, testInfo) => {
       {
         spec: 'Tool result with status as name is visible',
         check: async () => {
-          await expect(page.getByText('Tool Result: SUCCESS', { exact: true })).toBeVisible();
+          await expect(page.getByText('TOOL RESULT: SUCCESS', { exact: true })).toBeVisible();
           await expect(page.getByText('File1.svelte')).toBeVisible();
           await expect(page.getByText('File2.svelte')).toBeVisible();
         }
