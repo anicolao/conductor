@@ -20,6 +20,7 @@ Verify that Gemini JSON events are correctly aggregated and rendered.
 - [x] Assistant message is aggregated
 - [x] Tool use is visible
 - [x] Tool use with name field is visible
+- [x] Tool use with new field names is visible
 - [x] Unknown event is visible
 - [x] Tool result is visible
 - [x] Final result is visible with stats

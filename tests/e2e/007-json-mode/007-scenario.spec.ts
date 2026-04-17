@@ -26,6 +26,7 @@ test('Gemini JSON Mode Observability', async ({ page }, testInfo) => {
     '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:03.000Z","event":"GEMINI_EVENT","data":{"type":"tool_use","tool":"read_file","args":{"path":"README.md"}}}',
     '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:04.000Z","event":"GEMINI_EVENT","data":{"type":"tool_result","tool":"read_file","result":"File content..."}}',
     '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:04.500Z","event":"GEMINI_EVENT","data":{"type":"tool_use","name":"list_dir","args":{"path":"src"}}}',
+    '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:04.550Z","event":"GEMINI_EVENT","data":{"type":"tool_use","tool_name":"list_directory","tool_id":"1o6dfh4u","parameters":{"dir_path":"observability-ui/src/lib/components/"}}}',
     '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:04.600Z","event":"GEMINI_EVENT","data":{"type":"unknown_event","foo":"bar"}}',
     '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:05.000Z","event":"GEMINI_EVENT","data":{"type":"result","response":"Finished.","stats":{"tokens":{"total":100,"prompt":40,"completion":60},"latency":500}}}'
   ].join('\n');
@@ -52,15 +53,23 @@ test('Gemini JSON Mode Observability', async ({ page }, testInfo) => {
       {
         spec: 'Tool use is visible',
         check: async () => {
-          await expect(page.getByText('Tool Use: read_file')).toBeVisible();
+          await expect(page.getByText('Tool Use: read_file', { exact: true })).toBeVisible();
           await expect(page.getByText('"path": "README.md"')).toBeVisible();
         }
       },
       {
         spec: 'Tool use with name field is visible',
         check: async () => {
-          await expect(page.getByText('Tool Use: list_dir')).toBeVisible();
+          await expect(page.getByText('Tool Use: list_dir', { exact: true })).toBeVisible();
           await expect(page.getByText('"path": "src"')).toBeVisible();
+        }
+      },
+      {
+        spec: 'Tool use with new field names is visible',
+        check: async () => {
+          await expect(page.getByText('Tool Use: list_directory', { exact: true })).toBeVisible();
+          await expect(page.getByText('(1o6dfh4u)')).toBeVisible();
+          await expect(page.getByText('"dir_path": "observability-ui/src/lib/components/"')).toBeVisible();
         }
       },
       {
@@ -73,7 +82,7 @@ test('Gemini JSON Mode Observability', async ({ page }, testInfo) => {
       {
         spec: 'Tool result is visible',
         check: async () => {
-          await expect(page.getByText('Tool Result: read_file')).toBeVisible();
+          await expect(page.getByText('Tool Result: read_file', { exact: true })).toBeVisible();
           await expect(page.getByText('File content...')).toBeVisible();
         }
       },

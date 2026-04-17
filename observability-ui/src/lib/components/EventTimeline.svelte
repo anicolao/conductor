@@ -162,7 +162,7 @@
             </div>
           </div>
         {:else if event.event === 'GEMINI_EVENT'}
-          <GeminiEvent eventData={event.data} />
+          <GeminiEvent {event} />
         {:else}
           <div class="event-card">
             <div class="event-header">
