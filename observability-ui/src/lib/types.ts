@@ -64,14 +64,19 @@ export interface GeminiToolCallsUpdateEvent {
 	schedulerId: string;
 }
 
-export type GeminiEventData =
+export interface MessageBusMixin {
+	_isMessageBus?: boolean;
+}
+
+export type GeminiEventData = (
 	| GeminiInitEvent
 	| GeminiMessageEvent
 	| GeminiToolUseEvent
 	| GeminiToolResultEvent
 	| GeminiResultEvent
 	| GeminiToolCallsUpdateEvent
-	| GeminiUnknownEvent;
+	| GeminiUnknownEvent
+) & MessageBusMixin;
 
 export interface WorkflowRun {
 	id: number;

@@ -6,9 +6,12 @@
   const eventData = $derived(event.data as GeminiEventData);
 
   const getEventClass = (data: GeminiEventData) => {
-    const base = `gemini-event ${data.type.replace(/_/g, '-')}`;
+    let base = `gemini-event ${data.type.replace(/_/g, '-')}`;
     if (data.type === 'message') {
-      return `${base} ${data.role}`;
+      base += ` ${data.role}`;
+    }
+    if (data._isMessageBus) {
+      base += ' is-message-bus';
     }
     return base;
   };
@@ -38,46 +41,60 @@
 </script>
 
 <div class={getEventClass(eventData)}>
-  {#if eventData.type === 'init'}
-    <div class="event-header">
-      <span class="icon">🤖</span>
-      <span class="event-type">Gemini Initialized</span>
+  {#if eventData._isMessageBus}
+    <div class="event-header message-bus-header">
+      <span class="icon">🚌</span>
+      <span class="event-type">DEBUG MESSAGE_BUS: {eventData.type.toUpperCase().replace(/-/g, ' ')}</span>
     </div>
+  {/if}
+  {#if eventData.type === 'init'}
+    {#if !eventData._isMessageBus}
+      <div class="event-header">
+        <span class="icon">🤖</span>
+        <span class="event-type">Gemini Initialized</span>
+      </div>
+    {/if}
     <div class="event-body">
       <p><strong>Session ID:</strong> <code>{eventData.sessionId}</code></p>
       <p><strong>Model:</strong> <code>{eventData.model}</code></p>
     </div>
   {:else if eventData.type === 'message'}
-    <div class="event-header">
-      <span class="icon">{eventData.role === 'assistant' ? '✨' : '👤'}</span>
-      <span class="event-type">{eventData.role}</span>
-    </div>
+    {#if !eventData._isMessageBus}
+      <div class="event-header">
+        <span class="icon">{eventData.role === 'assistant' ? '✨' : '👤'}</span>
+        <span class="event-type">{eventData.role}</span>
+      </div>
+    {/if}
     <div class="event-body">
       <p>{eventData.content}</p>
     </div>
   {:else if eventData.type === 'tool_use'}
-    <div class="event-header">
-      <span class="icon">🛠️</span>
-      <span class="event-type">Tool Use: {getToolName(eventData)}</span>
-      {#if eventData.tool_id}
-        <span class="tool-id">({eventData.tool_id})</span>
-      {/if}
-    </div>
+    {#if !eventData._isMessageBus}
+      <div class="event-header">
+        <span class="icon">🛠️</span>
+        <span class="event-type">Tool Use: {getToolName(eventData)}</span>
+        {#if eventData.tool_id}
+          <span class="tool-id">({eventData.tool_id})</span>
+        {/if}
+      </div>
+    {/if}
     <div class="event-body">
       <pre><code>{JSON.stringify(getToolArgs(eventData), null, 2)}</code></pre>
     </div>
   {:else if eventData.type === 'tool_result'}
-    <div class="event-header">
-      <span class="icon">📤</span>
-      <span class="event-type">TOOL RESULT: {getToolName(eventData)}
-        {#if eventData.status || (eventData.data && eventData.data.status)}
-          ({eventData.status || eventData.data.status})
+    {#if !eventData._isMessageBus}
+      <div class="event-header">
+        <span class="icon">📤</span>
+        <span class="event-type">TOOL RESULT: {getToolName(eventData)}
+          {#if eventData.status || (eventData.data && eventData.data.status)}
+            ({eventData.status || eventData.data.status})
+          {/if}
+        </span>
+        {#if eventData.tool_id}
+          <span class="tool-id">({eventData.tool_id})</span>
         {/if}
-      </span>
-      {#if eventData.tool_id}
-        <span class="tool-id">({eventData.tool_id})</span>
-      {/if}
-    </div>
+      </div>
+    {/if}
     <div class="event-body">
       {#if eventData.status || eventData.output || (eventData.data && (eventData.data.status || eventData.data.output))}
         {@const status = eventData.status || (eventData.data && eventData.data.status)}
@@ -97,10 +114,12 @@
       {/if}
     </div>
   {:else if eventData.type === 'tool-calls-update'}
-    <div class="event-header">
-      <span class="icon">📡</span>
-      <span class="event-type">Tool Calls Update: {eventData.schedulerId}</span>
-    </div>
+    {#if !eventData._isMessageBus}
+      <div class="event-header">
+        <span class="icon">📡</span>
+        <span class="event-type">Tool Calls Update: {eventData.schedulerId}</span>
+      </div>
+    {/if}
     <div class="event-body">
       {#if eventData.toolCalls && eventData.toolCalls.length > 0}
         <ul>
@@ -113,10 +132,12 @@
       {/if}
     </div>
   {:else if eventData.type === 'result'}
-    <div class="event-header">
-      <span class="icon">🏁</span>
-      <span class="event-type">Gemini Result</span>
-    </div>
+    {#if !eventData._isMessageBus}
+      <div class="event-header">
+        <span class="icon">🏁</span>
+        <span class="event-type">Gemini Result</span>
+      </div>
+    {/if}
     <div class="event-body">
       <p>{eventData.response}</p>
       {#if eventData.stats}
@@ -140,10 +161,12 @@
       {/if}
     </div>
   {:else}
-    <div class="event-header">
-      <span class="icon">❓</span>
-      <span class="event-type">Unknown Event: {eventData.type}</span>
-    </div>
+    {#if !eventData._isMessageBus}
+      <div class="event-header">
+        <span class="icon">❓</span>
+        <span class="event-type">Unknown Event: {eventData.type}</span>
+      </div>
+    {/if}
     <div class="event-body">
       <pre><code>{JSON.stringify(eventData, null, 2)}</code></pre>
     </div>
@@ -164,6 +187,12 @@
     border-left: 4px solid #6c757d;
   }
 
+  .is-message-bus {
+    border-left-color: #fd7e14;
+    background-color: #fffaf5;
+    border-style: dashed;
+  }
+
   .event-header {
     display: flex;
     gap: 0.5rem;
@@ -171,6 +200,10 @@
     margin-bottom: 0.5rem;
     border-bottom: 1px solid #eee;
     padding-bottom: 0.25rem;
+  }
+
+  .message-bus-header {
+    border-bottom-color: #ffe8cc;
   }
 
   .event-type {
