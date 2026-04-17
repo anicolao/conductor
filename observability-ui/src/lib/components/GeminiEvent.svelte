@@ -2,7 +2,7 @@
   import type { ConductorEvent, GeminiEventData } from '../types';
   import JsonTree from './JsonTree.svelte';
 
-  let { event }: { event: ConductorEvent } = $props();
+  let { event, toolNameMap = new Map() }: { event: ConductorEvent, toolNameMap?: Map<string, string> } = $props();
   const eventData = $derived(event.data as GeminiEventData);
 
   const getEventClass = (data: GeminiEventData) => {
@@ -14,10 +14,18 @@
   };
 
   function getToolName(data: any) {
-    return (
+    const name =
       data.tool_name ||
       data.name ||
-      data.tool ||
+      data.tool;
+    
+    if (name) return name;
+    
+    if (data.tool_id && toolNameMap.has(data.tool_id)) {
+      return toolNameMap.get(data.tool_id);
+    }
+
+    return (
       data.status ||
       (data.data && data.data.status) ||
       'unknown'
@@ -61,7 +69,11 @@
   {:else if eventData.type === 'tool_result'}
     <div class="event-header">
       <span class="icon">📤</span>
-      <span class="event-type">TOOL RESULT: {getToolName(eventData)}</span>
+      <span class="event-type">TOOL RESULT: {getToolName(eventData)}
+        {#if eventData.status || (eventData.data && eventData.data.status)}
+          ({eventData.status || eventData.data.status})
+        {/if}
+      </span>
       {#if eventData.tool_id}
         <span class="tool-id">({eventData.tool_id})</span>
       {/if}
