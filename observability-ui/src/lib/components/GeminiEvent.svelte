@@ -1,11 +1,20 @@
 <script lang="ts">
   import type { GeminiEventData } from '../types';
+  import JsonTree from './JsonTree.svelte';
 
   let { eventData }: { eventData: GeminiEventData } = $props();
+
+  const getEventClass = (data: GeminiEventData) => {
+    const base = `gemini-event ${data.type.replace(/_/g, '-')}`;
+    if (data.type === 'message') {
+      return `${base} ${data.role}`;
+    }
+    return base;
+  };
 </script>
 
-{#if eventData.type === 'init'}
-  <div class="gemini-event init">
+<div class={getEventClass(eventData)}>
+  {#if eventData.type === 'init'}
     <div class="event-header">
       <span class="icon">🤖</span>
       <span class="event-type">Gemini Initialized</span>
@@ -14,9 +23,7 @@
       <p><strong>Session ID:</strong> <code>{eventData.sessionId}</code></p>
       <p><strong>Model:</strong> <code>{eventData.model}</code></p>
     </div>
-  </div>
-{:else if eventData.type === 'message'}
-  <div class="gemini-event message {eventData.role}">
+  {:else if eventData.type === 'message'}
     <div class="event-header">
       <span class="icon">{eventData.role === 'assistant' ? '✨' : '👤'}</span>
       <span class="event-type">{eventData.role}</span>
@@ -24,9 +31,7 @@
     <div class="event-body">
       <p>{eventData.content}</p>
     </div>
-  </div>
-{:else if eventData.type === 'tool_use'}
-  <div class="gemini-event tool-use">
+  {:else if eventData.type === 'tool_use'}
     <div class="event-header">
       <span class="icon">🛠️</span>
       <span class="event-type">Tool Use: {eventData.name || eventData.tool || 'unknown'}</span>
@@ -34,9 +39,7 @@
     <div class="event-body">
       <pre><code>{JSON.stringify(eventData.args, null, 2)}</code></pre>
     </div>
-  </div>
-{:else if eventData.type === 'tool_result'}
-  <div class="gemini-event tool-result">
+  {:else if eventData.type === 'tool_result'}
     <div class="event-header">
       <span class="icon">📤</span>
       <span class="event-type">Tool Result: {eventData.name || eventData.tool || 'unknown'}</span>
@@ -44,9 +47,7 @@
     <div class="event-body">
       <pre><code>{typeof eventData.result === 'string' ? eventData.result : JSON.stringify(eventData.result, null, 2)}</code></pre>
     </div>
-  </div>
-{:else if eventData.type === 'result'}
-  <div class="gemini-event result">
+  {:else if eventData.type === 'result'}
     <div class="event-header">
       <span class="icon">🏁</span>
       <span class="event-type">Gemini Result</span>
@@ -58,7 +59,10 @@
           {#if eventData.stats.tokens}
             <div class="stat">
               <span class="label">Tokens:</span>
-              <span class="value">{eventData.stats.tokens.total || 0} (P: {eventData.stats.tokens.prompt || 0}, C: {eventData.stats.tokens.completion || 0})</span>
+              <span class="value"
+                >{eventData.stats.tokens.total || 0} (P: {eventData.stats.tokens.prompt || 0}, C: {eventData.stats.tokens.completion ||
+                  0})</span
+              >
             </div>
           {/if}
           {#if eventData.stats.latency}
@@ -70,9 +74,7 @@
         </div>
       {/if}
     </div>
-  </div>
-{:else}
-  <div class="gemini-event unknown">
+  {:else}
     <div class="event-header">
       <span class="icon">❓</span>
       <span class="event-type">Unknown Event: {eventData.type}</span>
@@ -80,8 +82,12 @@
     <div class="event-body">
       <pre><code>{JSON.stringify(eventData, null, 2)}</code></pre>
     </div>
+  {/if}
+
+  <div class="raw-json-section">
+    <JsonTree data={eventData} isRoot={true} label="Event JSON" />
   </div>
-{/if}
+</div>
 
 <style>
   .gemini-event {
@@ -131,13 +137,27 @@
     margin: 0.5rem 0 0 0;
   }
 
-  .init { border-left-color: #007bff; }
-  .message.assistant { border-left-color: #17a2b8; }
-  .message.user { border-left-color: #007bff; }
-  .tool-use { border-left-color: #ffc107; }
-  .tool-result { border-left-color: #28a745; }
-  .result { border-left-color: #6f42c1; }
-  .unknown { border-left-color: #dc3545; }
+  .init {
+    border-left-color: #007bff;
+  }
+  .message.assistant {
+    border-left-color: #17a2b8;
+  }
+  .message.user {
+    border-left-color: #007bff;
+  }
+  .tool-use {
+    border-left-color: #ffc107;
+  }
+  .tool-result {
+    border-left-color: #28a745;
+  }
+  .result {
+    border-left-color: #6f42c1;
+  }
+  .unknown {
+    border-left-color: #dc3545;
+  }
 
   .stats {
     display: flex;
@@ -155,5 +175,11 @@
 
   .label {
     font-weight: bold;
+  }
+
+  .raw-json-section {
+    margin-top: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed #eee;
   }
 </style>
