@@ -6,8 +6,8 @@
 # 3. If a project is associated, the 'Persona' field in Project V2 is also updated and verified.
 set -euo pipefail
 
-if [ "$#" -lt 1 ]; then
-  echo "Usage: npm run handoff -- TARGET [COMMIT_COUNT] < comment.md" >&2
+if [ "$#" -lt 2 ]; then
+  echo "Usage: npm run handoff -- TARGET COMMIT_COUNT < comment.md" >&2
   exit 1
 fi
 
@@ -17,45 +17,46 @@ if [ -z "${GITHUB_EVENT_PATH:-}" ]; then
 fi
 
 target="$1"
-claimed_commits="${2:-}"
+claimed_commits="$2"
 
-if [ "$target" != "human" ] && [ -z "$claimed_commits" ]; then
-  echo "Error: COMMIT_COUNT is required for agent handoffs." >&2
-  echo "Usage: npm run handoff -- TARGET COMMIT_COUNT < comment.md" >&2
+# Validation logic
+branch_name="$(git branch --show-current)"
+if [ -z "$branch_name" ]; then
+  echo "Could not determine current branch" >&2
+  exit 1
+fi
+
+# Auto-push
+echo "Attempting to push changes to origin/$branch_name..."
+if ! git push origin "$branch_name"; then
+  echo "PUSH FAILURE: Failed to push to origin/$branch_name. Please check for merge conflicts, network issues, or permissions. Ensure you have committed your changes." >&2
+  exit 1
+fi
+
+# Validation: Check commit count on origin
+if ! git rev-parse --verify origin/main >/dev/null 2>&1; then
+  echo "ERROR: Could not find origin/main to verify commit count." >&2
+  exit 1
+fi
+
+if ! git rev-parse --verify "origin/$branch_name" >/dev/null 2>&1; then
+  echo "ERROR: Could not find origin/$branch_name to verify commit count." >&2
+  exit 1
+fi
+
+actual_commits=$(git rev-list --count "origin/main..origin/$branch_name")
+if [ "$actual_commits" -ne "$claimed_commits" ]; then
+  echo "NUMBER OF COMMITS MISMATCH FAILURE: Expected $claimed_commits commits but found $actual_commits on origin/$branch_name (relative to origin/main). Please commit your changes, push them (or let the script try), and re-attempt handoff with the correct count." >&2
   exit 1
 fi
 
 # Validation: Check for uncommitted changes
-if [ "$target" != "human" ]; then
-  uncommitted_changes=$(git status --porcelain)
-  if [ -n "$uncommitted_changes" ]; then
-    echo "OPEN FILES STILL IN VM: You have uncommitted changes. Please commit or stash them before handoff." >&2
-    echo "Uncommitted files:" >&2
-    echo "$uncommitted_changes" >&2
-    exit 1
-  fi
-
-  # Validation: Check commit count
-  # We assume 'main' is the base branch. If it's a different base, this might need adjustment.
-  if ! git rev-parse --verify main >/dev/null 2>&1; then
-     # If main doesn't exist locally, try origin/main
-     if git rev-parse --verify origin/main >/dev/null 2>&1; then
-       base_branch="origin/main"
-     else
-       echo "Warning: Could not find 'main' or 'origin/main' to verify commit count. Skipping count check." >&2
-       base_branch=""
-     fi
-  else
-     base_branch="main"
-  fi
-
-  if [ -n "$base_branch" ]; then
-    actual_commits=$(git rev-list --count "$base_branch..HEAD")
-    if [ "$actual_commits" -ne "$claimed_commits" ]; then
-      echo "NUMBER OF COMMITS MISMATCH FAILURE: Expected $claimed_commits commits but found $actual_commits on the current branch (relative to $base_branch). Please commit your changes and re-attempt handoff." >&2
-      exit 1
-    fi
-  fi
+uncommitted_changes=$(git status --porcelain)
+if [ -n "$uncommitted_changes" ]; then
+  echo "OPEN FILES STILL IN VM: You have uncommitted changes. Please commit or stash them before handoff." >&2
+  echo "Uncommitted files:" >&2
+  echo "$uncommitted_changes" >&2
+  exit 1
 fi
 
 issue_number="$(node -e "
