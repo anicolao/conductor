@@ -60,7 +60,18 @@
       {/if}
     </div>
     <div class="event-body">
-      <pre><code>{typeof eventData.result === 'string' ? eventData.result : JSON.stringify(eventData.result, null, 2)}</code></pre>
+      {#if eventData.data && (eventData.data.status || eventData.data.output)}
+        {#if eventData.data.status}
+          <div class="tool-result-status {eventData.data.status}">
+            <strong>Status:</strong> {eventData.data.status}
+          </div>
+        {/if}
+        {#if eventData.data.output}
+          <pre><code>{eventData.data.output}</code></pre>
+        {/if}
+      {:else}
+        <pre><code>{typeof eventData.result === 'string' ? eventData.result : JSON.stringify(eventData.result || eventData.data || eventData, null, 2)}</code></pre>
+      {/if}
     </div>
   {:else if eventData.type === 'result'}
     <div class="event-header">
@@ -173,6 +184,25 @@
   .tool-result {
     border-left-color: #28a745;
   }
+
+  .tool-result-status {
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    display: inline-block;
+  }
+
+  .tool-result-status.success {
+    background-color: #d4edda;
+    color: #155724;
+  }
+
+  .tool-result-status.error {
+    background-color: #f8d7da;
+    color: #721c24;
+  }
+
   .result {
     border-left-color: #6f42c1;
   }

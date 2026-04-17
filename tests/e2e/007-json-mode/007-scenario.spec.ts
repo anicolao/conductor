@@ -25,6 +25,7 @@ test('Gemini JSON Mode Observability', async ({ page }, testInfo) => {
     '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:02.000Z","event":"GEMINI_EVENT","data":{"type":"message","role":"assistant","content":"you with that."}}',
     '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:03.000Z","event":"GEMINI_EVENT","data":{"type":"tool_use","tool":"read_file","args":{"path":"README.md"}}}',
     '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:04.000Z","event":"GEMINI_EVENT","data":{"type":"tool_result","tool":"read_file","result":"File content..."}}',
+    '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:04.100Z","event":"GEMINI_EVENT","data":{"type":"tool_result","tool_name":"run_shell_command","data":{"status":"success","output":"Done."}}}',
     '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:04.500Z","event":"GEMINI_EVENT","data":{"type":"tool_use","name":"list_dir","args":{"path":"src"}}}',
     '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:04.550Z","event":"GEMINI_EVENT","data":{"type":"tool_use","tool_name":"list_directory","tool_id":"1o6dfh4u","parameters":{"dir_path":"observability-ui/src/lib/components/"}}}',
     '::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-17T12:00:04.600Z","event":"GEMINI_EVENT","data":{"type":"unknown_event","foo":"bar"}}',
@@ -84,6 +85,14 @@ test('Gemini JSON Mode Observability', async ({ page }, testInfo) => {
         check: async () => {
           await expect(page.getByText('Tool Result: read_file', { exact: true })).toBeVisible();
           await expect(page.getByText('File content...')).toBeVisible();
+        }
+      },
+      {
+        spec: 'Tool result with data and status is visible',
+        check: async () => {
+          await expect(page.getByText('Tool Result: run_shell_command', { exact: true })).toBeVisible();
+          await expect(page.getByText('Status: success')).toBeVisible();
+          await expect(page.getByText('Done.')).toBeVisible();
         }
       },
       {
