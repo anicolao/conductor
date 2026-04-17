@@ -121,13 +121,15 @@
     </div>
     <div class="event-body">
       {#if eventData.toolCalls && eventData.toolCalls.length > 0}
-        <ul>
+        <div class="active-tool-calls">
           {#each eventData.toolCalls as toolCall}
-            <li><code>{toolCall.function?.name || toolCall.id}</code></li>
+            <span class="tool-call-pill">
+              <code>{toolCall.function?.name || toolCall.id}</code>
+            </span>
           {/each}
-        </ul>
+        </div>
       {:else}
-        <p>No active tool calls</p>
+        <p class="no-tool-calls">No active tool calls</p>
       {/if}
     </div>
   {:else if eventData.type === 'result'}
@@ -192,6 +194,29 @@
     border-left-color: #fd7e14;
     background-color: #fffaf5;
     border-style: dashed;
+    opacity: 0.9;
+  }
+
+  .active-tool-calls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+  }
+
+  .tool-call-pill {
+    background: #e9ecef;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    border: 1px solid #dee2e6;
+  }
+
+  .no-tool-calls {
+    color: #6c757d;
+    font-style: italic;
+    font-size: 0.9rem;
+    margin: 0 !important;
   }
 
   .event-header {
