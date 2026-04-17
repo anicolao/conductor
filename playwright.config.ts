@@ -52,6 +52,13 @@ export default defineConfig({
     command: 'npm run dev --prefix observability-ui',
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
+    env: {
+      VITE_APP_VERSION: '0.0.1',
+      VITE_COMMIT_HASH: 'test-commit',
+      VITE_BUILD_DATE: '2026-04-17',
+      PUBLIC_GITHUB_CLIENT_ID: 'dummy-client-id',
+      PUBLIC_OAUTH_EXCHANGE_URL: 'http://localhost:5001/dummy-project/us-central1/githubOAuthExchange'
+    }
   },
 
   /* Path for snapshots relative to each test file */

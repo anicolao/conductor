@@ -5,7 +5,7 @@
 
 	const version = __APP_VERSION__;
 	const commit = __COMMIT_HASH__;
-	const buildDate = new Date(__BUILD_DATE__).toLocaleDateString();
+	const buildDate = __BUILD_DATE__;
 </script>
 
 <svelte:head>

@@ -27,7 +27,7 @@ test('Observability UI Landing Page', async ({ page }, testInfo) => {
         check: async () => {
           const footer = page.locator('footer.version-info');
           await expect(footer).toBeVisible();
-          await expect(footer).toHaveText(/v\d+\.\d+\.\d+/);
+          await expect(footer).toHaveText('v0.0.1 (test-commit) 2026-04-17');
         }
       }
     ]
