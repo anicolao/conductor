@@ -14,7 +14,14 @@
   };
 
   function getToolName(data: any) {
-    return data.tool_name || data.name || data.tool || 'unknown';
+    return (
+      data.tool_name ||
+      data.name ||
+      data.tool ||
+      data.status ||
+      (data.data && data.data.status) ||
+      'unknown'
+    );
   }
 
   function getToolArgs(data: any) {
@@ -60,17 +67,21 @@
       {/if}
     </div>
     <div class="event-body">
-      {#if eventData.data && (eventData.data.status || eventData.data.output)}
-        {#if eventData.data.status}
-          <div class="tool-result-status {eventData.data.status}">
-            <strong>Status:</strong> {eventData.data.status}
+      {#if eventData.status || eventData.output || (eventData.data && (eventData.data.status || eventData.data.output))}
+        {@const status = eventData.status || (eventData.data && eventData.data.status)}
+        {@const output = eventData.output || (eventData.data && eventData.data.output)}
+        {#if status}
+          <div class="tool-result-status {status}">
+            <strong>Status:</strong> {status}
           </div>
         {/if}
-        {#if eventData.data.output}
-          <pre><code>{eventData.data.output}</code></pre>
+        {#if output}
+          <pre class="terminal-output"><code>{output}</code></pre>
         {/if}
       {:else}
-        <pre><code>{typeof eventData.result === 'string' ? eventData.result : JSON.stringify(eventData.result || eventData.data || eventData, null, 2)}</code></pre>
+        <pre><code>{typeof eventData.result === 'string'
+            ? eventData.result
+            : JSON.stringify(eventData.result || eventData.data || eventData, null, 2)}</code></pre>
       {/if}
     </div>
   {:else if eventData.type === 'result'}
@@ -201,6 +212,18 @@
   .tool-result-status.error {
     background-color: #f8d7da;
     color: #721c24;
+  }
+
+  .terminal-output {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 0.75rem;
+    border-radius: 4px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.85rem;
+    overflow-x: auto;
+    border-left: 4px solid #444;
+    margin: 0.5rem 0 0 0;
   }
 
   .result {
