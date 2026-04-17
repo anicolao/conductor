@@ -1,7 +1,8 @@
 import fs from 'fs';
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { formatStreamChunk, createLineForwarder, runStreamingCommand } from '../../src/utils/exec';
+import * as loggerModule from '../../src/utils/logger';
 
 describe('exec utility', () => {
   describe('formatStreamChunk', () => {
@@ -64,6 +65,21 @@ describe('exec utility', () => {
       const result = await runStreamingCommand('pwd', [], process.env, '/tmp');
       expect(result.status).toBe(0);
       expect(fs.realpathSync(result.stdout.trim())).toBe(fs.realpathSync('/tmp'));
+    });
+
+    it('should intercept MESSAGE_BUS messages in stderr', async () => {
+      const logEventSpy = vi.spyOn(loggerModule, 'logEvent');
+      const msg = '[MESSAGE_BUS] publish: {"type":"tool-calls-update","toolCalls":[],"schedulerId":"root"}';
+      const result = await runStreamingCommand('sh', ['-c', `echo '${msg}' >&2`], process.env);
+      
+      expect(result.status).toBe(0);
+      expect(logEventSpy).toHaveBeenCalledWith('GEMINI_EVENT', {
+        type: 'tool-calls-update',
+        toolCalls: [],
+        schedulerId: 'root'
+      });
+      // Should still be in the result.stderr buffer
+      expect(result.stderr).toContain(msg);
     });
   });
 });

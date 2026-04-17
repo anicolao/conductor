@@ -58,12 +58,19 @@ export interface GeminiResultEvent {
 	};
 }
 
+export interface GeminiToolCallsUpdateEvent {
+	type: 'tool-calls-update';
+	toolCalls: any[];
+	schedulerId: string;
+}
+
 export type GeminiEventData =
 	| GeminiInitEvent
 	| GeminiMessageEvent
 	| GeminiToolUseEvent
 	| GeminiToolResultEvent
 	| GeminiResultEvent
+	| GeminiToolCallsUpdateEvent
 	| GeminiUnknownEvent;
 
 export interface WorkflowRun {

@@ -96,6 +96,22 @@
             : JSON.stringify(eventData.result || eventData.data || eventData, null, 2)}</code></pre>
       {/if}
     </div>
+  {:else if eventData.type === 'tool-calls-update'}
+    <div class="event-header">
+      <span class="icon">📡</span>
+      <span class="event-type">Tool Calls Update: {eventData.schedulerId}</span>
+    </div>
+    <div class="event-body">
+      {#if eventData.toolCalls && eventData.toolCalls.length > 0}
+        <ul>
+          {#each eventData.toolCalls as toolCall}
+            <li><code>{toolCall.function?.name || toolCall.id}</code></li>
+          {/each}
+        </ul>
+      {:else}
+        <p>No active tool calls</p>
+      {/if}
+    </div>
   {:else if eventData.type === 'result'}
     <div class="event-header">
       <span class="icon">🏁</span>
@@ -206,6 +222,9 @@
   }
   .tool-result {
     border-left-color: #28a745;
+  }
+  .tool-calls-update {
+    border-left-color: #17a2b8;
   }
 
   .tool-result-status {
