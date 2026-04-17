@@ -16,14 +16,21 @@ export interface GeminiMessageEvent {
 
 export interface GeminiToolUseEvent {
 	type: 'tool_use';
-	tool: string;
+	tool?: string;
+	name?: string;
 	args: Record<string, any>;
 }
 
 export interface GeminiToolResultEvent {
 	type: 'tool_result';
-	tool: string;
+	tool?: string;
+	name?: string;
 	result: any;
+}
+
+export interface GeminiUnknownEvent {
+	type: string;
+	[key: string]: any;
 }
 
 export interface GeminiResultEvent {
@@ -44,7 +51,8 @@ export type GeminiEventData =
 	| GeminiMessageEvent
 	| GeminiToolUseEvent
 	| GeminiToolResultEvent
-	| GeminiResultEvent;
+	| GeminiResultEvent
+	| GeminiUnknownEvent;
 
 export interface WorkflowRun {
 	id: number;

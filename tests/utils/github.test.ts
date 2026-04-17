@@ -9,7 +9,7 @@ describe('injectMediaPaths', () => {
       ['https://github.com/user-attachments/assets/2', '/tmp/2.png']
     ]);
     const result = injectMediaPaths(text, urlToPath);
-    expect(result).toBe('Check this: https://github.com/user-attachments/assets/1\n@/tmp/1.png\nAnd this: https://github.com/user-attachments/assets/2\n@/tmp/2.png');
+    expect(result).toBe('Check this: https://github.com/user-attachments/assets/1 <!-- CONDUCTOR_MEDIA_PATH: /tmp/1.png -->\nAnd this: https://github.com/user-attachments/assets/2 <!-- CONDUCTOR_MEDIA_PATH: /tmp/2.png -->');
   });
 
   it('should handle duplicate URLs in text', () => {
@@ -18,7 +18,7 @@ describe('injectMediaPaths', () => {
       ['https://github.com/user-attachments/assets/1', '/tmp/1.png']
     ]);
     const result = injectMediaPaths(text, urlToPath);
-    expect(result).toBe('URL: https://github.com/user-attachments/assets/1\n@/tmp/1.png and again: https://github.com/user-attachments/assets/1\n@/tmp/1.png');
+    expect(result).toBe('URL: https://github.com/user-attachments/assets/1 <!-- CONDUCTOR_MEDIA_PATH: /tmp/1.png --> and again: https://github.com/user-attachments/assets/1 <!-- CONDUCTOR_MEDIA_PATH: /tmp/1.png -->');
   });
 
   it('should return original text if no matches', () => {
