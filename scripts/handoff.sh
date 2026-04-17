@@ -6,8 +6,8 @@
 # 3. If a project is associated, the 'Persona' field in Project V2 is also updated and verified.
 set -euo pipefail
 
-if [ "$#" -ne 1 ]; then
-  echo "Usage: npm run handoff -- TARGET < comment.md" >&2
+if [ "$#" -lt 1 ]; then
+  echo "Usage: npm run handoff -- TARGET [COMMIT_COUNT] < comment.md" >&2
   exit 1
 fi
 
@@ -17,6 +17,46 @@ if [ -z "${GITHUB_EVENT_PATH:-}" ]; then
 fi
 
 target="$1"
+claimed_commits="${2:-}"
+
+if [ "$target" != "human" ] && [ -z "$claimed_commits" ]; then
+  echo "Error: COMMIT_COUNT is required for agent handoffs." >&2
+  echo "Usage: npm run handoff -- TARGET COMMIT_COUNT < comment.md" >&2
+  exit 1
+fi
+
+# Validation: Check for uncommitted changes
+if [ "$target" != "human" ]; then
+  uncommitted_changes=$(git status --porcelain)
+  if [ -n "$uncommitted_changes" ]; then
+    echo "OPEN FILES STILL IN VM: You have uncommitted changes. Please commit or stash them before handoff." >&2
+    echo "Uncommitted files:" >&2
+    echo "$uncommitted_changes" >&2
+    exit 1
+  fi
+
+  # Validation: Check commit count
+  # We assume 'main' is the base branch. If it's a different base, this might need adjustment.
+  if ! git rev-parse --verify main >/dev/null 2>&1; then
+     # If main doesn't exist locally, try origin/main
+     if git rev-parse --verify origin/main >/dev/null 2>&1; then
+       base_branch="origin/main"
+     else
+       echo "Warning: Could not find 'main' or 'origin/main' to verify commit count. Skipping count check." >&2
+       base_branch=""
+     fi
+  else
+     base_branch="main"
+  fi
+
+  if [ -n "$base_branch" ]; then
+    actual_commits=$(git rev-list --count "$base_branch..HEAD")
+    if [ "$actual_commits" -ne "$claimed_commits" ]; then
+      echo "NUMBER OF COMMITS MISMATCH FAILURE: Expected $claimed_commits commits but found $actual_commits on the current branch (relative to $base_branch). Please commit your changes and re-attempt handoff." >&2
+      exit 1
+    fi
+  fi
+fi
 
 issue_number="$(node -e "
 const fs = require('fs');
