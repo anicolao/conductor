@@ -9,8 +9,8 @@ const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
 export default defineConfig({
 	plugins: [sveltekit()],
 	define: {
-		__APP_VERSION__: JSON.stringify(pkg.version),
-		__BUILD_DATE__: JSON.stringify(new Date().toISOString()),
-		__COMMIT_HASH__: JSON.stringify(commitHash)
+		__APP_VERSION__: JSON.stringify(process.env.VITE_APP_VERSION || pkg.version),
+		__BUILD_DATE__: JSON.stringify(process.env.VITE_BUILD_DATE || new Date().toISOString().split('T')[0]),
+		__COMMIT_HASH__: JSON.stringify(process.env.VITE_COMMIT_HASH || commitHash)
 	}
 });
