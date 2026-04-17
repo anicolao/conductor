@@ -67,22 +67,26 @@ export async function runStreamingCommand(command: string, args: string[], env: 
     const stderrForwarder = createLineForwarder('stderr', (formatted, raw) => {
       stderr += raw;
 
+      // Robust JSON extraction from any line (including those with prefixes or ANSI codes)
+      const jsonMatch = raw.match(/(\{.*\})/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[1]);
+          if (parsed && typeof parsed === 'object' && 'type' in parsed) {
+            if (raw.includes('[MESSAGE_BUS]')) {
+              parsed._isMessageBus = true;
+            }
+            logEvent('GEMINI_EVENT', parsed);
+            return;
+          }
+        } catch (e) {
+          // Not valid JSON or missing type, fallback
+        }
+      }
+
       const ANSI_REGEX = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
       const cleanRaw = raw.replace(ANSI_REGEX, '');
       const trimmed = cleanRaw.trim();
-
-      // Intercept MESSAGE_BUS debug messages
-      const messageBusMatch = trimmed.match(/\[MESSAGE_BUS\] publish:\s*(\{.*\})/);
-      if (messageBusMatch) {
-        try {
-          const parsed = JSON.parse(messageBusMatch[1]);
-          parsed._isMessageBus = true;
-          logEvent('GEMINI_EVENT', parsed);
-          return;
-        } catch (e) {
-          // Not valid JSON, fallback
-        }
-      }
 
       // Intercept debug logs from Gemini CLI
       if (trimmed.includes('[Routing]') || trimmed.includes('[Memory]') || trimmed.includes('[Status]')) {

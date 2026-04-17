@@ -96,5 +96,18 @@ describe('exec utility', () => {
       });
       expect(logEventSpy).not.toHaveBeenCalledWith('STDERR', expect.anything());
     });
+
+    it('should intercept any JSON event in stderr with a type field', async () => {
+      const logEventSpy = vi.spyOn(loggerModule, 'logEvent');
+      const msg = 'SOME_PREFIX {"type":"generic-event","foo":"bar"}';
+      const result = await runStreamingCommand('sh', ['-c', `echo '${msg}' >&2`], process.env);
+      
+      expect(result.status).toBe(0);
+      expect(logEventSpy).toHaveBeenCalledWith('GEMINI_EVENT', {
+        type: 'generic-event',
+        foo: 'bar'
+      });
+      expect(logEventSpy).not.toHaveBeenCalledWith('STDERR', expect.anything());
+    });
   });
 });
