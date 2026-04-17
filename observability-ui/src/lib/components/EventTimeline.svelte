@@ -25,7 +25,10 @@
     };
 
     for (const event of events) {
-      if (event.event === 'LOG_DEBUG') {
+      const isDebug = event.event === 'LOG_DEBUG' || 
+                      (event.event === 'GEMINI_EVENT' && (event.data as GeminiEventData)?._isMessageBus === true);
+
+      if (isDebug) {
         currentDebugGroup.push(event);
         lastMessage = null;
         continue;
@@ -183,12 +186,16 @@
               <div class="event-body group-body">
                 {#each event.data.events as debugEvent}
                   <div class="nested-debug-event">
-                    <div class="nested-header">
-                      <span class="timestamp">{formatTimestamp(debugEvent.ts)}</span>
-                    </div>
-                    <p>{getMessage(debugEvent)}</p>
-                    {#if Object.keys(debugEvent.data || {}).filter(k => k !== 'message').length > 0}
-                      <pre>{JSON.stringify(Object.fromEntries(Object.entries(debugEvent.data).filter(([k]) => k !== 'message')), null, 2)}</pre>
+                    {#if debugEvent.event === 'GEMINI_EVENT'}
+                      <GeminiEvent event={debugEvent} {toolNameMap} />
+                    {:else}
+                      <div class="nested-header">
+                        <span class="timestamp">{formatTimestamp(debugEvent.ts)}</span>
+                      </div>
+                      <p>{getMessage(debugEvent)}</p>
+                      {#if Object.keys(debugEvent.data || {}).filter(k => k !== 'message').length > 0}
+                        <pre>{JSON.stringify(Object.fromEntries(Object.entries(debugEvent.data).filter(([k]) => k !== 'message')), null, 2)}</pre>
+                      {/if}
                     {/if}
                   </div>
                 {/each}

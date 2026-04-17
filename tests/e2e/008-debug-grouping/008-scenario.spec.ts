@@ -18,8 +18,8 @@ test('Observability Debug Message Grouping', async ({ page }, testInfo) => {
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:02.000Z","event":"LOG_INFO","persona":"coder","data":{"message":"An info message"}}
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:03.000Z","event":"LOG_DEBUG","persona":"coder","data":{"message":"Single debug message"}}
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:04.000Z","event":"LOG_INFO","persona":"coder","data":{"message":"Another info message"}}
-::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:05.000Z","event":"LOG_DEBUG","persona":"coder","data":{"message":"Third debug message"}}
-::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:06.000Z","event":"LOG_DEBUG","persona":"coder","data":{"message":"Fourth debug message"}}
+::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:05.000Z","event":"GEMINI_EVENT","persona":"coder","data":{"type":"message","role":"assistant","content":"I am a message bus message","_isMessageBus":true}}
+::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:06.000Z","event":"LOG_DEBUG","persona":"coder","data":{"message":"Debug after message bus"}}
   `.trim();
 
   await page.fill('textarea', logs);
@@ -30,7 +30,7 @@ test('Observability Debug Message Grouping', async ({ page }, testInfo) => {
       {
         spec: 'Two debug groups, two info messages, and one single debug message are visible',
         check: async () => {
-          // Group(1,2), Info, Single(3), Info, Group(5,6)
+          // Group(1,2), Info, Single(3), Info, Group(MessageBus, Debug)
           await expect(page.locator('.log_debug_group')).toHaveCount(2);
           await expect(page.locator('.log_info')).toHaveCount(2);
           await expect(page.locator('.log_debug')).toHaveCount(1);
@@ -51,24 +51,31 @@ test('Observability Debug Message Grouping', async ({ page }, testInfo) => {
           expect(isOpen).toBe(false);
           await expect(page.getByText('First debug message')).not.toBeVisible();
         }
+      },
+      {
+        spec: 'Second group shows (2) and contains Gemini event',
+        check: async () => {
+          const secondGroup = page.locator('.log_debug_group').nth(1);
+          await expect(secondGroup.getByText('DEBUG MESSAGES (2)')).toBeVisible();
+        }
       }
     ]
   });
 
   // Action outside step
-  await page.locator('.log_debug_group').first().click();
+  await page.locator('.log_debug_group').nth(1).click();
 
   await helper.step('expand_debug_group', {
     description: 'User expands a debug group',
     verifications: [
       {
-        spec: 'Group is now expanded and messages are visible',
+        spec: 'Group is now expanded and Gemini message is visible',
         check: async () => {
-          const firstGroup = page.locator('.log_debug_group').first();
-          const isOpen = await firstGroup.evaluate((el: HTMLDetailsElement) => el.open);
+          const secondGroup = page.locator('.log_debug_group').nth(1);
+          const isOpen = await secondGroup.evaluate((el: HTMLDetailsElement) => el.open);
           expect(isOpen).toBe(true);
-          await expect(page.getByText('First debug message')).toBeVisible();
-          await expect(page.getByText('Second debug message')).toBeVisible();
+          await expect(page.getByText('I am a message bus message')).toBeVisible();
+          await expect(page.getByText('Debug after message bus')).toBeVisible();
         }
       }
     ]
