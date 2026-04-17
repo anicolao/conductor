@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/handoff-utils.sh"
+
 if [ "$#" -lt 1 ]; then
   echo "Usage: $0 COMMIT_COUNT [--issue-number NUM] [--repo REPO] ..." >&2
   exit 1
@@ -44,113 +47,16 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-if [ -z "$issue_number" ]; then
-  if [ -z "${GITHUB_EVENT_PATH:-}" ]; then
-    echo "issue number must be supplied with --issue-number or via GITHUB_EVENT_PATH" >&2
-    exit 1
-  fi
+# Resolve issue, repo, project info
+resolve_github_context
 
-  issue_number="$(node -e "
-const fs = require('fs');
-const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
-const num = event.issue?.number || event.client_payload?.issue_number;
-if (!num) process.exit(1);
-process.stdout.write(String(num));
-")" || {
-    echo "Could not determine issue number" >&2
-    exit 1
-  }
-fi
-
-if [ -z "$target_repo" ]; then
-  if [ -n "${GITHUB_REPOSITORY:-}" ]; then
-    target_repo="$GITHUB_REPOSITORY"
-  elif [ -n "${GITHUB_EVENT_PATH:-}" ]; then
-    target_repo="$(node -e "
-const fs = require('fs');
-const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
-const repo = event.client_payload?.repository || '';
-if (!repo) process.exit(1);
-process.stdout.write(repo);
-")" || {
-      echo "Could not determine target repository" >&2
-      exit 1
-    }
-  else
-    echo "target repository must be supplied with --repo or via environment" >&2
-    exit 1
-  fi
-fi
-
-if [ -z "$project_number" ] && [ -n "${GITHUB_EVENT_PATH:-}" ]; then
-  project_number="$(node -e "
-const fs = require('fs');
-const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
-process.stdout.write(String(event.client_payload?.project_number || ''));
-")"
-fi
-
-if [ -z "$project_url" ] && [ -n "${GITHUB_EVENT_PATH:-}" ]; then
-  project_url="$(node -e "
-const fs = require('fs');
-const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
-process.stdout.write(event.client_payload?.project_url || '');
-")"
-fi
-
-if [ -z "$issue_node_id" ] && [ -n "${GITHUB_EVENT_PATH:-}" ]; then
-  issue_node_id="$(node -e "
-const fs = require('fs');
-const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
-process.stdout.write(event.issue?.node_id || event.client_payload?.issue_node_id || '');
-")"
-fi
-
-# Validation logic
-branch_name="$(git branch --show-current)"
-if [ -z "$branch_name" ]; then
-  echo "Could not determine current branch" >&2
-  exit 1
-fi
-
-# Auto-push
-echo "Attempting to push changes to origin/$branch_name..."
-if ! git push origin "$branch_name"; then
-  echo "PUSH FAILURE: Failed to push to origin/$branch_name. Please check for merge conflicts, network issues, or permissions. Ensure you have committed your changes." >&2
-  exit 1
-fi
-
-# Validation: Check commit count on origin
-if ! git rev-parse --verify origin/main >/dev/null 2>&1; then
-  echo "ERROR: Could not find origin/main to verify commit count." >&2
-  exit 1
-fi
-
-if ! git rev-parse --verify "origin/$branch_name" >/dev/null 2>&1; then
-  echo "ERROR: Could not find origin/$branch_name to verify commit count." >&2
-  exit 1
-fi
-
-actual_commits=$(git rev-list --count "origin/main..origin/$branch_name")
-if [ "$actual_commits" -ne "$claimed_commits" ]; then
-  echo "NUMBER OF COMMITS MISMATCH FAILURE: Expected $claimed_commits commits but found $actual_commits on origin/$branch_name (relative to origin/main). Please commit your changes, push them (or let the script try), and re-attempt handoff with the correct count." >&2
-  exit 1
-fi
-
-# Validation: Check for uncommitted changes
-uncommitted_changes=$(git status --porcelain)
-if [ -n "$uncommitted_changes" ]; then
-  echo "OPEN FILES STILL IN VM: You have uncommitted changes. Please commit or stash them before handoff." >&2
-  echo "Uncommitted files:" >&2
-  echo "$uncommitted_changes" >&2
-  exit 1
-fi
+# Git validation and push
+validate_git_state "$claimed_commits"
 
 body_file="$(mktemp)"
 trap 'rm -f "$body_file"' EXIT
 
 if [ -n "${CONDUCTOR_PERSONA:-}" ] && [ -n "${CONDUCTOR_LAST_COMMENT_URL:-}" ]; then
-  branch_name="$(git branch --show-current)"
   comment_id="${CONDUCTOR_LAST_COMMENT_URL##*-}"
   echo "I am the **$CONDUCTOR_PERSONA**, and I am responding to comment [$comment_id]($CONDUCTOR_LAST_COMMENT_URL) on branch ${branch_name:-unknown}." > "$body_file"
   echo "" >> "$body_file"
@@ -178,67 +84,9 @@ if [ "${#edit_args[@]}" -gt 0 ]; then
   gh issue edit "$issue_number" -R "$target_repo" "${edit_args[@]}"
 fi
 
-if [ -z "$project_number" ]; then
+# Update Project V2 Status field if project info is available
+if [ -n "$project_number" ]; then
+  update_project_v2_field "Status" "Human Review" ".status"
+else
   echo "No project_number available; skipped Project V2 status update." >&2
-  exit 0
 fi
-
-project_owner="$(node -e "
-const url = process.argv[1] || '';
-const match = url.match(/github\.com\/(orgs|users)\/([^\/]+)\/projects/);
-process.stdout.write(match ? match[2] : '');
-" "$project_url")"
-
-if [ -z "$project_owner" ]; then
-  echo "project_number was provided but project_owner could not be determined from project_url" >&2
-  exit 1
-fi
-
-if [ -z "$issue_node_id" ]; then
-  echo "Warning: issue_node_id is missing, will attempt to find project item by issue number and repository" >&2
-fi
-
-item_data="$(gh project item-list "$project_number" --owner "$project_owner" --limit 1000 --format json --jq ".items[] | select((.content.number == $issue_number and .content.repository == \"$target_repo\") or .content.id == \"$issue_node_id\")" | head -n 1)"
-
-if [ -z "$item_data" ]; then
-  echo "Could not find project item for issue $issue_number in $target_repo" >&2
-  exit 1
-fi
-
-item_id="$(echo "$item_data" | jq -r '.id')"
-project_id="$(gh project view "$project_number" --owner "$project_owner" --format json --jq '.id')"
-fields_json="$(gh project field-list "$project_number" --owner "$project_owner" --format json)"
-status_field_id="$(echo "$fields_json" | jq -r '.fields[] | select(.name == "Status") | .id' | head -n 1)"
-status_option_id="$(echo "$fields_json" | jq -r '.fields[] | select(.name == "Status") | .options[] | select(.name == "Human Review") | .id' | head -n 1)"
-
-if [ -z "$project_id" ] || [ "$project_id" = "null" ]; then
-  echo "Could not resolve project ID for project $project_number" >&2
-  exit 1
-fi
-
-if [ -z "$status_field_id" ] || [ "$status_field_id" = "null" ]; then
-  echo "Could not find Status field in project $project_number" >&2
-  exit 1
-fi
-
-if [ -z "$status_option_id" ] || [ "$status_option_id" = "null" ]; then
-  echo "Could not find Human Review option in Status field" >&2
-  exit 1
-fi
-
-gh project item-edit \
-  --id "$item_id" \
-  --project-id "$project_id" \
-  --field-id "$status_field_id" \
-  --single-select-option-id "$status_option_id" > /dev/null
-
-for _ in 1 2 3 4 5; do
-  current_status="$(gh project item-list "$project_number" --owner "$project_owner" --limit 1000 --format json --jq ".items[] | select(.id == \"$item_id\") | .status // empty" 2>/dev/null | head -n 1)"
-  if [ "$current_status" = "Human Review" ]; then
-    exit 0
-  fi
-  sleep 2
-done
-
-echo "Failed to verify Human Review status update for project item $item_id" >&2
-exit 1
