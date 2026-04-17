@@ -9,6 +9,7 @@ Verify the basic foundation of the Conductor Observability UI.
 ### Verifications
 - [x] Page title contains "Conductor"
 - [x] "Conductor Observability" heading is visible
+- [x] Version indicator is visible in the footer
 
 ---
 
