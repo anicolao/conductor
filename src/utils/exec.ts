@@ -68,6 +68,23 @@ export async function runStreamingCommand(command: string, args: string[], env: 
       stderr += raw;
 
       const trimmed = raw.trim();
+
+      // Intercept MESSAGE_BUS debug messages
+      if (trimmed.includes('[MESSAGE_BUS] publish:')) {
+        const prefix = '[MESSAGE_BUS] publish:';
+        const index = trimmed.indexOf(prefix);
+        if (index !== -1) {
+          const jsonStr = trimmed.slice(index + prefix.length).trim();
+          try {
+            const parsed = JSON.parse(jsonStr);
+            logEvent('GEMINI_EVENT', parsed);
+            return;
+          } catch (e) {
+            // Not valid JSON, fallback
+          }
+        }
+      }
+
       // Intercept debug logs from Gemini CLI
       if (trimmed.includes('[Routing]') || trimmed.includes('[Memory]') || trimmed.includes('[Status]')) {
         logEvent('LOG_DEBUG', { message: trimmed });
