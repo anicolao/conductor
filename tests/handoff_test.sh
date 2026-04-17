@@ -91,7 +91,24 @@ echo "Handoff comment" > "$TEST_DIR/comment.md"
 setup_gh_mock() {
   cat > "$TEST_DIR/gh" <<EOF
 #!/usr/bin/env bash
+# Record the call
+echo "gh \$*" >> "$TEST_DIR/gh_calls"
+
 case "\$*" in
+  "label list"*)
+    if [ -f "$TEST_DIR/mock_label_exists" ]; then
+      if echo "\$*" | grep -q -- "--jq"; then
+        echo "branch: test-branch"
+      else
+        echo '[{"name": "branch: test-branch"}]'
+      fi
+    else
+      echo '[]'
+    fi
+    ;;
+  "label create"*)
+    exit 0
+    ;;
   "issue view"*--jq*)
     echo "persona: coder"
     echo "branch: test-branch"
@@ -99,19 +116,21 @@ case "\$*" in
   "issue view"*)
     echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: test-branch"}], "url": "https://github.com/LLM-Orchestration/conductor/issues/123"}'
     ;;
-  *"project item-list"*--jq*)
-    if [ -f "$TEST_DIR/mock_project_item_missing" ]; then
-      echo ""
-    else
-      echo 'ITEM_123'
-    fi
-    ;;
   *"project item-list"*)
     if [ -f "$TEST_DIR/mock_project_item_missing" ]; then
       echo ""
+    elif echo "\$*" | grep -q -- "--jq"; then
+      if echo "\$*" | grep -q -- ".persona"; then
+        echo "coder"
+      else
+        echo '{"id": "ITEM_123", "content": {"id": "I_123"}, "persona": "coder"}'
+      fi
     else
-      echo '{"id": "ITEM_123", "content": {"id": "I_123"}}'
+      echo '{"items": [{"id": "ITEM_123", "content": {"id": "I_123"}, "persona": "coder"}]}'
     fi
+    ;;
+  "project field-list"*)
+    echo '{"fields": [{"name": "Persona", "id": "F_P", "options": [{"name": "coder", "id": "O_C"}, {"name": "conductor", "id": "O_CON"}]}]}'
     ;;
   "project view"*)
     echo '"PVT_kwDOA123"'
@@ -242,6 +261,38 @@ else
   fi
 fi
 rm "$TEST_DIR/mock_commit_count"
+
+# Test 8: Label creation when missing
+echo "Running Test 8: Label creation when missing..."
+rm -f "$TEST_DIR/mock_label_exists"
+rm -f "$TEST_DIR/gh_calls"
+if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md"; then
+  if grep -q "label create branch: test-branch" "$TEST_DIR/gh_calls"; then
+    echo "Success: Test 8 passed"
+  else
+    echo "Error: Test 8 failed (label creation NOT triggered)"
+    exit 1
+  fi
+else
+  echo "Error: Test 8 failed (handoff.sh exited with non-zero)"
+  exit 1
+fi
+
+# Test 9: No label creation when already exists
+echo "Running Test 9: No label creation when already exists..."
+touch "$TEST_DIR/mock_label_exists"
+rm -f "$TEST_DIR/gh_calls"
+if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md" > /dev/null 2>&1; then
+  if grep -q "label create branch: test-branch" "$TEST_DIR/gh_calls"; then
+    echo "Error: Test 9 failed (label creation triggered but label exists)"
+    exit 1
+  else
+    echo "Success: Test 9 passed"
+  fi
+else
+  echo "Error: Test 9 failed (handoff.sh exited with non-zero)"
+  exit 1
+fi
 
 echo "All handoff validation tests passed!"
 exit 0
