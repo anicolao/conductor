@@ -11,11 +11,14 @@ Conductor aims for extreme simplicity and high agency. Instead of complex, hardc
 - **Agentic Handoff**: Seamlessly transfer tasks between specialized personas.
 - **Bootstrapping**: Designed to work on its own codebase from day one.
 - **GitHub-Native**: Uses Issues for state tracking and Actions for execution.
+- **Structured Observability**: Real-time visibility into agent internal states via a SvelteKit-based UI (`observability-ui/`) and high-fidelity JSON event parsing.
+- **Orchestration Guardrails**: Built-in protections that keep the `conductor` persona focused on high-level planning and verification, preventing unauthorized source modification.
+- **Rigorous E2E Standards**: Zero-pixel tolerance and deterministic Playwright testing using a Unified Step Pattern (see [E2E_GUIDE.md](E2E_GUIDE.md)).
 - **Agent Agnostic**: Supports any CLI-based agent that can interact with a codebase.
 
 ## Gemini Setup
 
-This MVP invokes the official Gemini CLI through `npx` in headless mode.
+This MVP invokes the official Gemini CLI through `npx` in headless mode. We utilize `-o stream-json` for high-fidelity tool tracking and real-time observability.
 
 - For GitHub Actions, set either:
   - `GEMINI_OAUTH_CREDS_JSON` to the full contents of `~/.gemini/oauth_creds.json`
