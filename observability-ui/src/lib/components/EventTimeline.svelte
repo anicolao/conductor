@@ -10,7 +10,7 @@
     let currentDebugGroup: ConductorEvent[] = [];
 
     const flushDebugGroup = () => {
-      if (currentDebugGroup.length >= 1) {
+      if (currentDebugGroup.length >= 2) {
         result.push({
           v: 1,
           ts: currentDebugGroup[0].ts,
@@ -18,6 +18,8 @@
           persona: currentDebugGroup[0].persona,
           data: { events: [...currentDebugGroup] }
         });
+      } else if (currentDebugGroup.length === 1) {
+        result.push(currentDebugGroup[0]);
       }
       currentDebugGroup = [];
     };
