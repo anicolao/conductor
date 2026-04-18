@@ -17,8 +17,8 @@ Verify that consecutive debug messages are grouped into a collapsed card.
 ### Verifications
 - [x] Two debug groups, two info messages, and one single debug message are visible
 - [x] Single debug message is visible
-- [x] First group shows (2) and is collapsed
-- [x] Second group shows (2) and contains Gemini event
+- [x] First group shows (3) and is collapsed
+- [x] Second group shows (3) and contains Gemini event
 
 ---
 
