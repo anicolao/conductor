@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { marked } from 'marked';
   import type { ConductorEvent, GeminiEventData } from '../types';
   import JsonTree from './JsonTree.svelte';
 
@@ -12,6 +13,16 @@
     eventData.type === 'context-update' ||
     eventData._isMessageBus
   );
+
+  const markdownContent = $derived.by(() => {
+    if (eventData.type === 'message' && eventData.content) {
+      return marked.parse(eventData.content) as string;
+    }
+    if (eventData.type === 'result' && eventData.response) {
+      return marked.parse(eventData.response) as string;
+    }
+    return '';
+  });
 
   const getEventClass = (data: GeminiEventData) => {
     let base = `gemini-event ${data.type.replace(/_/g, '-')}`;
@@ -69,8 +80,8 @@
         <span class="debug-badge">🚌 DEBUG</span>
       {/if}
     </div>
-    <div class="event-body">
-      <p>{eventData.content}</p>
+    <div class="event-body markdown">
+      {@html markdownContent}
     </div>
   {:else if eventData.type === 'tool_use'}
     <div class="event-header">
@@ -170,8 +181,8 @@
         <span class="debug-badge">🚌 DEBUG</span>
       {/if}
     </div>
-    <div class="event-body">
-      <p>{eventData.response}</p>
+    <div class="event-body markdown">
+      {@html markdownContent}
       {#if eventData.stats}
         <div class="stats">
           {#if eventData.stats.tokens}
@@ -296,6 +307,38 @@
   .event-body p {
     margin: 0.25rem 0;
     white-space: pre-wrap;
+  }
+
+  .markdown :global(p) {
+    margin: 0.5rem 0;
+  }
+  .markdown :global(p:first-child) {
+    margin-top: 0;
+  }
+  .markdown :global(p:last-child) {
+    margin-bottom: 0;
+  }
+  .markdown :global(ul), .markdown :global(ol) {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+  }
+  .markdown :global(code) {
+    background: #f0f0f0;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.9em;
+  }
+  .markdown :global(pre) {
+    background: #f4f4f4;
+    padding: 0.75rem;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 0.5rem 0;
+  }
+  .markdown :global(pre code) {
+    background: transparent;
+    padding: 0;
   }
 
   pre {
