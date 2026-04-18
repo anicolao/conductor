@@ -19,7 +19,11 @@ Conductor moves the "intelligence" to the agents themselves. The framework's job
 1. **Simplicity Over Protocol**: Use natural language and standard development artifacts (PRs, issues, commits) for communication.
 2. **High-Agency Backends**: Rely on tools like Gemini CLI that are already "code-aware" and "filesystem-aware."
 3. **Self-Evolution**: The primary metric for Conductor is its ability to implement its own feature requests.
-4. **Transparent Orchestration**: No hidden state; everything is visible in the Git history and GitHub UI.
+4. **Transparent Orchestration**: No hidden state; everything is visible in the Git history and GitHub UI. Structured observability (JSON events) acts as the "connective tissue" that allows humans to monitor and audit complex AI workflows in real-time.
+
+## Platform Evolution
+
+The current SvelteKit-based Observability UI is our first step toward a robust, "Platform 10" style orchestration board. By treating LLM interactions as structured data streams rather than just text logs, we are building a foundation for deep debugging, performance optimization, and reliable multi-agent coordination at scale.
 
 ## Future State
 
