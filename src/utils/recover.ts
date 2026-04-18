@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 export interface ProjectIssueItem {
   repository: string;
   issueNumber: number;
@@ -8,10 +10,12 @@ export interface ProjectIssueItem {
   persona: 'conductor' | 'coder' | null;
 }
 
-export interface ConductorWorkflowRun {
-  status: string;
-  display_title?: string | null;
-}
+export const ConductorWorkflowRunSchema = z.object({
+  status: z.string(),
+  display_title: z.string().nullable().optional(),
+}).passthrough();
+
+export type ConductorWorkflowRun = z.infer<typeof ConductorWorkflowRunSchema>;
 
 export interface RunTarget {
   repository: string;
