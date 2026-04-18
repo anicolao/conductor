@@ -132,6 +132,28 @@
         <p class="no-tool-calls">No active tool calls</p>
       {/if}
     </div>
+  {:else if eventData.type === 'call'}
+    <div class="event-header">
+      <span class="icon">📞</span>
+      <span class="event-type">Call: {eventData.method || 'unknown'}</span>
+      {#if eventData._isMessageBus}
+        <span class="message-bus-badge">🚌 DEBUG</span>
+      {/if}
+    </div>
+    <div class="event-body">
+      <pre><code>{JSON.stringify(eventData.args || eventData.params || eventData, null, 2)}</code></pre>
+    </div>
+  {:else if eventData.type === 'context-update'}
+    <div class="event-header">
+      <span class="icon">🧠</span>
+      <span class="event-type">Context Update</span>
+      {#if eventData._isMessageBus}
+        <span class="message-bus-badge">🚌 DEBUG</span>
+      {/if}
+    </div>
+    <div class="event-body">
+      <pre><code>{JSON.stringify(eventData.context || eventData.updates || eventData, null, 2)}</code></pre>
+    </div>
   {:else if eventData.type === 'result'}
     <div class="event-header">
       <span class="icon">🏁</span>
