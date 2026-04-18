@@ -26,7 +26,11 @@
 
     for (const event of events) {
       const isDebug = event.event === 'LOG_DEBUG' || 
-                      (event.event === 'GEMINI_EVENT' && (event.data as GeminiEventData)?._isMessageBus === true);
+                      (event.event === 'GEMINI_EVENT' && (
+                        (event.data as GeminiEventData)?._isMessageBus === true ||
+                        (event.data as GeminiEventData)?.type === 'init' ||
+                        (event.data as GeminiEventData)?.type === 'tool-calls-update'
+                      ));
 
       if (isDebug) {
         currentDebugGroup.push(event);
