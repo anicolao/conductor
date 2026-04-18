@@ -15,10 +15,10 @@ Verify that consecutive debug messages are grouped into a collapsed card.
 ![Consecutive debug messages are grouped](./screenshots/001-debug-messages-grouped.png)
 
 ### Verifications
-- [x] Two debug groups, two info messages, and one single debug message are visible
-- [x] Single debug message is visible
+- [x] Three debug groups and two info messages are visible, no individual debug messages
 - [x] First group shows (3) and is collapsed
-- [x] Second group shows (3) and contains Gemini event
+- [x] Second group shows (2) and contains Call event
+- [x] Third group shows (3) and contains Gemini event
 
 ---
 

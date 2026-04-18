@@ -10,7 +10,7 @@
     let currentDebugGroup: ConductorEvent[] = [];
 
     const flushDebugGroup = () => {
-      if (currentDebugGroup.length > 1) {
+      if (currentDebugGroup.length >= 1) {
         result.push({
           v: 1,
           ts: currentDebugGroup[0].ts,
@@ -18,8 +18,6 @@
           persona: currentDebugGroup[0].persona,
           data: { events: [...currentDebugGroup] }
         });
-      } else if (currentDebugGroup.length === 1) {
-        result.push(currentDebugGroup[0]);
       }
       currentDebugGroup = [];
     };
@@ -29,7 +27,9 @@
                       (event.event === 'GEMINI_EVENT' && (
                         (event.data as GeminiEventData)?._isMessageBus === true ||
                         (event.data as GeminiEventData)?.type === 'init' ||
-                        (event.data as GeminiEventData)?.type === 'tool-calls-update'
+                        (event.data as GeminiEventData)?.type === 'tool-calls-update' ||
+                        (event.data as GeminiEventData)?.type === 'call' ||
+                        (event.data as GeminiEventData)?.type === 'context-update'
                       ));
 
       if (isDebug) {
