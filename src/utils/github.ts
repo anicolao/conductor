@@ -1,6 +1,7 @@
 import { spawnSync } from 'child_process';
 import * as path from 'path';
 import { z } from 'zod';
+import { logger } from './logger';
 
 export const GitHubEventSchema = z.object({
   action: z.string().optional(),
@@ -120,4 +121,41 @@ export function injectMediaPaths(text: string, urlToPath: Map<string, string>): 
  */
 export function isPersonaComment(body: string): boolean {
   return /^I am the \*\*(conductor|coder|automation|human)\*\*/.test(body.trim());
+}
+
+/**
+ * Posts a comment to the issue indicating that a persona has picked up the task.
+ */
+export function postPickupNote(
+  repository: string,
+  issueNumber: number,
+  persona: string,
+  branch: string,
+  runId?: string
+): void {
+  const pickupText = runId
+    ? `[picked up this task](https://llm-orchestration.github.io/conductor/run/?id=${runId})`
+    : 'picked up this task';
+
+  const body = `I am the **automation**
+
+The **${persona}** has ${pickupText} and is working on **${branch}**.`;
+
+  logger.info(`Posting pickup note to issue #${issueNumber} in ${repository}...`);
+
+  try {
+    const result = spawnSync('gh', ['issue', 'comment', String(issueNumber), '-R', repository, '--body', body], {
+      stdio: 'inherit',
+      env: process.env
+    });
+
+    if (result.error || result.status !== 0) {
+      logger.error(`Failed to post pickup note to issue #${issueNumber} in ${repository}`);
+      if (result.error) logger.error(result.error.message);
+    } else {
+      logger.info('Pickup note posted successfully.');
+    }
+  } catch (err) {
+    logger.error(`Error attempting to post pickup note: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
