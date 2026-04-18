@@ -5,6 +5,14 @@
   let { event, toolNameMap = new Map() }: { event: ConductorEvent, toolNameMap?: Map<string, string> } = $props();
   const eventData = $derived(event.data as GeminiEventData);
 
+  const isDebugType = $derived(
+    eventData.type === 'init' ||
+    eventData.type === 'tool-calls-update' ||
+    eventData.type === 'call' ||
+    eventData.type === 'context-update' ||
+    eventData._isMessageBus
+  );
+
   const getEventClass = (data: GeminiEventData) => {
     let base = `gemini-event ${data.type.replace(/_/g, '-')}`;
     if (data.type === 'message') {
@@ -45,8 +53,8 @@
     <div class="event-header">
       <span class="icon">🤖</span>
       <span class="event-type">Gemini Initialized</span>
-      {#if eventData._isMessageBus}
-        <span class="message-bus-badge">🚌 DEBUG</span>
+      {#if isDebugType}
+        <span class="debug-badge">{eventData._isMessageBus ? '🚌 ' : ''}DEBUG</span>
       {/if}
     </div>
     <div class="event-body">
@@ -58,7 +66,7 @@
       <span class="icon">{eventData.role === 'assistant' ? '✨' : '👤'}</span>
       <span class="event-type">{eventData.role}</span>
       {#if eventData._isMessageBus}
-        <span class="message-bus-badge">🚌 DEBUG</span>
+        <span class="debug-badge">🚌 DEBUG</span>
       {/if}
     </div>
     <div class="event-body">
@@ -72,7 +80,7 @@
         <span class="tool-id">({eventData.tool_id})</span>
       {/if}
       {#if eventData._isMessageBus}
-        <span class="message-bus-badge">🚌 DEBUG</span>
+        <span class="debug-badge">🚌 DEBUG</span>
       {/if}
     </div>
     <div class="event-body">
@@ -90,7 +98,7 @@
         <span class="tool-id">({eventData.tool_id})</span>
       {/if}
       {#if eventData._isMessageBus}
-        <span class="message-bus-badge">🚌 DEBUG</span>
+        <span class="debug-badge">🚌 DEBUG</span>
       {/if}
     </div>
     <div class="event-body">
@@ -115,8 +123,8 @@
     <div class="event-header">
       <span class="icon">📡</span>
       <span class="event-type">Tool Calls Update: {eventData.schedulerId}</span>
-      {#if eventData._isMessageBus}
-        <span class="message-bus-badge">🚌 DEBUG</span>
+      {#if isDebugType}
+        <span class="debug-badge">{eventData._isMessageBus ? '🚌 ' : ''}DEBUG</span>
       {/if}
     </div>
     <div class="event-body">
@@ -136,8 +144,8 @@
     <div class="event-header">
       <span class="icon">📞</span>
       <span class="event-type">Call: {eventData.method || 'unknown'}</span>
-      {#if eventData._isMessageBus}
-        <span class="message-bus-badge">🚌 DEBUG</span>
+      {#if isDebugType}
+        <span class="debug-badge">{eventData._isMessageBus ? '🚌 ' : ''}DEBUG</span>
       {/if}
     </div>
     <div class="event-body">
@@ -147,8 +155,8 @@
     <div class="event-header">
       <span class="icon">🧠</span>
       <span class="event-type">Context Update</span>
-      {#if eventData._isMessageBus}
-        <span class="message-bus-badge">🚌 DEBUG</span>
+      {#if isDebugType}
+        <span class="debug-badge">{eventData._isMessageBus ? '🚌 ' : ''}DEBUG</span>
       {/if}
     </div>
     <div class="event-body">
@@ -159,7 +167,7 @@
       <span class="icon">🏁</span>
       <span class="event-type">Gemini Result</span>
       {#if eventData._isMessageBus}
-        <span class="message-bus-badge">🚌 DEBUG</span>
+        <span class="debug-badge">🚌 DEBUG</span>
       {/if}
     </div>
     <div class="event-body">
@@ -189,7 +197,7 @@
       <span class="icon">❓</span>
       <span class="event-type">Unknown Event: {eventData.type}</span>
       {#if eventData._isMessageBus}
-        <span class="message-bus-badge">🚌 DEBUG</span>
+        <span class="debug-badge">🚌 DEBUG</span>
       {/if}
     </div>
     <div class="event-body">
@@ -250,14 +258,18 @@
     padding-bottom: 0.25rem;
   }
 
-  .message-bus-badge {
+  .debug-badge {
     font-size: 0.7rem;
-    background: #fd7e14;
+    background: #6c757d;
     color: white;
     padding: 1px 4px;
     border-radius: 3px;
     margin-left: 0.5rem;
     vertical-align: middle;
+  }
+
+  .is-message-bus .debug-badge {
+    background: #fd7e14;
   }
 
   .event-type {

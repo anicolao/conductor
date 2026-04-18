@@ -18,8 +18,10 @@ test('Observability Debug Message Grouping', async ({ page }, testInfo) => {
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:01.000Z","event":"LOG_DEBUG","persona":"coder","data":{"message":"Second debug message"}}
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:02.000Z","event":"LOG_INFO","persona":"coder","data":{"message":"An info message"}}
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:03.000Z","event":"LOG_DEBUG","persona":"coder","data":{"message":"Single debug message"}}
-::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:03.500Z","event":"GEMINI_EVENT","persona":"coder","data":{"type":"call","method":"test_method","args":{"foo":"bar"}}}
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:04.000Z","event":"LOG_INFO","persona":"coder","data":{"message":"Another info message"}}
+::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:04.200Z","event":"GEMINI_EVENT","persona":"coder","data":{"type":"call","method":"test_method","args":{"foo":"bar"}}}
+::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:04.500Z","event":"GEMINI_EVENT","persona":"coder","data":{"type":"context-update","data":{"new":"context"}}}
+::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:04.800Z","event":"LOG_INFO","persona":"coder","data":{"message":"Yet another info message"}}
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:05.000Z","event":"GEMINI_EVENT","persona":"coder","data":{"type":"message","role":"assistant","content":"I am a message bus message","_isMessageBus":true}}
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:05.500Z","event":"GEMINI_EVENT","persona":"coder","data":{"type":"tool-calls-update","toolCalls":[],"schedulerId":"abc"}}
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:06.000Z","event":"LOG_DEBUG","persona":"coder","data":{"message":"Debug after message bus"}}
@@ -31,16 +33,19 @@ test('Observability Debug Message Grouping', async ({ page }, testInfo) => {
     description: 'Consecutive debug messages are grouped',
     verifications: [
       {
-        spec: 'Three debug groups and two info messages are visible, no individual debug messages',
+        spec: 'Three debug groups, three info messages, and one individual debug message are visible',
         check: async () => {
-          // Group 1: [1, init, 2]
+          // Group 1: [1, init, 2] (3 items)
           // Info
-          // Group 2: [Single(3), Call]
+          // Single: LOG_DEBUG: Single debug message (NOT grouped because it's alone)
           // Info
-          // Group 3: [MessageBus, ToolUpdate, Debug]
+          // Group 2: [Call, ContextUpdate] (2 items)
+          // Info
+          // Group 3: [MessageBus, ToolUpdate, Debug] (3 items)
           await expect(page.locator('.log_debug_group')).toHaveCount(3);
-          await expect(page.locator('.log_info')).toHaveCount(2);
-          await expect(page.locator('.log_debug')).toHaveCount(0);
+          await expect(page.locator('.log_info')).toHaveCount(3);
+          await expect(page.locator('.log_debug')).toHaveCount(1);
+          await expect(page.getByText('Single debug message')).toBeVisible();
         }
       },
       {
@@ -60,6 +65,7 @@ test('Observability Debug Message Grouping', async ({ page }, testInfo) => {
           await expect(secondGroup.getByText('DEBUG MESSAGES (2)')).toBeVisible();
           await secondGroup.click(); // Expand it
           await expect(page.getByText('Call: test_method')).toBeVisible();
+          await expect(page.getByText('Context Update')).toBeVisible();
         }
       },
       {

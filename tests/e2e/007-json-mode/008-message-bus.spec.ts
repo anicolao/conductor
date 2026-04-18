@@ -18,8 +18,16 @@ test('Gemini Message Bus Events', async ({ page }, testInfo) => {
     description: 'User pastes Message Bus events',
     verifications: [
       {
-        spec: 'Both events are rendered as cards',
+        spec: 'Events are grouped',
         check: async () => {
+          await expect(page.locator('.log_debug_group')).toHaveCount(1);
+          await expect(page.getByText('DEBUG MESSAGES (2)')).toBeVisible();
+        }
+      },
+      {
+        spec: 'Expanding group shows both events',
+        check: async () => {
+          await page.locator('.log_debug_group').click();
           await expect(page.getByText('Tool Calls Update: root')).toHaveCount(2);
           await expect(page.getByText('🚌 DEBUG')).toHaveCount(2);
         }
