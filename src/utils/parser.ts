@@ -1,4 +1,4 @@
-import type { ConductorEvent } from './logger';
+import { ConductorEvent, ConductorEventSchema } from './logger';
 
 const EVENT_MARKER = '::CONDUCTOR_EVENT::';
 
@@ -18,7 +18,7 @@ export function parseLogs(logs: string): ConductorEvent[] {
       }
 
       try {
-        const event = JSON.parse(jsonStr) as ConductorEvent;
+        const event = ConductorEventSchema.parse(JSON.parse(jsonStr));
         events.push(event);
       } catch (e) {
         // Only log error if it looks like it SHOULD have been a complete JSON
@@ -28,14 +28,18 @@ export function parseLogs(logs: string): ConductorEvent[] {
       const match = line.match(/\[MESSAGE_BUS\] publish:\s*(\{.*\})/);
       if (match) {
         try {
-          const data = JSON.parse(match[1]);
-          data._isMessageBus = true;
-          events.push({
+          const rawData = JSON.parse(match[1]);
+          const data = {
+            ...rawData,
+            _isMessageBus: true
+          };
+          
+          events.push(ConductorEventSchema.parse({
             v: 1,
-            ts: new Date().toISOString(), // We don't have a timestamp in the raw log line usually, or it's outside
+            ts: new Date().toISOString(),
             event: 'GEMINI_EVENT',
             data
-          });
+          }));
         } catch (e) {
           console.error('Failed to parse message bus event:', match[1], e);
         }
