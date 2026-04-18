@@ -3,10 +3,11 @@ import path from 'path';
 import os from 'os';
 import { spawnSync } from 'child_process';
 import dotenv from 'dotenv';
+import { z } from 'zod';
 
 import { runStreamingCommand } from './utils/exec';
 import { DEFAULT_COMMENT_LIMIT, resolveCommentLimit } from './utils/comment-limit';
-import { GitHubEvent, extractEventData, isPersonaComment, collectAllMediaUrls, downloadMedia, injectMediaPaths } from './utils/github';
+import { GitHubEvent, GitHubEventSchema, extractEventData, isPersonaComment, collectAllMediaUrls, downloadMedia, injectMediaPaths } from './utils/github';
 import { logEvent, logger } from './utils/logger';
 
 function verifyGitHubCli(repository: string, issueNumber: number): string {
@@ -119,10 +120,12 @@ function hasGeminiOAuthCredentials(): boolean {
   }
 }
 
-interface Comment {
-  body: string;
-  html_url: string;
-}
+const CommentSchema = z.object({
+  body: z.string(),
+  html_url: z.string(),
+});
+
+type Comment = z.infer<typeof CommentSchema>;
 
 function loadIssueState(repository: string, issueNumber: number): { 
   labels: string[]; 
@@ -140,14 +143,22 @@ function loadIssueState(repository: string, issueNumber: number): {
     return null;
   }
 
-  const parsed = JSON.parse(issueData.stdout);
+  const IssueStateSchema = z.object({
+    labels: z.array(z.object({ name: z.string() })),
+    body: z.string().nullable().transform(val => val ?? ''),
+    comments: z.number().default(0),
+    html_url: z.string().default(''),
+    node_id: z.string().default(''),
+  });
+
+  const parsed = IssueStateSchema.parse(JSON.parse(issueData.stdout));
 
   return {
-    labels: Array.isArray(parsed.labels) ? parsed.labels.map((label: { name: string }) => label.name) : [],
-    body: parsed.body || '',
-    commentCount: typeof parsed.comments === 'number' ? parsed.comments : 0,
-    htmlUrl: parsed.html_url || '',
-    nodeId: parsed.node_id || ''
+    labels: parsed.labels.map(label => label.name),
+    body: parsed.body,
+    commentCount: parsed.comments,
+    htmlUrl: parsed.html_url,
+    nodeId: parsed.node_id
   };
 }
 
@@ -173,7 +184,7 @@ function loadIssueComments(repository: string, issueNumber: number, commentCount
       return allComments;
     }
 
-    const parsed = JSON.parse(commentsData.stdout) as Comment[];
+    const parsed = z.array(CommentSchema).parse(JSON.parse(commentsData.stdout));
     allComments.push(...parsed);
   }
 
@@ -292,7 +303,7 @@ async function main() {
     process.exit(1);
   }
 
-  const event: GitHubEvent = JSON.parse(fs.readFileSync(eventPath, 'utf8'));
+  const event: GitHubEvent = GitHubEventSchema.parse(JSON.parse(fs.readFileSync(eventPath, 'utf8')));
   const eventName = process.env.GITHUB_EVENT_NAME;
   
   let {

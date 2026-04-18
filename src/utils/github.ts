@@ -1,32 +1,37 @@
 import { spawnSync } from 'child_process';
 import * as path from 'path';
+import { z } from 'zod';
 
-export interface GitHubEvent {
-  action?: string;
-  issue?: {
-    number: number;
-    labels: { name: string }[];
-    body: string;
-    html_url?: string;
-    node_id?: string;
-  };
-  comment?: {
-    body: string;
-    html_url?: string;
-  };
-  client_payload?: {
-    repository?: string;
-    issue_number?: number;
-    issue_node_id?: string;
-    project_item_id?: string;
-    project_number?: number;
-    project_url?: string;
-    persona?: string;
-    event_name?: string;
-    action?: string;
-    last_comment_url?: string;
-  };
-}
+export const GitHubEventSchema = z.object({
+  action: z.string().optional(),
+  issue: z.object({
+    number: z.number(),
+    labels: z.array(z.object({
+      name: z.string()
+    })),
+    body: z.string().default(''),
+    html_url: z.string().optional(),
+    node_id: z.string().optional(),
+  }).optional(),
+  comment: z.object({
+    body: z.string(),
+    html_url: z.string().optional(),
+  }).optional(),
+  client_payload: z.object({
+    repository: z.string().optional(),
+    issue_number: z.number().optional(),
+    issue_node_id: z.string().optional(),
+    project_item_id: z.string().optional(),
+    project_number: z.number().optional(),
+    project_url: z.string().optional(),
+    persona: z.string().optional(),
+    event_name: z.string().optional(),
+    action: z.string().optional(),
+    last_comment_url: z.string().optional(),
+  }).optional(),
+}).passthrough();
+
+export type GitHubEvent = z.infer<typeof GitHubEventSchema>;
 
 export function extractEventData(event: GitHubEvent, env: NodeJS.ProcessEnv) {
   const repository = event.client_payload?.repository || env.GITHUB_REPOSITORY || '';

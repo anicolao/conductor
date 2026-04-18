@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 /**
  * Conductor Structured Logging
  * 
@@ -5,16 +7,18 @@
  * by the Conductor Observability UI to provide a rich timeline of actions.
  */
 
-export interface ConductorEvent {
-  v: number;
-  ts: string;
-  run_id?: string;
-  repo?: string;
-  issue?: number;
-  persona?: string;
-  event: string;
-  data: any;
-}
+export const ConductorEventSchema = z.object({
+  v: z.number(),
+  ts: z.string(),
+  run_id: z.string().optional(),
+  repo: z.string().optional(),
+  issue: z.number().optional(),
+  persona: z.string().optional(),
+  event: z.string(),
+  data: z.record(z.string(), z.unknown()).or(z.object({ text: z.string() })),
+});
+
+export type ConductorEvent = z.infer<typeof ConductorEventSchema>;
 
 /**
  * Logs a structured event to stdout.
@@ -25,7 +29,7 @@ export interface ConductorEvent {
  */
 export function logEvent(
   event: string, 
-  data: any, 
+  data: Record<string, unknown> | { text: string }, 
   context: { persona?: string; issue?: number } = {}
 ) {
   const payload: ConductorEvent = {
@@ -43,16 +47,16 @@ export function logEvent(
 }
 
 export const logger = {
-  info: (message: string, data?: any, context?: { persona?: string; issue?: number }) => 
+  info: (message: string, data?: Record<string, unknown>, context?: { persona?: string; issue?: number }) => 
     logEvent('LOG_INFO', { message, ...data }, context),
   
-  warn: (message: string, data?: any, context?: { persona?: string; issue?: number }) => 
+  warn: (message: string, data?: Record<string, unknown>, context?: { persona?: string; issue?: number }) => 
     logEvent('LOG_WARN', { message, ...data }, context),
   
-  error: (message: string, data?: any, context?: { persona?: string; issue?: number }) => 
+  error: (message: string, data?: Record<string, unknown>, context?: { persona?: string; issue?: number }) => 
     logEvent('LOG_ERROR', { message, ...data }, context),
   
-  debug: (message: string, data?: any, context?: { persona?: string; issue?: number }) => 
+  debug: (message: string, data?: Record<string, unknown>, context?: { persona?: string; issue?: number }) => 
     logEvent('LOG_DEBUG', { message, ...data }, context),
   
   stdout: (text: string, context?: { persona?: string; issue?: number }) => 
