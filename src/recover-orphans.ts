@@ -1,9 +1,10 @@
 import dotenv from 'dotenv';
+import { z } from 'zod';
 import { logger } from './utils/logger';
-
 import {
   countRecoveryAttempts,
   ConductorWorkflowRun,
+  ConductorWorkflowRunSchema,
   findOrphanedItems,
   normalizePersona,
   ProjectIssueItem
@@ -20,38 +21,47 @@ interface RecoverOptions {
   maxRetries: number;
 }
 
-interface GraphqlResponse<T> {
-  data?: T;
-  errors?: Array<{ message: string }>;
-}
+const WorkflowRunsResponseSchema = z.object({
+  workflow_runs: z.array(ConductorWorkflowRunSchema).optional(),
+}).passthrough();
 
-interface ProjectItemsQuery {
-  organization?: {
-    projectV2?: {
-      url: string;
-      items: {
-        pageInfo: {
-          hasNextPage: boolean;
-          endCursor: string | null;
-        };
-        nodes: Array<{
-          status?: { name?: string | null } | null;
-          persona?: { name?: string | null } | null;
-          content?: {
-            id?: string | null;
-            number?: number | null;
-            url?: string | null;
-            repository?: { nameWithOwner?: string | null } | null;
-          } | null;
-        }>;
-      };
-    } | null;
-  } | null;
-}
 
-interface WorkflowRunsResponse {
-  workflow_runs?: Array<ConductorWorkflowRun>;
-}
+const ProjectItemsQuerySchema = z.object({
+  organization: z.object({
+    projectV2: z.object({
+      url: z.string(),
+      items: z.object({
+        pageInfo: z.object({
+          hasNextPage: z.boolean(),
+          endCursor: z.string().nullable(),
+        }),
+        nodes: z.array(z.object({
+          status: z.object({
+            name: z.string().nullable().optional(),
+          }).nullable().optional(),
+          persona: z.object({
+            name: z.string().nullable().optional(),
+          }).nullable().optional(),
+          content: z.object({
+            id: z.string().nullable().optional(),
+            number: z.number().nullable().optional(),
+            repository: z.object({
+              nameWithOwner: z.string().nullable().optional(),
+            }).nullable().optional(),
+          }).nullable().optional(),
+        })),
+      }),
+    }).nullable().optional(),
+  }).nullable().optional(),
+}).passthrough();
+
+const GraphqlResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) => z.object({
+  data: dataSchema.optional(),
+  errors: z.array(z.object({ message: z.string() })).optional(),
+}).passthrough();
+
+type ProjectItemsQuery = z.infer<typeof ProjectItemsQuerySchema>;
+type WorkflowRunsResponse = z.infer<typeof WorkflowRunsResponseSchema>;
 
 function getToken(): string {
   const token = process.env.CONDUCTOR_TOKEN || process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
@@ -98,7 +108,7 @@ function parseArgs(argv: string[]): RecoverOptions {
   return { dryRun, maxRetries };
 }
 
-async function githubGraphql<T>(query: string, variables: Record<string, unknown>, token: string): Promise<T> {
+async function githubGraphql<T>(schema: z.ZodType<T>, query: string, variables: Record<string, unknown>, token: string): Promise<T> {
   const response = await fetch('https://api.github.com/graphql', {
     method: 'POST',
     headers: {
@@ -110,7 +120,9 @@ async function githubGraphql<T>(query: string, variables: Record<string, unknown
     body: JSON.stringify({ query, variables })
   });
 
-  const body = (await response.json()) as GraphqlResponse<T>;
+  const json = await response.json();
+  const body = GraphqlResponseSchema(schema).parse(json);
+
   if (!response.ok || body.errors?.length) {
     throw new Error(`GitHub GraphQL request failed: ${JSON.stringify(body.errors || body)}`);
   }
@@ -122,7 +134,7 @@ async function githubGraphql<T>(query: string, variables: Record<string, unknown
   return body.data;
 }
 
-async function githubRest<T>(path: string, token: string, init?: RequestInit): Promise<T> {
+async function githubRest<T>(schema: z.ZodType<T>, path: string, token: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`https://api.github.com${path}`, {
     ...init,
     headers: {
@@ -141,10 +153,11 @@ async function githubRest<T>(path: string, token: string, init?: RequestInit): P
 
   const text = await response.text();
   if (!text.trim()) {
-    return undefined as T;
+    return undefined as unknown as T;
   }
 
-  return JSON.parse(text) as T;
+  const json = JSON.parse(text);
+  return schema.parse(json);
 }
 
 async function loadProjectItems(token: string): Promise<ProjectIssueItem[]> {
@@ -189,13 +202,13 @@ async function loadProjectItems(token: string): Promise<ProjectIssueItem[]> {
   let after: string | null = null;
 
   while (true) {
-    const data: ProjectItemsQuery = await githubGraphql<ProjectItemsQuery>(
+    const data: ProjectItemsQuery = await githubGraphql(
+      ProjectItemsQuerySchema,
       query,
       { org: ORG_LOGIN, number: PROJECT_NUMBER, after },
       token
     );
-    const project: NonNullable<NonNullable<ProjectItemsQuery['organization']>['projectV2']> | null =
-      data.organization?.projectV2 ?? null;
+    const project = data.organization?.projectV2;
     if (!project) {
       throw new Error(`Project ${ORG_LOGIN}#${PROJECT_NUMBER} was not found`);
     }
@@ -228,15 +241,17 @@ async function loadProjectItems(token: string): Promise<ProjectIssueItem[]> {
 }
 
 async function loadWorkflowRuns(token: string): Promise<ConductorWorkflowRun[]> {
-  const data = await githubRest<WorkflowRunsResponse>(
+  const data = await githubRest(
+    WorkflowRunsResponseSchema,
     `/repos/${TARGET_REPO}/actions/workflows/${WORKFLOW_FILE}/runs?per_page=100`,
     token
   );
-  return Array.isArray(data.workflow_runs) ? data.workflow_runs : [];
+  return data.workflow_runs || [];
 }
 
 async function dispatchRecovery(item: ProjectIssueItem, token: string): Promise<void> {
   await githubRest(
+    z.unknown(),
     `/repos/${TARGET_REPO}/dispatches`,
     token,
     {
