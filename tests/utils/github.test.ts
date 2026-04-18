@@ -1,5 +1,58 @@
-import { describe, it, expect } from 'vitest';
-import { extractEventData, GitHubEvent, extractMediaUrls, collectAllMediaUrls, injectMediaPaths } from '../../src/utils/github';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { spawnSync } from 'child_process';
+import { extractEventData, GitHubEvent, extractMediaUrls, collectAllMediaUrls, injectMediaPaths, postPickupNote } from '../../src/utils/github';
+
+vi.mock('child_process', () => ({
+  spawnSync: vi.fn(() => ({ status: 0 }))
+}));
+
+describe('postPickupNote', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should include a hyperlink when runId is provided', () => {
+    postPickupNote('owner/repo', 123, 'conductor', 'main', '24606677148');
+
+    expect(spawnSync).toHaveBeenCalledWith(
+      'gh',
+      expect.arrayContaining([
+        'issue',
+        'comment',
+        '123',
+        '-R',
+        'owner/repo',
+        '--body',
+        expect.stringContaining('[picked up this task](https://llm-orchestration.github.io/conductor/run/?id=24606677148)')
+      ]),
+      expect.any(Object)
+    );
+  });
+
+  it('should use plain text when runId is not provided', () => {
+    postPickupNote('owner/repo', 123, 'conductor', 'main');
+
+    expect(spawnSync).toHaveBeenCalledWith(
+      'gh',
+      expect.arrayContaining([
+        '--body',
+        expect.stringContaining('has picked up this task and is working on **main**')
+      ]),
+      expect.any(Object)
+    );
+    
+    const bodyArg = (vi.mocked(spawnSync).mock.calls[0][1] as string[])[6];
+    expect(bodyArg).not.toContain('https://llm-orchestration.github.io/conductor/run/?id=');
+  });
+
+  it('should use plain text when runId is empty', () => {
+    postPickupNote('owner/repo', 123, 'conductor', 'main', '');
+
+    const bodyArg = (vi.mocked(spawnSync).mock.calls[0][1] as string[])[6];
+    expect(bodyArg).toContain('has picked up this task and is working on **main**');
+    expect(bodyArg).not.toContain('https://llm-orchestration.github.io/conductor/run/?id=');
+  });
+});
 
 describe('injectMediaPaths', () => {
   it('should inject paths after URLs', () => {

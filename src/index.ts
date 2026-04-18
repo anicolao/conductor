@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 import { runStreamingCommand } from './utils/exec';
 import { DEFAULT_COMMENT_LIMIT, resolveCommentLimit } from './utils/comment-limit';
-import { GitHubEvent, GitHubEventSchema, extractEventData, isPersonaComment, collectAllMediaUrls, downloadMedia, injectMediaPaths } from './utils/github';
+import { GitHubEvent, GitHubEventSchema, extractEventData, isPersonaComment, collectAllMediaUrls, downloadMedia, injectMediaPaths, postPickupNote } from './utils/github';
 import { logEvent, logger } from './utils/logger';
 
 function verifyGitHubCli(repository: string, issueNumber: number): string {
@@ -270,30 +270,6 @@ function activatePersonaLabel(repository: string, issueNumber: number, persona: 
   }
 }
 
-function postPickupNote(repository: string, issueNumber: number, persona: string, branch: string): void {
-  const body = `I am the **automation**
-
-The **${persona}** has picked up this task and is working on **${branch}**.`;
-  
-  logger.info(`Posting pickup note to issue #${issueNumber} in ${repository}...`);
-  
-  try {
-    const result = spawnSync('gh', ['issue', 'comment', String(issueNumber), '-R', repository, '--body', body], {
-      stdio: 'inherit',
-      env: process.env
-    });
-
-    if (result.error || result.status !== 0) {
-      logger.error(`Failed to post pickup note to issue #${issueNumber} in ${repository}`);
-      if (result.error) logger.error(result.error.message);
-    } else {
-      logger.info('Pickup note posted successfully.');
-    }
-  } catch (err) {
-    logger.error(`Error attempting to post pickup note: ${err instanceof Error ? err.message : String(err)}`);
-  }
-}
-
 async function main() {
   dotenv.config();
 
@@ -409,7 +385,7 @@ async function main() {
     logEvent('session_start', { branch: currentBranch, labels }, { persona, issue: issueNumber });
 
     // Post pickup note (non-critical)
-    postPickupNote(repository, issueNumber, persona, currentBranch);
+    postPickupNote(repository, issueNumber, persona, currentBranch, process.env.GITHUB_RUN_ID);
 
     // 3. Load Prompt
     const conductorRoot = process.env.CONDUCTOR_ROOT || path.join(__dirname, '..', '..');
