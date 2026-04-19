@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { z } from 'zod';
+import { JsonObject } from './utils/types';
 import { logger } from './utils/logger';
 import {
   countRecoveryAttempts,
@@ -108,7 +109,7 @@ function parseArgs(argv: string[]): RecoverOptions {
   return { dryRun, maxRetries };
 }
 
-async function githubGraphql<T>(schema: z.ZodType<T>, query: string, variables: Record<string, unknown>, token: string): Promise<T> {
+async function githubGraphql<T>(schema: z.ZodType<T>, query: string, variables: JsonObject, token: string): Promise<T> {
   const response = await fetch('https://api.github.com/graphql', {
     method: 'POST',
     headers: {

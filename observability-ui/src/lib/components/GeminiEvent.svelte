@@ -5,6 +5,7 @@
 
   let { event, toolNameMap = new Map() }: { event: ConductorEvent, toolNameMap?: Map<string, string> } = $props();
   const eventData = $derived(event.data as GeminiEventData);
+  const d = $derived(eventData as any);
 
   const isDebugType = $derived(
     eventData.type === 'init' ||
@@ -15,17 +16,19 @@
   );
 
   const markdownContent = $derived.by(() => {
-    if (eventData.type === 'message' && eventData.content) {
-      return marked.parse(eventData.content) as string;
+    const data = eventData as any;
+    if (data.type === 'message' && data.content) {
+      return marked.parse(String(data.content)) as string;
     }
-    if (eventData.type === 'result' && eventData.response) {
-      return marked.parse(eventData.response) as string;
+    if (data.type === 'result' && data.response) {
+      return marked.parse(String(data.response)) as string;
     }
     return '';
   });
 
   const getEventClass = (data: GeminiEventData) => {
-    let base = `gemini-event ${data.type.replace(/_/g, '-')}`;
+    const type = (data as any).type || 'unknown';
+    let base = `gemini-event ${String(type).replace(/_/g, '-')}`;
     if (data.type === 'message') {
       base += ` ${data.role}`;
     }
@@ -41,17 +44,14 @@
       data.name ||
       data.tool;
     
-    if (name) return name;
+    if (typeof name === 'string') return name;
     
     if (data.tool_id && toolNameMap.has(data.tool_id)) {
       return toolNameMap.get(data.tool_id);
     }
 
-    return (
-      data.status ||
-      (data.data && data.data.status) ||
-      'unknown'
-    );
+    const status = data.status || (data.data && data.data.status);
+    return typeof status === 'string' ? status : 'unknown';
   }
 
   function getToolArgs(data: any) {
@@ -60,62 +60,62 @@
 </script>
 
 <div class={getEventClass(eventData)}>
-  {#if eventData.type === 'init'}
+  {#if d.type === 'init'}
     <div class="event-header">
       <span class="icon">🤖</span>
       <span class="event-type">Gemini Initialized</span>
       {#if isDebugType}
-        <span class="debug-badge">{eventData._isMessageBus ? '🚌 ' : ''}DEBUG</span>
+        <span class="debug-badge">{d._isMessageBus ? '🚌 ' : ''}DEBUG</span>
       {/if}
     </div>
     <div class="event-body">
-      <p><strong>Session ID:</strong> <code>{eventData.sessionId}</code></p>
-      <p><strong>Model:</strong> <code>{eventData.model}</code></p>
+      <p><strong>Session ID:</strong> <code>{d.sessionId}</code></p>
+      <p><strong>Model:</strong> <code>{d.model}</code></p>
     </div>
-  {:else if eventData.type === 'message'}
+  {:else if d.type === 'message'}
     <div class="event-header">
-      <span class="icon">{eventData.role === 'assistant' ? '✨' : '👤'}</span>
-      <span class="event-type">{eventData.role}</span>
-      {#if eventData._isMessageBus}
+      <span class="icon">{d.role === 'assistant' ? '✨' : '👤'}</span>
+      <span class="event-type">{d.role}</span>
+      {#if d._isMessageBus}
         <span class="debug-badge">🚌 DEBUG</span>
       {/if}
     </div>
     <div class="event-body markdown">
       {@html markdownContent}
     </div>
-  {:else if eventData.type === 'tool_use'}
+  {:else if d.type === 'tool_use'}
     <div class="event-header">
       <span class="icon">🛠️</span>
-      <span class="event-type">Tool Use: {getToolName(eventData)}</span>
-      {#if eventData.tool_id}
-        <span class="tool-id">({eventData.tool_id})</span>
+      <span class="event-type">Tool Use: {getToolName(d)}</span>
+      {#if d.tool_id}
+        <span class="tool-id">({d.tool_id})</span>
       {/if}
-      {#if eventData._isMessageBus}
+      {#if d._isMessageBus}
         <span class="debug-badge">🚌 DEBUG</span>
       {/if}
     </div>
     <div class="event-body">
-      <pre><code>{JSON.stringify(getToolArgs(eventData), null, 2)}</code></pre>
+      <pre><code>{JSON.stringify(getToolArgs(d), null, 2)}</code></pre>
     </div>
-  {:else if eventData.type === 'tool_result'}
+  {:else if d.type === 'tool_result'}
     <div class="event-header">
       <span class="icon">📤</span>
-      <span class="event-type">TOOL RESULT: {getToolName(eventData)}
-        {#if eventData.status || (eventData.data && eventData.data.status)}
-          ({eventData.status || eventData.data.status})
+      <span class="event-type">TOOL RESULT: {getToolName(d)}
+        {#if d.status || (d.data && d.data.status)}
+          ({d.status || d.data.status})
         {/if}
       </span>
-      {#if eventData.tool_id}
-        <span class="tool-id">({eventData.tool_id})</span>
+      {#if d.tool_id}
+        <span class="tool-id">({d.tool_id})</span>
       {/if}
-      {#if eventData._isMessageBus}
+      {#if d._isMessageBus}
         <span class="debug-badge">🚌 DEBUG</span>
       {/if}
     </div>
     <div class="event-body">
-      {#if eventData.status || eventData.output || (eventData.data && (eventData.data.status || eventData.data.output))}
-        {@const status = eventData.status || (eventData.data && eventData.data.status)}
-        {@const output = eventData.output || (eventData.data && eventData.data.output)}
+      {#if d.status || d.output || (d.data && (d.data.status || d.data.output))}
+        {@const status = d.status || (d.data && d.data.status)}
+        {@const output = d.output || (d.data && d.data.output)}
         {#if status}
           <div class="tool-result-status {status}">
             <strong>Status:</strong> {status}
@@ -125,23 +125,23 @@
           <pre class="terminal-output"><code>{output}</code></pre>
         {/if}
       {:else}
-        <pre><code>{typeof eventData.result === 'string'
-            ? eventData.result
-            : JSON.stringify(eventData.result || eventData.data || eventData, null, 2)}</code></pre>
+        <pre><code>{typeof d.result === 'string'
+            ? d.result
+            : JSON.stringify(d.result || d.data || d, null, 2)}</code></pre>
       {/if}
     </div>
-  {:else if eventData.type === 'tool-calls-update'}
+  {:else if d.type === 'tool-calls-update'}
     <div class="event-header">
       <span class="icon">📡</span>
-      <span class="event-type">Tool Calls Update: {eventData.schedulerId}</span>
+      <span class="event-type">Tool Calls Update: {d.schedulerId}</span>
       {#if isDebugType}
-        <span class="debug-badge">{eventData._isMessageBus ? '🚌 ' : ''}DEBUG</span>
+        <span class="debug-badge">{d._isMessageBus ? '🚌 ' : ''}DEBUG</span>
       {/if}
     </div>
     <div class="event-body">
-      {#if eventData.toolCalls && eventData.toolCalls.length > 0}
+      {#if d.toolCalls && d.toolCalls.length > 0}
         <div class="active-tool-calls">
-          {#each eventData.toolCalls as toolCall}
+          {#each d.toolCalls as toolCall}
             <span class="tool-call-pill">
               <code>{toolCall.function?.name || toolCall.id}</code>
             </span>
@@ -151,53 +151,53 @@
         <p class="no-tool-calls">No active tool calls</p>
       {/if}
     </div>
-  {:else if eventData.type === 'call'}
+  {:else if d.type === 'call'}
     <div class="event-header">
       <span class="icon">📞</span>
-      <span class="event-type">Call: {eventData.method || 'unknown'}</span>
+      <span class="event-type">Call: {d.method || 'unknown'}</span>
       {#if isDebugType}
-        <span class="debug-badge">{eventData._isMessageBus ? '🚌 ' : ''}DEBUG</span>
+        <span class="debug-badge">{d._isMessageBus ? '🚌 ' : ''}DEBUG</span>
       {/if}
     </div>
     <div class="event-body">
-      <pre><code>{JSON.stringify(eventData.args || eventData.params || eventData, null, 2)}</code></pre>
+      <pre><code>{JSON.stringify(d.args || d.params || d, null, 2)}</code></pre>
     </div>
-  {:else if eventData.type === 'context-update'}
+  {:else if d.type === 'context-update'}
     <div class="event-header">
       <span class="icon">🧠</span>
       <span class="event-type">Context Update</span>
       {#if isDebugType}
-        <span class="debug-badge">{eventData._isMessageBus ? '🚌 ' : ''}DEBUG</span>
+        <span class="debug-badge">{d._isMessageBus ? '🚌 ' : ''}DEBUG</span>
       {/if}
     </div>
     <div class="event-body">
-      <pre><code>{JSON.stringify(eventData.context || eventData.updates || eventData, null, 2)}</code></pre>
+      <pre><code>{JSON.stringify(d.context || d.updates || d, null, 2)}</code></pre>
     </div>
-  {:else if eventData.type === 'result'}
+  {:else if d.type === 'result'}
     <div class="event-header">
       <span class="icon">🏁</span>
       <span class="event-type">Gemini Result</span>
-      {#if eventData._isMessageBus}
+      {#if d._isMessageBus}
         <span class="debug-badge">🚌 DEBUG</span>
       {/if}
     </div>
     <div class="event-body markdown">
       {@html markdownContent}
-      {#if eventData.stats}
+      {#if d.stats}
         <div class="stats">
-          {#if eventData.stats.tokens}
+          {#if d.stats.tokens}
             <div class="stat">
               <span class="label">Tokens:</span>
               <span class="value"
-                >{eventData.stats.tokens.total || 0} (P: {eventData.stats.tokens.prompt || 0}, C: {eventData.stats.tokens.completion ||
+                >{d.stats.tokens.total || 0} (P: {d.stats.tokens.prompt || 0}, C: {d.stats.tokens.completion ||
                   0})</span
               >
             </div>
           {/if}
-          {#if eventData.stats.latency}
+          {#if d.stats.latency}
             <div class="stat">
               <span class="label">Latency:</span>
-              <span class="value">{eventData.stats.latency}ms</span>
+              <span class="value">{d.stats.latency}ms</span>
             </div>
           {/if}
         </div>
@@ -206,13 +206,13 @@
   {:else}
     <div class="event-header">
       <span class="icon">❓</span>
-      <span class="event-type">Unknown Event: {eventData.type}</span>
-      {#if eventData._isMessageBus}
+      <span class="event-type">Unknown Event: {d.type}</span>
+      {#if d._isMessageBus}
         <span class="debug-badge">🚌 DEBUG</span>
       {/if}
     </div>
     <div class="event-body">
-      <pre><code>{JSON.stringify(eventData, null, 2)}</code></pre>
+      <pre><code>{JSON.stringify(d, null, 2)}</code></pre>
     </div>
   {/if}
 

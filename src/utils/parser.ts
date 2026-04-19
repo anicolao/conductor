@@ -1,4 +1,5 @@
-import { ConductorEvent, ConductorEventSchema } from './logger';
+import type { ConductorEvent } from './logger';
+import { ConductorEventSchema } from './logger';
 
 const EVENT_MARKER = '::CONDUCTOR_EVENT::';
 

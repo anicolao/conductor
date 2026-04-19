@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { JsonObject } from './types';
+import { JsonObjectSchema } from './types';
 
 /**
  * Conductor Structured Logging
@@ -15,7 +17,7 @@ export const ConductorEventSchema = z.object({
   issue: z.number().optional(),
   persona: z.string().optional(),
   event: z.string(),
-  data: z.record(z.string(), z.unknown()).or(z.object({ text: z.string() })),
+  data: JsonObjectSchema.or(z.object({ text: z.string() })),
 });
 
 export type ConductorEvent = z.infer<typeof ConductorEventSchema>;
@@ -29,7 +31,7 @@ export type ConductorEvent = z.infer<typeof ConductorEventSchema>;
  */
 export function logEvent(
   event: string, 
-  data: Record<string, unknown> | { text: string }, 
+  data: JsonObject | { text: string }, 
   context: { persona?: string; issue?: number } = {}
 ) {
   const payload: ConductorEvent = {
@@ -47,16 +49,16 @@ export function logEvent(
 }
 
 export const logger = {
-  info: (message: string, data?: Record<string, unknown>, context?: { persona?: string; issue?: number }) => 
+  info: (message: string, data?: JsonObject, context?: { persona?: string; issue?: number }) => 
     logEvent('LOG_INFO', { message, ...data }, context),
   
-  warn: (message: string, data?: Record<string, unknown>, context?: { persona?: string; issue?: number }) => 
+  warn: (message: string, data?: JsonObject, context?: { persona?: string; issue?: number }) => 
     logEvent('LOG_WARN', { message, ...data }, context),
   
-  error: (message: string, data?: Record<string, unknown>, context?: { persona?: string; issue?: number }) => 
+  error: (message: string, data?: JsonObject, context?: { persona?: string; issue?: number }) => 
     logEvent('LOG_ERROR', { message, ...data }, context),
   
-  debug: (message: string, data?: Record<string, unknown>, context?: { persona?: string; issue?: number }) => 
+  debug: (message: string, data?: JsonObject, context?: { persona?: string; issue?: number }) => 
     logEvent('LOG_DEBUG', { message, ...data }, context),
   
   stdout: (text: string, context?: { persona?: string; issue?: number }) => 

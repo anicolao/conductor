@@ -43,16 +43,16 @@
       }
 
       if (event.event === 'GEMINI_EVENT') {
-        const data = event.data as GeminiEventData;
+        const data = event.data as any;
         if (data.type === 'message') {
           if (lastMessage && lastMessage.type === 'message' && lastMessage.role === data.role) {
             // Aggregate content
-            lastMessage.content += data.content;
+            (lastMessage as any).content += String(data.content || '');
             continue;
           } else {
             // New message turn
             lastMessage = { ...data };
-            result.push({ ...event, data: lastMessage });
+            result.push({ ...event, data: lastMessage as any });
           }
         } else {
           lastMessage = null;
@@ -74,11 +74,11 @@
     const map = new Map<string, string>();
     for (const event of events) {
       if (event.event === 'GEMINI_EVENT') {
-        const data = event.data as GeminiEventData;
+        const data = event.data as any;
         if (data.type === 'tool_use' || data.type === 'tool_result') {
           const tool_id = data.tool_id;
           const name = data.tool_name || data.name || data.tool;
-          if (tool_id && name) {
+          if (typeof tool_id === 'string' && typeof name === 'string') {
             map.set(tool_id, name);
           }
         }
@@ -106,13 +106,14 @@
   }
 
   function getMessage(event: ConductorEvent): string {
-    if (event.data && typeof event.data.text === 'string') return event.data.text;
-    if (event.data && typeof event.data.message === 'string') return event.data.message;
-    if (typeof event.data === 'string') return event.data;
-    if (event.data && typeof event.data.msg === 'string') return event.data.msg;
-    if (event.data && typeof event.data.line === 'string') return event.data.line;
-    if (event.data && typeof event.data.task === 'string') return event.data.task;
-    return JSON.stringify(event.data);
+    const data = event.data as any;
+    if (data && typeof data.text === 'string') return data.text;
+    if (data && typeof data.message === 'string') return data.message;
+    if (typeof data === 'string') return data;
+    if (data && typeof data.msg === 'string') return data.msg;
+    if (data && typeof data.line === 'string') return data.line;
+    if (data && typeof data.task === 'string') return data.task;
+    return JSON.stringify(data);
   }
 </script>
 
@@ -144,6 +145,7 @@
     {:else}
       {#each otherEvents as event}
         {#if event.event === 'session_start'}
+          {@const data = event.data as any}
           <div class="event-card session-start">
             <div class="event-header">
               <span class="icon">🚀</span>
@@ -154,43 +156,45 @@
               <span class="timestamp">{formatTimestamp(event.ts)}</span>
             </div>
             <div class="event-body">
-              <p><strong>Branch:</strong> {event.data?.branch || 'N/A'}</p>
-              {#if event.data?.labels}
-                <p><strong>Labels:</strong> {Array.isArray(event.data.labels) ? event.data.labels.join(', ') : JSON.stringify(event.data.labels)}</p>
+              <p><strong>Branch:</strong> {data?.branch || 'N/A'}</p>
+              {#if data?.labels}
+                <p><strong>Labels:</strong> {Array.isArray(data.labels) ? data.labels.join(', ') : JSON.stringify(data.labels)}</p>
               {/if}
             </div>
           </div>
         {:else if event.event === 'session_end'}
-          <div class="event-card session-end {event.data?.status}">
+          {@const data = event.data as any}
+          <div class="event-card session-end {data?.status}">
             <div class="event-header">
-              <span class="icon">{event.data?.status === 'success' ? '✅' : '❌'}</span>
-              <span class="event-type">Session Ended ({event.data?.status || 'unknown'})</span>
+              <span class="icon">{data?.status === 'success' ? '✅' : '❌'}</span>
+              <span class="event-type">Session Ended ({data?.status || 'unknown'})</span>
               {#if event.persona}
                 <span class="persona">({event.persona})</span>
               {/if}
               <span class="timestamp">{formatTimestamp(event.ts)}</span>
             </div>
             <div class="event-body">
-              {#if event.data?.error}
-                <p class="error-msg"><strong>Error:</strong> {event.data.error}</p>
+              {#if data?.error}
+                <p class="error-msg"><strong>Error:</strong> {data.error}</p>
               {/if}
-              {#if event.data?.exitCode !== undefined}
-                <p><strong>Exit Code:</strong> {event.data.exitCode}</p>
+              {#if data?.exitCode !== undefined}
+                <p><strong>Exit Code:</strong> {data.exitCode}</p>
               {/if}
             </div>
           </div>
         {:else if event.event === 'LOG_DEBUG_GROUP'}
+            {@const data = event.data as any}
             <details class="event-card log-card log_debug_group">
               <summary class="event-header group-header">
                 <span class="icon">🔍</span>
-                <span class="event-type">DEBUG MESSAGES ({event.data.events.length})</span>
+                <span class="event-type">DEBUG MESSAGES ({data.events.length})</span>
                 {#if event.persona}
                   <span class="persona">({event.persona})</span>
                 {/if}
                 <span class="timestamp">{formatTimestamp(event.ts)}</span>
               </summary>
               <div class="event-body group-body">
-                {#each event.data.events as debugEvent}
+                {#each data.events as debugEvent}
                   <div class="nested-debug-event">
                     {#if debugEvent.event === 'GEMINI_EVENT'}
                       <GeminiEvent event={debugEvent} {toolNameMap} />
