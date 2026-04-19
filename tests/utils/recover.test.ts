@@ -7,7 +7,8 @@ import {
   isRecoveryRun,
   normalizePersona,
   parseRunTarget,
-  ProjectIssueItem
+  ProjectIssueItem,
+  toProjectIssueItem
 } from '../../src/utils/recover';
 
 describe('recover utils', () => {
@@ -101,5 +102,33 @@ describe('recover utils', () => {
     expect(normalizePersona('conductor')).toBe('conductor');
     expect(normalizePersona(null)).toBe('conductor');
     expect(normalizePersona('reviewer')).toBe('conductor');
+  });
+
+  it('ignores project items whose content is not an issue', () => {
+    expect(toProjectIssueItem({
+      status: { name: 'In Progress' },
+      persona: { name: null },
+      content: {}
+    }, 1, 'https://github.com/orgs/LLM-Orchestration/projects/1')).toBeNull();
+  });
+
+  it('maps valid project issue nodes into recoverable items', () => {
+    expect(toProjectIssueItem({
+      status: { name: 'In Progress' },
+      persona: { name: 'coder' },
+      content: {
+        id: 'I_157',
+        number: 157,
+        repository: { nameWithOwner: 'LLM-Orchestration/conductor' }
+      }
+    }, 1, 'https://github.com/orgs/LLM-Orchestration/projects/1')).toEqual({
+      repository: 'LLM-Orchestration/conductor',
+      issueNumber: 157,
+      issueNodeId: 'I_157',
+      projectNumber: 1,
+      projectUrl: 'https://github.com/orgs/LLM-Orchestration/projects/1',
+      status: 'In Progress',
+      persona: 'coder'
+    });
   });
 });

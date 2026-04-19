@@ -8,7 +8,9 @@ import {
   ConductorWorkflowRunSchema,
   findOrphanedItems,
   normalizePersona,
-  ProjectIssueItem
+  ProjectItemNode,
+  ProjectIssueItem,
+  toProjectIssueItem
 } from './utils/recover';
 
 const ORG_LOGIN = process.env.CONDUCTOR_PROJECT_OWNER || 'LLM-Orchestration';
@@ -49,7 +51,7 @@ const ProjectItemsQuerySchema = z.object({
             repository: z.object({
               nameWithOwner: z.string().nullable().optional(),
             }).nullable().optional(),
-          }).nullable().optional(),
+          }).passthrough().nullable(),
         })),
       }),
     }).nullable().optional(),
@@ -214,22 +216,11 @@ async function loadProjectItems(token: string): Promise<ProjectIssueItem[]> {
       throw new Error(`Project ${ORG_LOGIN}#${PROJECT_NUMBER} was not found`);
     }
 
-    for (const node of project.items.nodes) {
-      const repository = node.content?.repository?.nameWithOwner;
-      const issueNumber = node.content?.number;
-      const issueNodeId = node.content?.id;
-      const status = node.status?.name;
-      if (!repository || !issueNumber || !issueNodeId || !status) continue;
-
-      items.push({
-        repository,
-        issueNumber,
-        issueNodeId,
-        projectNumber: PROJECT_NUMBER,
-        projectUrl: project.url,
-        status,
-        persona: node.persona?.name === 'coder' || node.persona?.name === 'conductor' ? node.persona.name : null
-      });
+    for (const node of project.items.nodes as ProjectItemNode[]) {
+      const item = toProjectIssueItem(node, PROJECT_NUMBER, project.url);
+      if (item) {
+        items.push(item);
+      }
     }
 
     if (!project.items.pageInfo.hasNextPage) {
