@@ -12,7 +12,7 @@ export interface ProjectIssueItem {
 
 export const ConductorWorkflowRunSchema = z.object({
   status: z.string(),
-  display_title: z.string().nullable().optional(),
+  display_title: z.string(),
 }).passthrough();
 
 export type ConductorWorkflowRun = z.infer<typeof ConductorWorkflowRunSchema>;
@@ -25,9 +25,7 @@ export interface RunTarget {
 const CONDUCTOR_RUN_TITLE = /^Conductor \[(.+)\] Issue #(\d+)\b/;
 const RECOVERY_RUN_SUFFIX = 'Event: schedule (recover_orphaned_in_progress)';
 
-export function parseRunTarget(displayTitle?: string | null): RunTarget | null {
-  if (!displayTitle) return null;
-
+export function parseRunTarget(displayTitle: string): RunTarget | null {
   const match = displayTitle.match(CONDUCTOR_RUN_TITLE);
   if (!match) return null;
 
@@ -42,7 +40,7 @@ export function normalizePersona(persona?: string | null): 'conductor' | 'coder'
 }
 
 export function isRecoveryRun(run: ConductorWorkflowRun): boolean {
-  return typeof run.display_title === 'string' && run.display_title.includes(RECOVERY_RUN_SUFFIX);
+  return run.display_title.includes(RECOVERY_RUN_SUFFIX);
 }
 
 export function hasActiveRun(item: ProjectIssueItem, runs: ConductorWorkflowRun[]): boolean {

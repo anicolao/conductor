@@ -23,7 +23,7 @@ interface RecoverOptions {
 }
 
 const WorkflowRunsResponseSchema = z.object({
-  workflow_runs: z.array(ConductorWorkflowRunSchema).optional(),
+  workflow_runs: z.array(ConductorWorkflowRunSchema),
 }).passthrough();
 
 
@@ -38,24 +38,23 @@ const ProjectItemsQuerySchema = z.object({
         }),
         nodes: z.array(z.object({
           status: z.object({
-            name: z.string().nullable().optional(),
-          }).nullable().optional(),
+            name: z.string().nullable(),
+          }).nullable(),
           persona: z.object({
-            name: z.string().nullable().optional(),
-          }).nullable().optional(),
+            name: z.string().nullable(),
+          }).nullable(),
           content: z.object({
-            id: z.string().nullable().optional(),
-            number: z.number().nullable().optional(),
+            id: z.string().nullable(),
+            number: z.number().nullable(),
             repository: z.object({
-              nameWithOwner: z.string().nullable().optional(),
-            }).nullable().optional(),
-          }).nullable().optional(),
+              nameWithOwner: z.string().nullable(),
+            }).nullable(),
+          }).nullable(),
         })),
       }),
-    }).nullable().optional(),
-  }).nullable().optional(),
+    }),
+  }),
 }).passthrough();
-
 const GraphqlResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) => z.object({
   data: dataSchema.optional(),
   errors: z.array(z.object({ message: z.string() })).optional(),
@@ -247,7 +246,7 @@ async function loadWorkflowRuns(token: string): Promise<ConductorWorkflowRun[]> 
     `/repos/${TARGET_REPO}/actions/workflows/${WORKFLOW_FILE}/runs?per_page=100`,
     token
   );
-  return data.workflow_runs || [];
+  return data.workflow_runs;
 }
 
 async function dispatchRecovery(item: ProjectIssueItem, token: string): Promise<void> {
