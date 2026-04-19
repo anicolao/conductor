@@ -2,6 +2,23 @@ import type { ConductorEvent } from '../../../src/utils/logger';
 
 export type { ConductorEvent };
 
+/**
+ * Represents a valid JSON value.
+ */
+export type JsonValue =
+	| string
+	| number
+	| boolean
+	| null
+	| undefined
+	| { [key: string]: JsonValue }
+	| JsonValue[];
+
+/**
+ * Represents a valid JSON object.
+ */
+export type JsonObject = { [key: string]: JsonValue };
+
 export interface GeminiInitEvent {
 	type: 'init';
 	sessionId: string;
@@ -20,8 +37,8 @@ export interface GeminiToolUseEvent {
 	name?: string;
 	tool_name?: string;
 	tool_id?: string;
-	args?: Record<string, any>;
-	parameters?: Record<string, any>;
+	args?: JsonObject;
+	parameters?: JsonObject;
 }
 
 export interface GeminiToolResultEvent {
@@ -30,19 +47,19 @@ export interface GeminiToolResultEvent {
 	name?: string;
 	tool_name?: string;
 	tool_id?: string;
-	result?: any;
+	result?: JsonValue;
 	status?: string;
 	output?: string;
 	data?: {
 		status?: string;
 		output?: string;
-		[key: string]: any;
+		[key: string]: JsonValue;
 	};
 }
 
 export interface GeminiUnknownEvent {
 	type: string;
-	[key: string]: any;
+	[key: string]: JsonValue;
 }
 
 export interface GeminiResultEvent {
@@ -60,7 +77,7 @@ export interface GeminiResultEvent {
 
 export interface GeminiToolCallsUpdateEvent {
 	type: 'tool-calls-update';
-	toolCalls: any[];
+	toolCalls: JsonValue[];
 	schedulerId: string;
 }
 
