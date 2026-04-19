@@ -41,7 +41,30 @@ const GeminiEventDataSchema = z.object({
   type: z.string(),
 }).catchall(JsonValueSchema);
 
-export const ConductorEventSchema = z.discriminatedUnion('event', [
+type BaseEvent = {
+  v: number;
+  ts: string;
+  run_id?: string;
+  repo?: string;
+  issue?: number;
+  persona?: string;
+};
+
+export type ConductorEvent = BaseEvent & (
+  | { event: 'LOG_INFO'; data: { message: string } & JsonObject }
+  | { event: 'LOG_WARN'; data: { message: string } & JsonObject }
+  | { event: 'LOG_ERROR'; data: { message: string } & JsonObject }
+  | { event: 'LOG_DEBUG'; data: { message: string } & JsonObject }
+  | { event: 'STDOUT'; data: { text: string } }
+  | { event: 'STDERR'; data: { text: string } }
+  | { event: 'session_start'; data: { branch: string; labels: string[] } & JsonObject }
+  | { event: 'session_end'; data: { status: 'success' | 'failure'; exitCode?: number; error?: string } & JsonObject }
+  | { event: 'GEMINI_EVENT'; data: { type: string } & JsonObject }
+  | { event: 'TASK'; data: { message: string } & JsonObject }
+  | { event: 'LOG_DEBUG_GROUP'; data: { events: ConductorEvent[] } }
+);
+
+export const ConductorEventSchema: z.ZodType<ConductorEvent> = z.discriminatedUnion('event', [
   BaseEventSchema.extend({ event: z.literal('LOG_INFO'), data: LogEventDataSchema }),
   BaseEventSchema.extend({ event: z.literal('LOG_WARN'), data: LogEventDataSchema }),
   BaseEventSchema.extend({ event: z.literal('LOG_ERROR'), data: LogEventDataSchema }),
@@ -52,10 +75,8 @@ export const ConductorEventSchema = z.discriminatedUnion('event', [
   BaseEventSchema.extend({ event: z.literal('session_end'), data: SessionEndDataSchema }),
   BaseEventSchema.extend({ event: z.literal('GEMINI_EVENT'), data: GeminiEventDataSchema }),
   BaseEventSchema.extend({ event: z.literal('TASK'), data: z.object({ message: z.string() }).catchall(JsonValueSchema) }),
-  BaseEventSchema.extend({ event: z.literal('LOG_DEBUG_GROUP'), data: z.object({ events: z.array(z.any()) }) }),
+  BaseEventSchema.extend({ event: z.literal('LOG_DEBUG_GROUP'), data: z.object({ events: z.array(z.lazy(() => ConductorEventSchema)) }) }),
 ]);
-
-export type ConductorEvent = z.infer<typeof ConductorEventSchema>;
 
 /**
  * Logs a structured event to stdout.

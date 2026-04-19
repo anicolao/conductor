@@ -88,7 +88,7 @@ function verifyWebhookSignature(rawBody, signatureHeader, secret) {
 /**
  * @template T
  * @param {string} query
- * @param {Record<string, any>} variables
+ * @param {Record<string, unknown>} variables
  * @param {string} token
  * @returns {Promise<T>}
  */

@@ -4,7 +4,7 @@
   let { data, label = 'Raw Data', depth = 0, isRoot = false } = $props();
   let expanded = $state(false);
 
-  const isObject = (v: any) => v !== null && typeof v === 'object';
+  const isObject = (v: unknown): v is Record<string, unknown> | Array<unknown> => v !== null && typeof v === 'object';
   const toggle = () => (expanded = !expanded);
 
   const copyToClipboard = () => {

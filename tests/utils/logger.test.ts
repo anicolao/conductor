@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { logEvent, logger } from '../../src/utils/logger';
 
 describe('logger', () => {
-  let stdoutSpy: any;
+  let stdoutSpy: MockInstance;
 
   beforeEach(() => {
     stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
@@ -15,18 +15,18 @@ describe('logger', () => {
   });
 
   it('should log a structured event to stdout', () => {
-    logEvent('test_event', { foo: 'bar' }, { persona: 'test_persona', issue: 42 });
+    logEvent('LOG_INFO', { message: 'test message' }, { persona: 'test_persona', issue: 42 });
 
     expect(stdoutSpy).toHaveBeenCalled();
-    const output = stdoutSpy.mock.calls[0][0];
+    const output = stdoutSpy.mock.calls[0][0] as string;
     expect(output).toContain('::CONDUCTOR_EVENT::');
     
     const jsonStr = output.split('::CONDUCTOR_EVENT::')[1];
     const payload = JSON.parse(jsonStr);
 
     expect(payload.v).toBe(1);
-    expect(payload.event).toBe('test_event');
-    expect(payload.data).toEqual({ foo: 'bar' });
+    expect(payload.event).toBe('LOG_INFO');
+    expect(payload.data).toEqual({ message: 'test message' });
     expect(payload.persona).toBe('test_persona');
     expect(payload.issue).toBe(42);
     expect(payload.run_id).toBe('12345');
@@ -38,9 +38,9 @@ describe('logger', () => {
     process.env.CONDUCTOR_PERSONA = 'env_persona';
     process.env.CONDUCTOR_ISSUE = '99';
 
-    logEvent('test_event', {});
+    logEvent('LOG_INFO', { message: 'env test' });
 
-    const output = stdoutSpy.mock.calls[0][0];
+    const output = stdoutSpy.mock.calls[0][0] as string;
     const payload = JSON.parse(output.split('::CONDUCTOR_EVENT::')[1]);
 
     expect(payload.persona).toBe('env_persona');

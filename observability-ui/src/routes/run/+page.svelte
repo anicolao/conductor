@@ -16,7 +16,7 @@
 	let polling = $state(false);
 	let logsAvailable = $state(false);
 	let isStreamingConductorEvents = $state(false);
-	let pollingInterval: any = null;
+	let pollingInterval: ReturnType<typeof setInterval> | null = null;
 
 	async function fetchData(currentId: string, isInitial = false) {
 		if (isInitial) loading = true;
@@ -50,7 +50,7 @@
 			if (!jobsRes.ok) throw new Error(`Failed to fetch jobs: ${jobsRes.statusText}`);
 			const jobsData = await jobsRes.json();
 			
-			const conductorJob: WorkflowJob = jobsData.jobs.find((j: any) => j.name === 'run-conductor');
+			const conductorJob: WorkflowJob | undefined = jobsData.jobs.find((j: WorkflowJob) => j.name === 'run-conductor');
 			
 			if (!conductorJob) {
 				if (run?.status === 'completed') {
@@ -114,9 +114,9 @@
 			if (run?.status === 'completed' && logsAvailable) {
 				stopPolling();
 			}
-		} catch (e: any) {
+		} catch (e: unknown) {
 			console.error(e);
-			error = e.message;
+			error = e instanceof Error ? e.message : String(e);
 			stopPolling();
 		} finally {
 			loading = false;
