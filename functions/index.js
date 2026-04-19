@@ -7,6 +7,7 @@ const { onRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const logger = require("firebase-functions/logger");
 const { defineSecret } = require("firebase-functions/params");
+const { buildProjectDispatchPayload } = require("./project-dispatch");
 
 const githubWebhookSecret = defineSecret("GITHUB_WEBHOOK_SECRET");
 const conductorToken = defineSecret("CONDUCTOR_TOKEN");
@@ -153,19 +154,18 @@ async function dispatchProjectActivation(repository, issueNumber, token, eventNa
       "Content-Type": "application/json",
       "User-Agent": "conductor-project-bridge"
     },
-    body: JSON.stringify({
-      event_type: "project_in_progress",
-      client_payload: {
-        repository: repository,
-        issue_number: issueNumber,
-        issue_node_id: issueNodeId,
-        project_number: projectNumber,
-        project_url: projectUrl,
-        persona: persona,
-        event_name: eventName,
-        action: action
-      }
-    })
+    body: JSON.stringify(
+      buildProjectDispatchPayload({
+        repository,
+        issueNumber,
+        issueNodeId,
+        projectNumber,
+        projectUrl,
+        persona,
+        eventName,
+        action
+      })
+    )
   });
 
   if (!response.ok) {

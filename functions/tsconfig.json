@@ -12,5 +12,5 @@
     "strict": false,
     "useUnknownInCatchVariables": false
   },
-  "include": ["index.js", "types/**/*.d.ts"]
+  "include": ["index.js", "project-dispatch.js", "types/**/*.d.ts"]
 }
