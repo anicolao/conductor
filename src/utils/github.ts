@@ -11,12 +11,12 @@ export const GitHubEventSchema = z.object({
       name: z.string()
     })),
     body: z.string().default(''),
-    html_url: z.string().optional(),
-    node_id: z.string().optional(),
+    html_url: z.string(),
+    node_id: z.string(),
   }).optional(),
   comment: z.object({
     body: z.string(),
-    html_url: z.string().optional(),
+    html_url: z.string(),
   }).optional(),
   client_payload: z.object({
     repository: z.string().optional(),

@@ -147,8 +147,8 @@ function loadIssueState(repository: string, issueNumber: number): {
     labels: z.array(z.object({ name: z.string() })),
     body: z.string().nullable().transform(val => val ?? ''),
     comments: z.number().default(0),
-    html_url: z.string().default(''),
-    node_id: z.string().default(''),
+    html_url: z.string(),
+    node_id: z.string(),
   });
 
   const parsed = IssueStateSchema.parse(JSON.parse(issueData.stdout));
