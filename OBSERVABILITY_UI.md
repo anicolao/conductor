@@ -13,7 +13,7 @@ The Conductor Observability UI will be a standalone SvelteKit application hosted
 - **Data Source**: GitHub REST and GraphQL APIs.
 - **Authentication**: GitHub OAuth.
 - **Hosting**: GitHub Pages.
-- **State Management**: Svelte stores, persisted via browser session storage/local storage for session info.
+- **State Management**: Svelte stores, persisted via browser local storage for persistent session info.
 
 ## 3. Authentication: GitHub OAuth
 
@@ -23,6 +23,7 @@ Instead of requiring users to provide a Personal Access Token (PAT), the UI will
 2. **Authorization**: Users authorize the Conductor Observability App.
 3. **Token Exchange**: A small backend shim (possibly a GitHub Action or a lightweight Cloud Function/Firebase function) will exchange the code for an access token.
 4. **API Access**: The frontend uses the access token to fetch data directly from GitHub APIs.
+5. **Persistence**: The access token is stored in `localStorage` to maintain the session across page reloads and browser restarts. If a user accesses a deep link (e.g., a specific run) while not logged in, they are automatically redirected to the login flow and then returned to the requested page.
 
 *Note: Since GitHub Pages is static, the OAuth "secret" cannot be stored there. We will use the existing Firebase bridge or a dedicated GitHub App to handle the exchange.*
 
@@ -99,6 +100,6 @@ The UI will primarily use the following GitHub APIs:
 
 ## 8. Security Considerations
 
-- **Token Safety**: Access tokens will be stored in `sessionStorage` and never logged.
+- **Token Safety**: Access tokens are stored in `localStorage` and never logged. Users should logout on shared machines.
 - **Scope Limiting**: The OAuth app will request the minimum necessary scopes (`repo`, `workflow`).
 - **Data Privacy**: The UI is a client-side only app; no data is stored on the hosting server beyond the static assets.

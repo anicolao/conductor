@@ -64,10 +64,10 @@ test('Run Details Streaming Logs', async ({ page }, testInfo) => {
     }
   });
 
-  // Set token in sessionStorage and navigate
+  // Set token in localStorage and navigate
   await page.goto('/');
   await page.evaluate(() => {
-    sessionStorage.setItem('github_access_token', 'test_access_token');
+    localStorage.setItem('github_access_token', 'test_access_token');
   });
   await page.goto(`/run?id=${runId}`);
 

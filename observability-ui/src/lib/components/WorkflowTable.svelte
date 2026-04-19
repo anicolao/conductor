@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { base } from '$app/paths';
 	import type { WorkflowRun, Issue } from '$lib/types';
+	import { getAccessToken } from '$lib/auth';
 
 	interface Props {
 		runs: WorkflowRun[];
@@ -14,7 +15,7 @@
 	const inFlight = new Set<string>();
 
 	$effect(() => {
-		const token = sessionStorage.getItem('github_access_token');
+		const token = getAccessToken();
 		if (!token || !runs.length) return;
 
 		runs.forEach(async (run) => {
