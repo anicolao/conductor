@@ -78,7 +78,7 @@
 						ts: step.started_at || new Date().toISOString(),
 						event: 'TASK',
 						data: {
-							text: `${step.name}: ${step.status}${step.conclusion ? ' (' + step.conclusion + ')' : ''}`
+							message: `${step.name}: ${step.status}${step.conclusion ? ' (' + step.conclusion + ')' : ''}`
 						}
 					}));
 				logsAvailable = false;
@@ -98,7 +98,7 @@
 							ts: step.started_at || new Date().toISOString(),
 							event: 'TASK',
 							data: {
-								text: `${step.name}: ${step.status}${step.conclusion ? ' (' + step.conclusion + ')' : ''}`
+								message: `${step.name}: ${step.status}${step.conclusion ? ' (' + step.conclusion + ')' : ''}`
 							}
 						}));
 					isStreamingConductorEvents = false;

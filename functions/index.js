@@ -23,6 +23,44 @@ const TARGET_PROJECT_NUMBER = 1;
  * @typedef {Error & {details?: unknown}} DetailedError
  */
 
+/**
+ * @typedef {Object} GitHubAccessTokenResponse
+ * @property {string} access_token
+ * @property {string} token_type
+ * @property {string} scope
+ * @property {string} [error]
+ * @property {string} [error_description]
+ * @property {string} [error_uri]
+ */
+
+/**
+ * @template T
+ * @typedef {Object} GitHubGraphqlResponse
+ * @property {Array<{message: string}>} [errors]
+ * @property {T} [data]
+ */
+
+/**
+ * @typedef {Object} ProjectItemNode
+ * @property {Object} [node]
+ * @property {string} [node.id]
+ * @property {Object} [node.status]
+ * @property {string} [node.status.name]
+ * @property {Object} [node.persona]
+ * @property {string} [node.persona.name]
+ * @property {Object} [node.project]
+ * @property {number} [node.project.number]
+ * @property {string} [node.project.title]
+ * @property {string} [node.project.url]
+ * @property {Object} [node.content]
+ * @property {number} [node.content.number]
+ * @property {string} [node.content.id]
+ * @property {Object} [node.content.labels]
+ * @property {Array<{name: string}>} [node.content.labels.nodes]
+ * @property {Object} [node.content.repository]
+ * @property {string} [node.content.repository.nameWithOwner]
+ */
+
 function timingSafeEqualHex(a, b) {
   const aBuffer = Buffer.from(a, "utf8");
   const bBuffer = Buffer.from(b, "utf8");
@@ -47,6 +85,13 @@ function verifyWebhookSignature(rawBody, signatureHeader, secret) {
   return timingSafeEqualHex(expected, signatureHeader);
 }
 
+/**
+ * @template T
+ * @param {string} query
+ * @param {Record<string, any>} variables
+ * @param {string} token
+ * @returns {Promise<T>}
+ */
 async function githubGraphql(query, variables, token) {
   const response = await fetch("https://api.github.com/graphql", {
     method: "POST",
@@ -59,13 +104,17 @@ async function githubGraphql(query, variables, token) {
     body: JSON.stringify({ query, variables })
   });
 
-  /** @type {{ errors?: unknown; data?: unknown }} */
+  /** @type {GitHubGraphqlResponse<T>} */
   const body = await response.json();
   if (!response.ok || body.errors) {
     /** @type {DetailedError} */
     const error = new Error("GitHub GraphQL request failed");
     error.details = { status: response.status, body };
     throw error;
+  }
+
+  if (!body.data) {
+    throw new Error("GitHub GraphQL response missing data");
   }
 
   return body.data;
@@ -208,7 +257,7 @@ exports.githubProjectsV2Webhook = onRequest(
     }
 
     try {
-      /** @type {{ node?: any } | undefined} */
+      /** @type {ProjectItemNode} */
       const data = await githubGraphql(
         `query ProjectItemState($id: ID!) {
           node(id: $id) {
@@ -385,7 +434,7 @@ exports.githubOAuthExchange = onRequest(
         body: params.toString()
       });
 
-      /** @type {{ error?: unknown } & Record<string, unknown>} */
+      /** @type {GitHubAccessTokenResponse} */
       const data = await response.json();
       logger.info("GitHub OAuth exchange response received", {
         status: response.status,

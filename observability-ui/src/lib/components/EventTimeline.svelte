@@ -25,13 +25,14 @@
     };
 
     for (const event of events) {
+      const geminiData = event.event === 'GEMINI_EVENT' ? event.data as GeminiEventData : null;
       const isDebug = event.event === 'LOG_DEBUG' || 
-                      (event.event === 'GEMINI_EVENT' && (
-                        (event.data as GeminiEventData)?._isMessageBus === true ||
-                        (event.data as GeminiEventData)?.type === 'init' ||
-                        (event.data as GeminiEventData)?.type === 'tool-calls-update' ||
-                        (event.data as GeminiEventData)?.type === 'call' ||
-                        (event.data as GeminiEventData)?.type === 'context-update'
+                      (geminiData !== null && (
+                        geminiData._isMessageBus === true ||
+                        geminiData.type === 'init' ||
+                        geminiData.type === 'tool-calls-update' ||
+                        geminiData.type === 'call' ||
+                        geminiData.type === 'context-update'
                       ));
 
       if (isDebug) {
@@ -42,17 +43,16 @@
         flushDebugGroup();
       }
 
-      if (event.event === 'GEMINI_EVENT') {
-        const data = event.data as any;
-        if (data.type === 'message') {
-          if (lastMessage && lastMessage.type === 'message' && lastMessage.role === data.role) {
+      if (event.event === 'GEMINI_EVENT' && geminiData) {
+        if (geminiData.type === 'message') {
+          if (lastMessage && lastMessage.type === 'message' && lastMessage.role === geminiData.role) {
             // Aggregate content
-            (lastMessage as any).content += String(data.content || '');
+            lastMessage.content += String(geminiData.content || '');
             continue;
           } else {
             // New message turn
-            lastMessage = { ...data };
-            result.push({ ...event, data: lastMessage as any });
+            lastMessage = { ...geminiData };
+            result.push({ ...event, data: lastMessage } as ConductorEvent);
           }
         } else {
           lastMessage = null;
@@ -74,7 +74,7 @@
     const map = new Map<string, string>();
     for (const event of events) {
       if (event.event === 'GEMINI_EVENT') {
-        const data = event.data as any;
+        const data = event.data as GeminiEventData;
         if (data.type === 'tool_use' || data.type === 'tool_result') {
           const tool_id = data.tool_id;
           const name = data.tool_name || data.name || data.tool;
@@ -106,13 +106,9 @@
   }
 
   function getMessage(event: ConductorEvent): string {
-    const data = event.data as any;
-    if (data && typeof data.text === 'string') return data.text;
-    if (data && typeof data.message === 'string') return data.message;
-    if (typeof data === 'string') return data;
-    if (data && typeof data.msg === 'string') return data.msg;
-    if (data && typeof data.line === 'string') return data.line;
-    if (data && typeof data.task === 'string') return data.task;
+    const data = event.data;
+    if ('text' in data && typeof data.text === 'string') return data.text;
+    if ('message' in data && typeof data.message === 'string') return data.message;
     return JSON.stringify(data);
   }
 </script>
@@ -145,7 +141,7 @@
     {:else}
       {#each otherEvents as event}
         {#if event.event === 'session_start'}
-          {@const data = event.data as any}
+          {@const data = event.data}
           <div class="event-card session-start">
             <div class="event-header">
               <span class="icon">🚀</span>
@@ -156,45 +152,45 @@
               <span class="timestamp">{formatTimestamp(event.ts)}</span>
             </div>
             <div class="event-body">
-              <p><strong>Branch:</strong> {data?.branch || 'N/A'}</p>
-              {#if data?.labels}
-                <p><strong>Labels:</strong> {Array.isArray(data.labels) ? data.labels.join(', ') : JSON.stringify(data.labels)}</p>
+              <p><strong>Branch:</strong> {data.branch || 'N/A'}</p>
+              {#if data.labels}
+                <p><strong>Labels:</strong> {data.labels.join(', ')}</p>
               {/if}
             </div>
           </div>
         {:else if event.event === 'session_end'}
-          {@const data = event.data as any}
-          <div class="event-card session-end {data?.status}">
+          {@const data = event.data}
+          <div class="event-card session-end {data.status}">
             <div class="event-header">
-              <span class="icon">{data?.status === 'success' ? '✅' : '❌'}</span>
-              <span class="event-type">Session Ended ({data?.status || 'unknown'})</span>
+              <span class="icon">{data.status === 'success' ? '✅' : '❌'}</span>
+              <span class="event-type">Session Ended ({data.status || 'unknown'})</span>
               {#if event.persona}
                 <span class="persona">({event.persona})</span>
               {/if}
               <span class="timestamp">{formatTimestamp(event.ts)}</span>
             </div>
             <div class="event-body">
-              {#if data?.error}
+              {#if data.error}
                 <p class="error-msg"><strong>Error:</strong> {data.error}</p>
               {/if}
-              {#if data?.exitCode !== undefined}
+              {#if data.exitCode !== undefined}
                 <p><strong>Exit Code:</strong> {data.exitCode}</p>
               {/if}
             </div>
           </div>
         {:else if event.event === 'LOG_DEBUG_GROUP'}
-            {@const data = event.data as any}
+            {@const data = event.data}
             <details class="event-card log-card log_debug_group">
               <summary class="event-header group-header">
                 <span class="icon">🔍</span>
-                <span class="event-type">DEBUG MESSAGES ({data.events.length})</span>
+                <span class="event-type">DEBUG MESSAGES ({(data as { events: ConductorEvent[] }).events?.length || 0})</span>
                 {#if event.persona}
                   <span class="persona">({event.persona})</span>
                 {/if}
                 <span class="timestamp">{formatTimestamp(event.ts)}</span>
               </summary>
               <div class="event-body group-body">
-                {#each data.events as debugEvent}
+                {#each (data as { events: ConductorEvent[] }).events || [] as debugEvent}
                   <div class="nested-debug-event">
                     {#if debugEvent.event === 'GEMINI_EVENT'}
                       <GeminiEvent event={debugEvent} {toolNameMap} />
@@ -225,7 +221,7 @@
             </div>
             <div class="event-body">
               <p>{getMessage(event)}</p>
-              {#if Object.keys(event.data || {}).filter(k => k !== 'message').length > 0}
+              {#if 'message' in event.data && Object.keys(event.data).length > 1}
                 <pre>{JSON.stringify(Object.fromEntries(Object.entries(event.data).filter(([k]) => k !== 'message')), null, 2)}</pre>
               {/if}
             </div>

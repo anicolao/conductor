@@ -5,21 +5,21 @@ describe('parseLogs', () => {
   it('should parse conductor events from logs', () => {
     const logs = `
 some prefix
-2026-04-15T12:00:00Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:00Z","event":"session_start","data":{"branch":"main"}}
+2026-04-15T12:00:00Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:00Z","event":"session_start","data":{"branch":"main","labels":[]}}
 some intermediate log
-2026-04-15T12:00:05Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:05Z","event":"TASK","data":{"text":"Doing something"}}
+2026-04-15T12:00:05Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:05Z","event":"TASK","data":{"message":"Doing something"}}
 some suffix
     `;
     const events = parseLogs(logs);
     expect(events).toHaveLength(2);
     expect(events[0].event).toBe('session_start');
     expect(events[1].event).toBe('TASK');
-    expect(events[1].data.text).toBe('Doing something');
+    expect(events[1].data.message).toBe('Doing something');
   });
 
   it('should skip invalid JSON', () => {
     const logs = `
-2026-04-15T12:00:00Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:00Z","event":"session_start","data":{"branch":"main"}}
+2026-04-15T12:00:00Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:00Z","event":"session_start","data":{"branch":"main","labels":[]}}
 2026-04-15T12:00:05Z ::CONDUCTOR_EVENT:: {invalid json}
 2026-04-15T12:00:10Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:10Z","event":"session_end","data":{"status":"success"}}
     `;
@@ -36,15 +36,15 @@ some suffix
   });
 
   it('should handle marker appearing multiple times in a line', () => {
-    const logs = 'prefix ::CONDUCTOR_EVENT:: ignored ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:00Z","event":"test","data":{}}';
+    const logs = 'prefix ::CONDUCTOR_EVENT:: ignored ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:00Z","event":"GEMINI_EVENT","data":{"type":"test"}}';
     const events = parseLogs(logs);
     expect(events).toHaveLength(1);
-    expect(events[0].event).toBe('test');
+    expect(events[0].event).toBe('GEMINI_EVENT');
   });
 
   it('should handle partial lines silently', () => {
     const logs = `
-2026-04-15T12:00:00Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:00Z","event":"session_start","data":{"branch":"main"}}
+2026-04-15T12:00:00Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:00Z","event":"session_start","data":{"branch":"main","labels":[]}}
 2026-04-15T12:00:05Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:0
 2026-04-15T12:00:10Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:10Z","event":"session_end","data":{"status":"success"}}
     `;
