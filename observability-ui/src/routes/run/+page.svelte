@@ -6,6 +6,7 @@
 	import { parseLogs } from '$lib/parser';
 	import EventTimeline from '$lib/components/EventTimeline.svelte';
 	import type { ConductorEvent, WorkflowRun, WorkflowJob } from '$lib/types';
+	import { getAccessToken, login } from '$lib/auth';
 
 	const id = $derived(browser ? page.url.searchParams.get('id') : null);
 	
@@ -22,9 +23,12 @@
 		if (isInitial) loading = true;
 		error = null;
 		
-		const token = sessionStorage.getItem('github_access_token');
+		const token = getAccessToken();
 		if (!token) {
-			error = 'Not logged in. Please go to the home page to login.';
+			if (browser) {
+				login();
+			}
+			error = 'Not logged in. Redirecting to login...';
 			loading = false;
 			stopPolling();
 			return;

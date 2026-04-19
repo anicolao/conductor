@@ -9,7 +9,7 @@ The Conductor Observability UI uses GitHub OAuth to authenticate users and gain 
 ## Flow
 
 1. **Initiate Login**: The user clicks the "Login with GitHub" button on the landing page.
-   - The application saves the current path in `sessionStorage` as `oauth_redirect_path`.
+   - The application saves the current path in `localStorage` as `oauth_redirect_path`.
    - The user is redirected to `https://github.com/login/oauth/authorize` with the `client_id` and requested `scope` (currently `repo,workflow`).
 
 2. **GitHub Authorization**: The user authorizes the application on GitHub.
@@ -17,14 +17,18 @@ The Conductor Observability UI uses GitHub OAuth to authenticate users and gain 
 3. **Callback**: GitHub redirects the user back to the application's callback URL (e.g., `/auth/callback?code=...`).
    - The `auth/callback` page extracts the `code` from the URL.
    - It sends this code to a Firebase Function (`githubOAuthExchange`) to exchange it for an `access_token`.
-   - The `access_token` is stored in `sessionStorage` as `github_access_token`.
-   - The application retrieves the `oauth_redirect_path` from `sessionStorage` and redirects the user back to that path.
+   - The `access_token` is stored in `localStorage` as `github_access_token`.
+   - The application retrieves the `oauth_redirect_path` from `localStorage` and redirects the user back to that path.
 
 4. **Authenticated State**:
    - On mount, the main layout or page checks for `github_access_token`.
    - If present, it fetches the user's profile from `https://api.github.com/user`.
    - It also fetches repository information (e.g., `LLM-Orchestration/conductor`) to verify that the token has the necessary permissions.
    - A success message "GitHub API Verified ✅" is displayed if the repository access is successful.
+
+5. **Persistent Login & Deep Linking**:
+   - Because tokens are stored in `localStorage`, the user remains logged in even after closing the browser.
+   - If a user navigates directly to a run detail page (e.g., `/run?id=...`) without being logged in, the application automatically redirects them to the GitHub login flow, preserving the target URL as the redirect path. After successful authentication, the user is returned directly to the run detail page.
 
 ## Setup Instructions
 

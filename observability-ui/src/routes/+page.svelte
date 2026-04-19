@@ -3,6 +3,7 @@
 	import { PUBLIC_GITHUB_CLIENT_ID } from '$env/static/public';
 	import WorkflowTable from '$lib/components/WorkflowTable.svelte';
 	import type { WorkflowRun, WorkflowRunsResponse } from '$lib/types';
+	import { getAccessToken, clearAccessToken, login, logout as authLogout } from '$lib/auth';
 
 	let user = $state<{ login: string; avatar_url: string } | null>(null);
 	let repo = $state<{ name: string; full_name: string } | null>(null);
@@ -11,7 +12,7 @@
 	let error = $state<string | null>(null);
 
 	onMount(async () => {
-		const token = sessionStorage.getItem('github_access_token');
+		const token = getAccessToken();
 		if (token) {
 			try {
 				const [userRes, repoRes, runsRes] = await Promise.all([
@@ -29,7 +30,7 @@
 				if (userRes.ok) {
 					user = await userRes.json();
 				} else {
-					sessionStorage.removeItem('github_access_token');
+					clearAccessToken();
 					error = 'GitHub session expired. Please login again.';
 				}
 
@@ -53,17 +54,12 @@
 		loading = false;
 	});
 
-	function login() {
-		// Save current path to redirect back after OAuth
-		sessionStorage.setItem('oauth_redirect_path', window.location.pathname);
-		
-		const clientId = PUBLIC_GITHUB_CLIENT_ID;
-		const scope = 'repo,workflow';
-		window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=${scope}`;
+	function handleLogin() {
+		login();
 	}
 
-	function logout() {
-		sessionStorage.removeItem('github_access_token');
+	function handleLogout() {
+		authLogout();
 		user = null;
 		repo = null;
 		workflowRuns = [];
@@ -82,7 +78,7 @@
 	<div class="profile">
 		<img src={user.avatar_url} alt={user.login} />
 		<p>Logged in as <strong>{user.login}</strong></p>
-		<button onclick={logout}>Logout</button>
+		<button onclick={handleLogout}>Logout</button>
 	</div>
 
 	{#if repo}
@@ -99,7 +95,7 @@
 		<p>No recent workflows found.</p>
 	{/if}
 {:else}
-	<button onclick={login}>Login with GitHub</button>
+	<button onclick={handleLogin}>Login with GitHub</button>
 {/if}
 
 {#if error}

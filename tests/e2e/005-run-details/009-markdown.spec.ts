@@ -91,7 +91,7 @@ test('Markdown Support in Gemini Events', async ({ page }, testInfo) => {
   // Set token and navigate
   await page.goto('/');
   await page.evaluate(() => {
-    sessionStorage.setItem('github_access_token', 'test_access_token');
+    localStorage.setItem('github_access_token', 'test_access_token');
   });
 
   await page.goto(`/run?id=${runId}`);

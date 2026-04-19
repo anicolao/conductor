@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { PUBLIC_OAUTH_EXCHANGE_URL } from '$env/static/public';
+	import { setAccessToken, getRedirectPath, clearRedirectPath } from '$lib/auth';
 
 	let exchanged = false;
 
@@ -21,7 +22,7 @@
 
 				const data = await response.json();
 				if (data.access_token) {
-					sessionStorage.setItem('github_access_token', data.access_token);
+					setAccessToken(data.access_token);
 				} else {
 					console.error('OAuth exchange failed: no access token', data);
 				}
@@ -30,8 +31,8 @@
 			}
 		}
 		
-		const redirectPath = sessionStorage.getItem('oauth_redirect_path') || '/';
-		sessionStorage.removeItem('oauth_redirect_path');
+		const redirectPath = getRedirectPath();
+		clearRedirectPath();
 		goto(redirectPath);
 	});
 </script>
