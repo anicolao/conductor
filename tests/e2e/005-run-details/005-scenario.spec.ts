@@ -8,6 +8,24 @@ test('Run Details Route', async ({ page }, testInfo) => {
   const runId = '123456';
   const jobId = 789;
 
+  // Mock GitHub User API
+  await page.route('https://api.github.com/user', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ login: 'test-user', avatar_url: 'https://github.com/test-user.png' }),
+    });
+  });
+
+  // Mock GitHub Repo API
+  await page.route('https://api.github.com/repos/LLM-Orchestration/conductor', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ full_name: 'LLM-Orchestration/conductor' }),
+    });
+  });
+
   // Mock GitHub Run Details API
   await page.route(`https://api.github.com/repos/LLM-Orchestration/conductor/actions/runs/${runId}`, async (route) => {
     await route.fulfill({
@@ -45,7 +63,7 @@ Some random log line
 2026-04-14T12:00:05Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:00:05Z","event":"STDOUT","data":{"text":"Compiling source code..."}}
 2026-04-14T12:00:10Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:00:10Z","event":"STDERR","data":{"text":"Warning: low disk space"}}
 2026-04-14T12:00:15Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:00:15Z","event":"LOG_INFO","data":{"message":"Build started"}}
-2026-04-14T12:01:00Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:01:00Z","event":"TASK","persona":"coder","data":{"task":"Implement feature"}}
+2026-04-14T12:01:00Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:01:00Z","event":"TASK","persona":"coder","data":{"message":"Implement feature"}}
 2026-04-14T12:02:00Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-14T12:02:00Z","event":"session_end","data":{"status":"success"}}
     `;
     await route.fulfill({

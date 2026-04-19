@@ -8,6 +8,24 @@ test('Run Details Streaming Logs', async ({ page }, testInfo) => {
   const runId = 'streaming-123';
   const jobId = 456;
 
+  // Mock GitHub User API
+  await page.route('https://api.github.com/user', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ login: 'test-user', avatar_url: 'https://github.com/test-user.png' }),
+    });
+  });
+
+  // Mock GitHub Repo API
+  await page.route('https://api.github.com/repos/LLM-Orchestration/conductor', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ full_name: 'LLM-Orchestration/conductor' }),
+    });
+  });
+
   let logCalls = 0;
 
   // Mock GitHub Run Details API - initially in_progress
@@ -54,11 +72,11 @@ test('Run Details Streaming Logs', async ({ page }, testInfo) => {
       await route.fulfill({ status: 404 });
     } else if (logCalls === 2) {
       // Second call: partial logs
-      const logs = `2026-04-15T12:00:10Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:10Z","event":"session_start","persona":"conductor","data":{"branch":"feat/streaming"}}`;
+      const logs = `2026-04-15T12:00:10Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:10Z","event":"session_start","persona":"conductor","data":{"branch":"feat/streaming","labels":[]}}`;
       await route.fulfill({ status: 200, contentType: 'text/plain', body: logs });
     } else {
       // Third call and beyond: full logs
-      const logs = `2026-04-15T12:00:10Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:10Z","event":"session_start","persona":"conductor","data":{"branch":"feat/streaming"}}
+      const logs = `2026-04-15T12:00:10Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:10Z","event":"session_start","persona":"conductor","data":{"branch":"feat/streaming","labels":[]}}
 2026-04-15T12:00:20Z ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:20Z","event":"session_end","data":{"status":"success"}}`;
       await route.fulfill({ status: 200, contentType: 'text/plain', body: logs });
     }

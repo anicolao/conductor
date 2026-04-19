@@ -27,7 +27,7 @@ test('Observability Log Parser Debug Page', async ({ page }, testInfo) => {
 
   const sampleLogs = `
 Some random log line
-::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:00.000Z","event":"session_start","persona":"coder","data":{"branch":"feat/parser"}}
+::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:00.000Z","event":"session_start","persona":"coder","data":{"branch":"feat/parser","labels":[]}}
 Another random log line
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:05:00.000Z","event":"session_end","persona":"coder","data":{"status":"success"}}
   `.trim();
