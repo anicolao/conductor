@@ -53,19 +53,13 @@ export interface GeminiToolResultEvent {
 	data?: {
 		status?: string;
 		output?: string;
-		[key: string]: JsonValue;
-	};
-}
-
-export interface GeminiUnknownEvent {
-	type: string;
-	[key: string]: JsonValue;
+	} & JsonObject;
 }
 
 export interface GeminiResultEvent {
 	type: 'result';
 	response: string;
-	stats: {
+	stats?: {
 		tokens?: {
 			prompt?: number;
 			completion?: number;
@@ -77,8 +71,32 @@ export interface GeminiResultEvent {
 
 export interface GeminiToolCallsUpdateEvent {
 	type: 'tool-calls-update';
-	toolCalls: JsonValue[];
+	toolCalls: Array<{
+		id?: string;
+		function?: {
+			name: string;
+			arguments: string;
+		};
+	}>;
 	schedulerId: string;
+}
+
+export interface GeminiCallEvent {
+	type: 'call';
+	method: string;
+	args?: JsonObject;
+	params?: JsonObject;
+}
+
+export interface GeminiContextUpdateEvent {
+	type: 'context-update';
+	context?: JsonObject;
+	updates?: JsonObject;
+}
+
+export interface GeminiUnknownEvent {
+	type: string;
+	[key: string]: JsonValue;
 }
 
 export interface MessageBusMixin {
@@ -92,6 +110,8 @@ export type GeminiEventData = (
 	| GeminiToolResultEvent
 	| GeminiResultEvent
 	| GeminiToolCallsUpdateEvent
+	| GeminiCallEvent
+	| GeminiContextUpdateEvent
 	| GeminiUnknownEvent
 ) & MessageBusMixin;
 

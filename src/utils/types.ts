@@ -29,6 +29,9 @@ export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
 
 /**
  * Represents a valid JSON object.
+ * 
+ * NOTE: Use this type sparingly. For objects with a known schema, 
+ * define a specific interface instead of using this generic catch-all.
  */
 export type JsonObject = { [key: string]: JsonValue };
 
