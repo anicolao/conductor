@@ -21,52 +21,48 @@ export type JsonObject = { [key: string]: JsonValue };
 
 export interface GeminiInitEvent {
 	type: 'init';
-	sessionId: string;
+	session_id: string;
 	model: string;
+	timestamp: string;
 }
 
 export interface GeminiMessageEvent {
 	type: 'message';
 	role: 'user' | 'assistant';
 	content: string;
+	delta: boolean;
+	timestamp: string;
 }
 
 export interface GeminiToolUseEvent {
 	type: 'tool_use';
-	tool?: string;
-	name?: string;
-	tool_name?: string;
-	tool_id?: string;
-	args?: JsonObject;
-	parameters?: JsonObject;
+	tool_name: string;
+	tool_id: string;
+	parameters: JsonObject;
+	timestamp: string;
 }
 
 export interface GeminiToolResultEvent {
 	type: 'tool_result';
-	tool?: string;
-	name?: string;
-	tool_name?: string;
-	tool_id?: string;
-	result?: JsonValue;
-	status?: string;
-	output?: string;
-	data?: {
-		status?: string;
-		output?: string;
-	} & JsonObject;
+	tool_id: string;
+	status: string;
+	output: string;
+	timestamp: string;
+	error?: string;
 }
 
 export interface GeminiResultEvent {
 	type: 'result';
-	response: string;
+	status: string;
 	stats?: {
-		tokens?: {
-			prompt?: number;
-			completion?: number;
-			total?: number;
-		};
-		latency?: number;
+		total_tokens: number;
+		input_tokens: number;
+		output_tokens: number;
+		duration_ms: number;
 	};
+	timestamp: string;
+	response?: string;
+	error?: string;
 }
 
 export interface GeminiToolCallsUpdateEvent {
@@ -84,14 +80,12 @@ export interface GeminiToolCallsUpdateEvent {
 export interface GeminiCallEvent {
 	type: 'call';
 	method: string;
-	args?: JsonObject;
-	params?: JsonObject;
+	args: JsonObject;
 }
 
 export interface GeminiContextUpdateEvent {
 	type: 'context-update';
-	context?: JsonObject;
-	updates?: JsonObject;
+	data: JsonObject;
 }
 
 export interface GeminiUnknownEvent {

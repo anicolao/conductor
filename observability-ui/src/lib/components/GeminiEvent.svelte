@@ -45,30 +45,20 @@
   };
 
   function getToolName(data: GeminiEventData) {
-    let name: string | undefined;
-    
-    if (data.type === 'tool_use' || data.type === 'tool_result') {
-      const val = data.tool_name || data.name || data.tool;
-      if (typeof val === 'string') name = val;
+    if (data.type === 'tool_use') {
+      return data.tool_name;
     }
     
-    if (name) return name;
-    
-    if ((data.type === 'tool_use' || data.type === 'tool_result') && typeof data.tool_id === 'string' && toolNameMap.has(data.tool_id)) {
+    if (data.type === 'tool_result' && typeof data.tool_id === 'string' && toolNameMap.has(data.tool_id)) {
       return toolNameMap.get(data.tool_id) || 'unknown';
     }
 
-    if (data.type === 'tool_result') {
-      const status = data.status || (typeof data.data === 'object' && data.data !== null && 'status' in data.data ? (data.data as ToolResultData).status : undefined);
-      if (typeof status === 'string') return status;
-    }
-    
     return 'unknown';
   }
 
   function getToolArgs(data: GeminiEventData) {
     if (data.type === 'tool_use') {
-      return data.parameters || data.args || {};
+      return data.parameters;
     }
     return {};
   }
@@ -85,7 +75,7 @@
       {/if}
     </div>
     <div class="event-body">
-      <p><strong>Session ID:</strong> <code>{eventData.sessionId}</code></p>
+      <p><strong>Session ID:</strong> <code>{eventData.session_id}</code></p>
       <p><strong>Model:</strong> <code>{eventData.model}</code></p>
     </div>
   {:else if eventData.type === 'message'}
@@ -117,8 +107,8 @@
     <div class="event-header">
       <span class="icon">📤</span>
       <span class="event-type">TOOL RESULT: {getToolName(eventData)}
-        {#if eventData.status || (typeof eventData.data === 'object' && eventData.data !== null && 'status' in eventData.data && (eventData.data as ToolResultData).status)}
-          ({eventData.status || (typeof eventData.data === 'object' && eventData.data !== null && 'status' in eventData.data ? (eventData.data as ToolResultData).status : '')})
+        {#if eventData.status}
+          ({eventData.status})
         {/if}
       </span>
       {#if eventData.tool_id}
@@ -129,21 +119,22 @@
       {/if}
     </div>
     <div class="event-body">
-      {#if eventData.status || eventData.output || (typeof eventData.data === 'object' && eventData.data !== null && ('status' in eventData.data || 'output' in eventData.data))}
-        {@const status = eventData.status || (typeof eventData.data === 'object' && eventData.data !== null && 'status' in eventData.data ? (eventData.data as ToolResultData).status : undefined)}
-        {@const output = eventData.output || (typeof eventData.data === 'object' && eventData.data !== null && 'output' in eventData.data ? (eventData.data as ToolResultData).output : undefined)}
-        {#if status}
-          <div class="tool-result-status {status}">
-            <strong>Status:</strong> {status}
+      {#if eventData.status || eventData.output}
+        {#if eventData.status}
+          <div class="tool-result-status {eventData.status.toLowerCase()}">
+            <strong>Status:</strong> {eventData.status}
           </div>
         {/if}
-        {#if output}
-          <pre class="terminal-output"><code>{output}</code></pre>
+        {#if eventData.output}
+          <pre class="terminal-output"><code>{eventData.output}</code></pre>
+        {/if}
+        {#if eventData.error}
+          <div class="tool-result-status error">
+            <strong>Error:</strong> {eventData.error}
+          </div>
         {/if}
       {:else}
-        <pre><code>{typeof eventData.result === 'string'
-            ? eventData.result
-            : JSON.stringify(eventData.result || eventData.data || eventData, null, 2)}</code></pre>
+        <pre><code>{JSON.stringify(eventData, null, 2)}</code></pre>
       {/if}
     </div>
   {:else if eventData.type === 'tool-calls-update'}
@@ -176,7 +167,7 @@
       {/if}
     </div>
     <div class="event-body">
-      <pre><code>{JSON.stringify(eventData.args || eventData.params || eventData, null, 2)}</code></pre>
+      <pre><code>{JSON.stringify(eventData.args || eventData, null, 2)}</code></pre>
     </div>
   {:else if eventData.type === 'context-update'}
     <div class="event-header">
@@ -187,36 +178,36 @@
       {/if}
     </div>
     <div class="event-body">
-      <pre><code>{JSON.stringify(eventData.context || eventData.updates || eventData, null, 2)}</code></pre>
+      <pre><code>{JSON.stringify(eventData.data || eventData, null, 2)}</code></pre>
     </div>
   {:else if eventData.type === 'result'}
     <div class="event-header">
       <span class="icon">🏁</span>
-      <span class="event-type">Gemini Result</span>
+      <span class="event-type">Gemini Result ({eventData.status})</span>
       {#if eventData._isMessageBus}
         <span class="debug-badge">🚌 DEBUG</span>
       {/if}
     </div>
     <div class="event-body markdown">
       {@html markdownContent}
+      {#if eventData.error}
+        <div class="tool-result-status error">
+          <strong>Error:</strong> {eventData.error}
+        </div>
+      {/if}
       {#if typeof eventData.stats === 'object' && eventData.stats !== null}
         <div class="stats">
-          {#if 'tokens' in eventData.stats && typeof eventData.stats.tokens === 'object' && eventData.stats.tokens !== null}
-            {@const tokens = eventData.stats.tokens as { prompt?: number, completion?: number, total?: number }}
-            <div class="stat">
-              <span class="label">Tokens:</span>
-              <span class="value"
-                >{tokens.total || 0} (P: {tokens.prompt || 0}, C: {tokens.completion ||
-                  0})</span
+          <div class="stat">
+            <span class="label">Tokens:</span>
+            <span class="value"
+              >{eventData.stats.total_tokens || 0} (P: {eventData.stats.input_tokens || 0}, C: {eventData.stats.output_tokens ||
+                0})</span
               >
-            </div>
-          {/if}
-          {#if 'latency' in eventData.stats && typeof eventData.stats.latency === 'number'}
-            <div class="stat">
-              <span class="label">Latency:</span>
-              <span class="value">{eventData.stats.latency}ms</span>
-            </div>
-          {/if}
+          </div>
+          <div class="stat">
+            <span class="label">Latency:</span>
+            <span class="value">{eventData.stats.duration_ms}ms</span>
+          </div>
         </div>
       {/if}
     </div>

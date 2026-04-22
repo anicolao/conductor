@@ -37,9 +37,80 @@ const SessionEndDataSchema = z.object({
   error: z.string().optional(),
 }).catchall(JsonValueSchema);
 
-const GeminiEventDataSchema = z.object({
+const GeminiEventDataSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('init'),
+    session_id: z.string(),
+    model: z.string(),
+    timestamp: z.string(),
+    _isMessageBus: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal('message'),
+    role: z.enum(['user', 'assistant']),
+    content: z.string(),
+    delta: z.boolean(),
+    timestamp: z.string(),
+    _isMessageBus: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal('tool_use'),
+    tool_name: z.string(),
+    tool_id: z.string(),
+    parameters: JsonObjectSchema,
+    timestamp: z.string(),
+    _isMessageBus: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal('tool_result'),
+    tool_id: z.string(),
+    status: z.string(),
+    output: z.string(),
+    timestamp: z.string(),
+    error: z.string().optional(),
+    _isMessageBus: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal('result'),
+    status: z.string(),
+    stats: z.object({
+      total_tokens: z.number(),
+      input_tokens: z.number(),
+      output_tokens: z.number(),
+      duration_ms: z.number(),
+    }).optional(),
+    timestamp: z.string(),
+    response: z.string().optional(),
+    error: z.string().optional(),
+    _isMessageBus: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal('tool-calls-update'),
+    toolCalls: z.array(z.object({
+      id: z.string().optional(),
+      function: z.object({
+        name: z.string(),
+        arguments: z.string(),
+      }).optional(),
+    })),
+    schedulerId: z.string(),
+    _isMessageBus: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal('call'),
+    method: z.string(),
+    args: JsonObjectSchema,
+    _isMessageBus: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal('context-update'),
+    data: JsonObjectSchema,
+    _isMessageBus: z.boolean().optional(),
+  })
+]).or(z.object({
   type: z.string(),
-}).catchall(JsonValueSchema);
+  _isMessageBus: z.boolean().optional(),
+}).catchall(JsonValueSchema));
 
 type BaseEvent = {
   v: number;
