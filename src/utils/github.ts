@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { z } from "zod";
 import { logger } from "./logger";
+import { sanitize } from "./sanitize";
 
 export const GitHubEventSchema = z
 	.object({
@@ -182,7 +183,7 @@ The **${persona}** has ${pickupText} and is working on **${branch}**.`;
 				"-R",
 				repository,
 				"--body",
-				body,
+				sanitize(body),
 			],
 			{
 				stdio: "inherit",

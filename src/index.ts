@@ -20,6 +20,7 @@ import {
 	postPickupNote,
 } from "./utils/github";
 import { logEvent, logger } from "./utils/logger";
+import { sanitize } from "./utils/sanitize";
 
 function verifyGitHubCli(repository: string, issueNumber: number): string {
 	const repoCheck = spawnSync(
@@ -81,7 +82,7 @@ ${failureDetails}
 				"-R",
 				repository,
 				"--body",
-				body,
+				sanitize(body),
 			],
 			{
 				stdio: "inherit",
@@ -688,7 +689,7 @@ ${snippet}
 						"-R",
 						repository,
 						"--body",
-						body,
+						sanitize(body),
 					],
 					{
 						stdio: "inherit",
