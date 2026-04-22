@@ -1,4 +1,4 @@
-import type { ConductorEvent } from '../../../src/utils/logger';
+import type { ConductorEvent } from "../../../src/utils/logger";
 
 export type { ConductorEvent };
 
@@ -20,22 +20,22 @@ export type JsonValue =
 export type JsonObject = { [key: string]: JsonValue };
 
 export interface GeminiInitEvent {
-	type: 'init';
+	type: "init";
 	session_id: string;
 	model: string;
 	timestamp: string;
 }
 
 export interface GeminiMessageEvent {
-	type: 'message';
-	role: 'user' | 'assistant';
+	type: "message";
+	role: "user" | "assistant";
 	content: string;
 	delta: boolean;
 	timestamp: string;
 }
 
 export interface GeminiToolUseEvent {
-	type: 'tool_use';
+	type: "tool_use";
 	tool_name: string;
 	tool_id: string;
 	parameters: JsonObject;
@@ -43,7 +43,7 @@ export interface GeminiToolUseEvent {
 }
 
 export interface GeminiToolResultEvent {
-	type: 'tool_result';
+	type: "tool_result";
 	tool_id: string;
 	status: string;
 	output: string;
@@ -52,7 +52,7 @@ export interface GeminiToolResultEvent {
 }
 
 export interface GeminiResultEvent {
-	type: 'result';
+	type: "result";
 	status: string;
 	stats?: {
 		total_tokens: number;
@@ -66,7 +66,7 @@ export interface GeminiResultEvent {
 }
 
 export interface GeminiToolCallsUpdateEvent {
-	type: 'tool-calls-update';
+	type: "tool-calls-update";
 	toolCalls: Array<{
 		id?: string;
 		function?: {
@@ -78,13 +78,13 @@ export interface GeminiToolCallsUpdateEvent {
 }
 
 export interface GeminiCallEvent {
-	type: 'call';
+	type: "call";
 	method: string;
 	args: JsonObject;
 }
 
 export interface GeminiContextUpdateEvent {
-	type: 'context-update';
+	type: "context-update";
 	data: JsonObject;
 }
 
@@ -107,7 +107,8 @@ export type GeminiEventData = (
 	| GeminiCallEvent
 	| GeminiContextUpdateEvent
 	| GeminiUnknownEvent
-) & MessageBusMixin;
+) &
+	MessageBusMixin;
 
 export interface WorkflowRun {
 	id: number;

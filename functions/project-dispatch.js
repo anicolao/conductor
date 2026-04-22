@@ -1,12 +1,11 @@
 // @ts-check
-"use strict";
 
 /**
  * @param {unknown} persona
  * @returns {"conductor" | "coder" | undefined}
  */
 function normalizeDispatchPersona(persona) {
-  return persona === "coder" || persona === "conductor" ? persona : undefined;
+	return persona === "coder" || persona === "conductor" ? persona : undefined;
 }
 
 /**
@@ -32,28 +31,28 @@ function normalizeDispatchPersona(persona) {
  * }} args
  */
 function buildProjectDispatchPayload(args) {
-  const clientPayload = {
-    repository: args.repository,
-    issue_number: args.issueNumber,
-    issue_node_id: args.issueNodeId,
-    project_number: args.projectNumber,
-    project_url: args.projectUrl,
-    event_name: args.eventName,
-    action: args.action
-  };
+	const clientPayload = {
+		repository: args.repository,
+		issue_number: args.issueNumber,
+		issue_node_id: args.issueNodeId,
+		project_number: args.projectNumber,
+		project_url: args.projectUrl,
+		event_name: args.eventName,
+		action: args.action,
+	};
 
-  const persona = normalizeDispatchPersona(args.persona);
-  if (persona) {
-    clientPayload.persona = persona;
-  }
+	const persona = normalizeDispatchPersona(args.persona);
+	if (persona) {
+		clientPayload.persona = persona;
+	}
 
-  return {
-    event_type: "project_in_progress",
-    client_payload: clientPayload
-  };
+	return {
+		event_type: "project_in_progress",
+		client_payload: clientPayload,
+	};
 }
 
 module.exports = {
-  buildProjectDispatchPayload,
-  normalizeDispatchPersona
+	buildProjectDispatchPayload,
+	normalizeDispatchPersona,
 };

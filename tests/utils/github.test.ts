@@ -1,262 +1,298 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { spawnSync } from 'child_process';
-import { extractEventData, GitHubEvent, extractMediaUrls, collectAllMediaUrls, injectMediaPaths, postPickupNote, GitHubEventSchema } from '../../src/utils/github';
+import { spawnSync } from "node:child_process";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	collectAllMediaUrls,
+	extractEventData,
+	extractMediaUrls,
+	type GitHubEvent,
+	GitHubEventSchema,
+	injectMediaPaths,
+	postPickupNote,
+} from "../../src/utils/github";
 
-vi.mock('child_process', () => ({
-  spawnSync: vi.fn(() => ({ status: 0 }))
+vi.mock("child_process", () => ({
+	spawnSync: vi.fn(() => ({ status: 0 })),
 }));
 
-describe('GitHubEventSchema', () => {
-  it('should accept persona as a string', () => {
-    const payload = {
-      client_payload: {
-        persona: 'coder'
-      }
-    };
-    const result = GitHubEventSchema.safeParse(payload);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.client_payload?.persona).toBe('coder');
-    }
-  });
+describe("GitHubEventSchema", () => {
+	it("should accept persona as a string", () => {
+		const payload = {
+			client_payload: {
+				persona: "coder",
+			},
+		};
+		const result = GitHubEventSchema.safeParse(payload);
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.client_payload?.persona).toBe("coder");
+		}
+	});
 
-  it('should accept persona as undefined', () => {
-    const payload = {
-      client_payload: {}
-    };
-    const result = GitHubEventSchema.safeParse(payload);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.client_payload?.persona).toBeUndefined();
-    }
-  });
+	it("should accept persona as undefined", () => {
+		const payload = {
+			client_payload: {},
+		};
+		const result = GitHubEventSchema.safeParse(payload);
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.client_payload?.persona).toBeUndefined();
+		}
+	});
 
-  it('should accept persona as null', () => {
-    const payload = {
-      client_payload: {
-        persona: null
-      }
-    };
-    const result = GitHubEventSchema.safeParse(payload);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.client_payload?.persona).toBeNull();
-    }
-  });
+	it("should accept persona as null", () => {
+		const payload = {
+			client_payload: {
+				persona: null,
+			},
+		};
+		const result = GitHubEventSchema.safeParse(payload);
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.client_payload?.persona).toBeNull();
+		}
+	});
 });
 
-describe('postPickupNote', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+describe("postPickupNote", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
 
-  it('should include a hyperlink when runId is provided', () => {
-    postPickupNote('owner/repo', 123, 'conductor', 'main', '24606677148');
+	it("should include a hyperlink when runId is provided", () => {
+		postPickupNote("owner/repo", 123, "conductor", "main", "24606677148");
 
-    expect(spawnSync).toHaveBeenCalledWith(
-      'gh',
-      expect.arrayContaining([
-        'issue',
-        'comment',
-        '123',
-        '-R',
-        'owner/repo',
-        '--body',
-        expect.stringContaining('[picked up this task](https://llm-orchestration.github.io/conductor/run/?id=24606677148)')
-      ]),
-      expect.any(Object)
-    );
-  });
+		expect(spawnSync).toHaveBeenCalledWith(
+			"gh",
+			expect.arrayContaining([
+				"issue",
+				"comment",
+				"123",
+				"-R",
+				"owner/repo",
+				"--body",
+				expect.stringContaining(
+					"[picked up this task](https://llm-orchestration.github.io/conductor/run/?id=24606677148)",
+				),
+			]),
+			expect.any(Object),
+		);
+	});
 
-  it('should use plain text when runId is not provided', () => {
-    postPickupNote('owner/repo', 123, 'conductor', 'main');
+	it("should use plain text when runId is not provided", () => {
+		postPickupNote("owner/repo", 123, "conductor", "main");
 
-    expect(spawnSync).toHaveBeenCalledWith(
-      'gh',
-      expect.arrayContaining([
-        '--body',
-        expect.stringContaining('has picked up this task and is working on **main**')
-      ]),
-      expect.any(Object)
-    );
-    
-    const bodyArg = (vi.mocked(spawnSync).mock.calls[0][1] as string[])[6];
-    expect(bodyArg).not.toContain('https://llm-orchestration.github.io/conductor/run/?id=');
-  });
+		expect(spawnSync).toHaveBeenCalledWith(
+			"gh",
+			expect.arrayContaining([
+				"--body",
+				expect.stringContaining(
+					"has picked up this task and is working on **main**",
+				),
+			]),
+			expect.any(Object),
+		);
 
-  it('should use plain text when runId is empty', () => {
-    postPickupNote('owner/repo', 123, 'conductor', 'main', '');
+		const bodyArg = (vi.mocked(spawnSync).mock.calls[0][1] as string[])[6];
+		expect(bodyArg).not.toContain(
+			"https://llm-orchestration.github.io/conductor/run/?id=",
+		);
+	});
 
-    const bodyArg = (vi.mocked(spawnSync).mock.calls[0][1] as string[])[6];
-    expect(bodyArg).toContain('has picked up this task and is working on **main**');
-    expect(bodyArg).not.toContain('https://llm-orchestration.github.io/conductor/run/?id=');
-  });
+	it("should use plain text when runId is empty", () => {
+		postPickupNote("owner/repo", 123, "conductor", "main", "");
+
+		const bodyArg = (vi.mocked(spawnSync).mock.calls[0][1] as string[])[6];
+		expect(bodyArg).toContain(
+			"has picked up this task and is working on **main**",
+		);
+		expect(bodyArg).not.toContain(
+			"https://llm-orchestration.github.io/conductor/run/?id=",
+		);
+	});
 });
 
-describe('injectMediaPaths', () => {
-  it('should inject paths after URLs', () => {
-    const text = 'Check this: https://github.com/user-attachments/assets/1\nAnd this: https://github.com/user-attachments/assets/2';
-    const urlToPath = new Map([
-      ['https://github.com/user-attachments/assets/1', '/tmp/1.png'],
-      ['https://github.com/user-attachments/assets/2', '/tmp/2.png']
-    ]);
-    const result = injectMediaPaths(text, urlToPath);
-    expect(result).toBe('Check this: https://github.com/user-attachments/assets/1 <!-- CONDUCTOR_MEDIA_PATH: /tmp/1.png -->\nAnd this: https://github.com/user-attachments/assets/2 <!-- CONDUCTOR_MEDIA_PATH: /tmp/2.png -->');
-  });
+describe("injectMediaPaths", () => {
+	it("should inject paths after URLs", () => {
+		const text =
+			"Check this: https://github.com/user-attachments/assets/1\nAnd this: https://github.com/user-attachments/assets/2";
+		const urlToPath = new Map([
+			["https://github.com/user-attachments/assets/1", "/tmp/1.png"],
+			["https://github.com/user-attachments/assets/2", "/tmp/2.png"],
+		]);
+		const result = injectMediaPaths(text, urlToPath);
+		expect(result).toBe(
+			"Check this: https://github.com/user-attachments/assets/1 <!-- CONDUCTOR_MEDIA_PATH: /tmp/1.png -->\nAnd this: https://github.com/user-attachments/assets/2 <!-- CONDUCTOR_MEDIA_PATH: /tmp/2.png -->",
+		);
+	});
 
-  it('should handle duplicate URLs in text', () => {
-    const text = 'URL: https://github.com/user-attachments/assets/1 and again: https://github.com/user-attachments/assets/1';
-    const urlToPath = new Map([
-      ['https://github.com/user-attachments/assets/1', '/tmp/1.png']
-    ]);
-    const result = injectMediaPaths(text, urlToPath);
-    expect(result).toBe('URL: https://github.com/user-attachments/assets/1 <!-- CONDUCTOR_MEDIA_PATH: /tmp/1.png --> and again: https://github.com/user-attachments/assets/1 <!-- CONDUCTOR_MEDIA_PATH: /tmp/1.png -->');
-  });
+	it("should handle duplicate URLs in text", () => {
+		const text =
+			"URL: https://github.com/user-attachments/assets/1 and again: https://github.com/user-attachments/assets/1";
+		const urlToPath = new Map([
+			["https://github.com/user-attachments/assets/1", "/tmp/1.png"],
+		]);
+		const result = injectMediaPaths(text, urlToPath);
+		expect(result).toBe(
+			"URL: https://github.com/user-attachments/assets/1 <!-- CONDUCTOR_MEDIA_PATH: /tmp/1.png --> and again: https://github.com/user-attachments/assets/1 <!-- CONDUCTOR_MEDIA_PATH: /tmp/1.png -->",
+		);
+	});
 
-  it('should return original text if no matches', () => {
-    const text = 'No URLs here';
-    const urlToPath = new Map([['https://example.com', '/tmp/ex.png']]);
-    const result = injectMediaPaths(text, urlToPath);
-    expect(result).toBe(text);
-  });
+	it("should return original text if no matches", () => {
+		const text = "No URLs here";
+		const urlToPath = new Map([["https://example.com", "/tmp/ex.png"]]);
+		const result = injectMediaPaths(text, urlToPath);
+		expect(result).toBe(text);
+	});
 });
 
-describe('extractMediaUrls', () => {
-  it('should extract multiple URLs from text', () => {
-    const text = 'Here are some images: https://github.com/user-attachments/assets/3c27f0cf-ed52-489a-bb2f-25f1f06891c8 and https://github.com/user-attachments/assets/12345678-1234-1234-1234-1234567890ab';
-    const result = extractMediaUrls(text);
-    expect(result).toEqual([
-      'https://github.com/user-attachments/assets/3c27f0cf-ed52-489a-bb2f-25f1f06891c8',
-      'https://github.com/user-attachments/assets/12345678-1234-1234-1234-1234567890ab'
-    ]);
-  });
+describe("extractMediaUrls", () => {
+	it("should extract multiple URLs from text", () => {
+		const text =
+			"Here are some images: https://github.com/user-attachments/assets/3c27f0cf-ed52-489a-bb2f-25f1f06891c8 and https://github.com/user-attachments/assets/12345678-1234-1234-1234-1234567890ab";
+		const result = extractMediaUrls(text);
+		expect(result).toEqual([
+			"https://github.com/user-attachments/assets/3c27f0cf-ed52-489a-bb2f-25f1f06891c8",
+			"https://github.com/user-attachments/assets/12345678-1234-1234-1234-1234567890ab",
+		]);
+	});
 
-  it('should de-duplicate URLs', () => {
-    const text = 'Duplicate: https://github.com/user-attachments/assets/3c27f0cf-ed52-489a-bb2f-25f1f06891c8 and https://github.com/user-attachments/assets/3c27f0cf-ed52-489a-bb2f-25f1f06891c8';
-    const result = extractMediaUrls(text);
-    expect(result).toEqual(['https://github.com/user-attachments/assets/3c27f0cf-ed52-489a-bb2f-25f1f06891c8']);
-  });
+	it("should de-duplicate URLs", () => {
+		const text =
+			"Duplicate: https://github.com/user-attachments/assets/3c27f0cf-ed52-489a-bb2f-25f1f06891c8 and https://github.com/user-attachments/assets/3c27f0cf-ed52-489a-bb2f-25f1f06891c8";
+		const result = extractMediaUrls(text);
+		expect(result).toEqual([
+			"https://github.com/user-attachments/assets/3c27f0cf-ed52-489a-bb2f-25f1f06891c8",
+		]);
+	});
 
-  it('should return empty array if no URLs found', () => {
-    const text = 'No URLs here';
-    const result = extractMediaUrls(text);
-    expect(result).toEqual([]);
-  });
+	it("should return empty array if no URLs found", () => {
+		const text = "No URLs here";
+		const result = extractMediaUrls(text);
+		expect(result).toEqual([]);
+	});
 
-  it('should return empty array for empty or null input', () => {
-    expect(extractMediaUrls('')).toEqual([]);
-    expect(extractMediaUrls(null as unknown as string)).toEqual([]);
-  });
+	it("should return empty array for empty or null input", () => {
+		expect(extractMediaUrls("")).toEqual([]);
+		expect(extractMediaUrls(null as unknown as string)).toEqual([]);
+	});
 });
 
-describe('collectAllMediaUrls', () => {
-  it('should collect unique URLs from issue body and latest comment', () => {
-    const issueBody = 'Issue: https://github.com/user-attachments/assets/1';
-    const latestComment = 'Latest: https://github.com/user-attachments/assets/2';
+describe("collectAllMediaUrls", () => {
+	it("should collect unique URLs from issue body and latest comment", () => {
+		const issueBody = "Issue: https://github.com/user-attachments/assets/1";
+		const latestComment =
+			"Latest: https://github.com/user-attachments/assets/2";
 
-    const result = collectAllMediaUrls(issueBody, latestComment);
-    expect(result.sort()).toEqual([
-      'https://github.com/user-attachments/assets/1',
-      'https://github.com/user-attachments/assets/2'
-    ].sort());
-  });
+		const result = collectAllMediaUrls(issueBody, latestComment);
+		expect(result.sort()).toEqual(
+			[
+				"https://github.com/user-attachments/assets/1",
+				"https://github.com/user-attachments/assets/2",
+			].sort(),
+		);
+	});
 
-  it('should handle empty sources', () => {
-    const result = collectAllMediaUrls('', '');
-    expect(result).toEqual([]);
-  });
+	it("should handle empty sources", () => {
+		const result = collectAllMediaUrls("", "");
+		expect(result).toEqual([]);
+	});
 });
 
-describe('extractEventData', () => {
-  it('should extract data from issue event', () => {
-    const event: GitHubEvent = {
-      issue: {
-        number: 123,
-        labels: [{ name: 'persona: coder' }],
-        body: 'issue body',
-        html_url: 'https://github.com/owner/repo/issues/123',
-        node_id: 'I_123'
-      }
-    };
-    const env = { GITHUB_REPOSITORY: 'owner/repo' };
-    const result = extractEventData(event, env);
-    expect(result.repository).toBe('owner/repo');
-    expect(result.issueNumber).toBe(123);
-    expect(result.issueUrl).toBe('https://github.com/owner/repo/issues/123');
-    expect(result.issueNodeId).toBe('I_123');
-    expect(result.labels).toContain('persona: coder');
-    expect(result.issueBody).toBe('issue body');
-  });
+describe("extractEventData", () => {
+	it("should extract data from issue event", () => {
+		const event: GitHubEvent = {
+			issue: {
+				number: 123,
+				labels: [{ name: "persona: coder" }],
+				body: "issue body",
+				html_url: "https://github.com/owner/repo/issues/123",
+				node_id: "I_123",
+			},
+		};
+		const env = { GITHUB_REPOSITORY: "owner/repo" };
+		const result = extractEventData(event, env);
+		expect(result.repository).toBe("owner/repo");
+		expect(result.issueNumber).toBe(123);
+		expect(result.issueUrl).toBe("https://github.com/owner/repo/issues/123");
+		expect(result.issueNodeId).toBe("I_123");
+		expect(result.labels).toContain("persona: coder");
+		expect(result.issueBody).toBe("issue body");
+	});
 
-  it('should extract commentUrl from issue_comment event', () => {
-    const event: GitHubEvent = {
-      issue: {
-        number: 123,
-        labels: [],
-        body: 'issue body',
-        html_url: 'https://github.com/owner/repo/issues/123'
-      },
-      comment: {
-        body: 'comment body',
-        html_url: 'https://github.com/owner/repo/issues/123#issuecomment-789'
-      }
-    };
-    const result = extractEventData(event, {});
-    expect(result.commentBody).toBe('comment body');
-    expect(result.commentUrl).toBe('https://github.com/owner/repo/issues/123#issuecomment-789');
-  });
+	it("should extract commentUrl from issue_comment event", () => {
+		const event: GitHubEvent = {
+			issue: {
+				number: 123,
+				labels: [],
+				body: "issue body",
+				html_url: "https://github.com/owner/repo/issues/123",
+			},
+			comment: {
+				body: "comment body",
+				html_url: "https://github.com/owner/repo/issues/123#issuecomment-789",
+			},
+		};
+		const result = extractEventData(event, {});
+		expect(result.commentBody).toBe("comment body");
+		expect(result.commentUrl).toBe(
+			"https://github.com/owner/repo/issues/123#issuecomment-789",
+		);
+	});
 
-  it('should extract commentUrl from client_payload', () => {
-    const event: GitHubEvent = {
-      client_payload: {
-        last_comment_url: 'https://github.com/owner/repo/issues/123#issuecomment-456'
-      }
-    };
-    const result = extractEventData(event, {});
-    expect(result.commentUrl).toBe('https://github.com/owner/repo/issues/123#issuecomment-456');
-  });
+	it("should extract commentUrl from client_payload", () => {
+		const event: GitHubEvent = {
+			client_payload: {
+				last_comment_url:
+					"https://github.com/owner/repo/issues/123#issuecomment-456",
+			},
+		};
+		const result = extractEventData(event, {});
+		expect(result.commentUrl).toBe(
+			"https://github.com/owner/repo/issues/123#issuecomment-456",
+		);
+	});
 
-  it('should extract data from repository_dispatch event with client_payload', () => {
-    const event: GitHubEvent = {
-      client_payload: {
-        repository: 'other/repo',
-        issue_number: 456,
-        issue_node_id: 'I_456'
-      }
-    };
-    const env = { GITHUB_REPOSITORY: 'owner/repo' };
-    const result = extractEventData(event, env);
-    expect(result.repository).toBe('other/repo');
-    expect(result.issueNumber).toBe(456);
-    expect(result.issueUrl).toBe('');
-    expect(result.issueNodeId).toBe('I_456');
-    expect(result.labels).toEqual([]);
-  });
+	it("should extract data from repository_dispatch event with client_payload", () => {
+		const event: GitHubEvent = {
+			client_payload: {
+				repository: "other/repo",
+				issue_number: 456,
+				issue_node_id: "I_456",
+			},
+		};
+		const env = { GITHUB_REPOSITORY: "owner/repo" };
+		const result = extractEventData(event, env);
+		expect(result.repository).toBe("other/repo");
+		expect(result.issueNumber).toBe(456);
+		expect(result.issueUrl).toBe("");
+		expect(result.issueNodeId).toBe("I_456");
+		expect(result.labels).toEqual([]);
+	});
 
-  it('should fallback to GITHUB_REPOSITORY if repository is missing in client_payload', () => {
-    const event: GitHubEvent = {
-      client_payload: {
-        issue_number: 456
-      }
-    };
-    const env = { GITHUB_REPOSITORY: 'owner/repo' };
-    const result = extractEventData(event, env);
-    expect(result.repository).toBe('owner/repo');
-    expect(result.issueNumber).toBe(456);
-  });
+	it("should fallback to GITHUB_REPOSITORY if repository is missing in client_payload", () => {
+		const event: GitHubEvent = {
+			client_payload: {
+				issue_number: 456,
+			},
+		};
+		const env = { GITHUB_REPOSITORY: "owner/repo" };
+		const result = extractEventData(event, env);
+		expect(result.repository).toBe("owner/repo");
+		expect(result.issueNumber).toBe(456);
+	});
 
-  it('should not infer body or commentBody from repository_dispatch payload', () => {
-    const event: GitHubEvent = {
-      client_payload: {
-        repository: 'other/repo',
-        issue_number: 789
-      }
-    };
-    const env = { GITHUB_REPOSITORY: 'owner/repo' };
-    const result = extractEventData(event, env);
-    expect(result.repository).toBe('other/repo');
-    expect(result.issueNumber).toBe(789);
-    expect(result.issueBody).toBe('');
-    expect(result.commentBody).toBe('');
-  });
+	it("should not infer body or commentBody from repository_dispatch payload", () => {
+		const event: GitHubEvent = {
+			client_payload: {
+				repository: "other/repo",
+				issue_number: 789,
+			},
+		};
+		const env = { GITHUB_REPOSITORY: "owner/repo" };
+		const result = extractEventData(event, env);
+		expect(result.repository).toBe("other/repo");
+		expect(result.issueNumber).toBe(789);
+		expect(result.issueBody).toBe("");
+		expect(result.commentBody).toBe("");
+	});
 });

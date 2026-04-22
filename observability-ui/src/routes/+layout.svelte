@@ -1,11 +1,11 @@
 <script lang="ts">
-	import favicon from '$lib/assets/favicon.svg';
+import favicon from "$lib/assets/favicon.svg";
 
-	let { children } = $props();
+let { children } = $props();
 
-	const version = __APP_VERSION__;
-	const commit = __COMMIT_HASH__;
-	const buildDate = __BUILD_DATE__;
+const version = __APP_VERSION__;
+const commit = __COMMIT_HASH__;
+const buildDate = __BUILD_DATE__;
 </script>
 
 <svelte:head>

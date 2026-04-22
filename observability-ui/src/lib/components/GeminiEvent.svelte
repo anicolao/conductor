@@ -1,67 +1,75 @@
 <script lang="ts">
-  import { marked } from 'marked';
-  import type { ConductorEvent, GeminiEventData } from '../types';
-  import JsonTree from './JsonTree.svelte';
+import { marked } from "marked";
+import type { ConductorEvent, GeminiEventData } from "../types";
+import JsonTree from "./JsonTree.svelte";
 
-  interface ToolResultData {
-    status?: string;
-    output?: string;
-  }
+interface ToolResultData {
+	status?: string;
+	output?: string;
+}
 
-  let { event, toolNameMap = new Map() }: { event: ConductorEvent, toolNameMap?: Map<string, string> } = $props();
-  const eventData = $derived(event.event === 'GEMINI_EVENT' ? event.data as GeminiEventData : null);
+let {
+	event,
+	toolNameMap = new Map(),
+}: { event: ConductorEvent; toolNameMap?: Map<string, string> } = $props();
+const eventData = $derived(
+	event.event === "GEMINI_EVENT" ? (event.data as GeminiEventData) : null,
+);
 
-  const isDebugType = $derived(
-    eventData && (
-      eventData.type === 'init' ||
-      eventData.type === 'tool-calls-update' ||
-      eventData.type === 'call' ||
-      eventData.type === 'context-update' ||
-      eventData._isMessageBus
-    )
-  );
+const isDebugType = $derived(
+	eventData &&
+		(eventData.type === "init" ||
+			eventData.type === "tool-calls-update" ||
+			eventData.type === "call" ||
+			eventData.type === "context-update" ||
+			eventData._isMessageBus),
+);
 
-  const markdownContent = $derived.by(() => {
-    if (!eventData) return '';
-    if (eventData.type === 'message' && eventData.content) {
-      return marked.parse(String(eventData.content)) as string;
-    }
-    if (eventData.type === 'result' && eventData.response) {
-      return marked.parse(String(eventData.response)) as string;
-    }
-    return '';
-  });
+const markdownContent = $derived.by(() => {
+	if (!eventData) return "";
+	if (eventData.type === "message" && eventData.content) {
+		return marked.parse(String(eventData.content)) as string;
+	}
+	if (eventData.type === "result" && eventData.response) {
+		return marked.parse(String(eventData.response)) as string;
+	}
+	return "";
+});
 
-  const getEventClass = (data: GeminiEventData) => {
-    const type = data.type || 'unknown';
-    let base = `gemini-event ${String(type).replace(/_/g, '-')}`;
-    if (data.type === 'message') {
-      base += ` ${data.role}`;
-    }
-    if (data._isMessageBus) {
-      base += ' is-message-bus';
-    }
-    return base;
-  };
+const getEventClass = (data: GeminiEventData) => {
+	const type = data.type || "unknown";
+	let base = `gemini-event ${String(type).replace(/_/g, "-")}`;
+	if (data.type === "message") {
+		base += ` ${data.role}`;
+	}
+	if (data._isMessageBus) {
+		base += " is-message-bus";
+	}
+	return base;
+};
 
-  function getToolName(data: GeminiEventData) {
-    if (data.type === 'tool_use') {
-      return data.tool_name;
-    }
-    
-    if (data.type === 'tool_result' && typeof data.tool_id === 'string' && toolNameMap.has(data.tool_id)) {
-      return toolNameMap.get(data.tool_id) || 'unknown';
-    }
+function getToolName(data: GeminiEventData) {
+	if (data.type === "tool_use") {
+		return data.tool_name;
+	}
 
-    return 'unknown';
-  }
+	if (
+		data.type === "tool_result" &&
+		typeof data.tool_id === "string" &&
+		toolNameMap.has(data.tool_id)
+	) {
+		return toolNameMap.get(data.tool_id) || "unknown";
+	}
 
-  function getToolArgs(data: GeminiEventData) {
-    if (data.type === 'tool_use') {
-      return data.parameters;
-    }
-    return {};
-  }
+	return "unknown";
+}
+
+function getToolArgs(data: GeminiEventData) {
+	if (data.type === "tool_use") {
+		return data.parameters;
+	}
+	return {};
+}
 </script>
 
 {#if eventData}

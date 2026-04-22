@@ -1,171 +1,187 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
-	import { page } from '$app/state';
-	import { browser } from '$app/environment';
-	import { base } from '$app/paths';
-	import { parseLogs } from '$lib/parser';
-	import EventTimeline from '$lib/components/EventTimeline.svelte';
-	import type { ConductorEvent, WorkflowRun, WorkflowJob } from '$lib/types';
-	import { getAccessToken, login } from '$lib/auth';
+import { onDestroy, onMount } from "svelte";
+import { browser } from "$app/environment";
+import { base } from "$app/paths";
+import { page } from "$app/state";
+import { getAccessToken, login } from "$lib/auth";
+import EventTimeline from "$lib/components/EventTimeline.svelte";
+import { parseLogs } from "$lib/parser";
+import type { ConductorEvent, WorkflowJob, WorkflowRun } from "$lib/types";
 
-	const id = $derived(browser ? page.url.searchParams.get('id') : null);
-	
-	let run = $state<WorkflowRun | null>(null);
-	let events = $state<ConductorEvent[]>([]);
-	let loading = $state(true);
-	let error = $state<string | null>(null);
-	let polling = $state(false);
-	let logsAvailable = $state(false);
-	let isStreamingConductorEvents = $state(false);
-	let pollingInterval: ReturnType<typeof setInterval> | null = null;
+const id = $derived(browser ? page.url.searchParams.get("id") : null);
 
-	async function fetchData(currentId: string, isInitial = false) {
-		if (isInitial) loading = true;
-		error = null;
-		
-		const token = getAccessToken();
-		if (!token) {
-			if (browser) {
-				login();
+let run = $state<WorkflowRun | null>(null);
+let events = $state<ConductorEvent[]>([]);
+let loading = $state(true);
+let error = $state<string | null>(null);
+let polling = $state(false);
+let logsAvailable = $state(false);
+let isStreamingConductorEvents = $state(false);
+let pollingInterval: ReturnType<typeof setInterval> | null = null;
+
+async function fetchData(currentId: string, isInitial = false) {
+	if (isInitial) loading = true;
+	error = null;
+
+	const token = getAccessToken();
+	if (!token) {
+		if (browser) {
+			login();
+		}
+		error = "Not logged in. Redirecting to login...";
+		loading = false;
+		stopPolling();
+		return;
+	}
+
+	try {
+		const commonHeaders = {
+			Authorization: `Bearer ${token}`,
+			"X-GitHub-Api-Version": "2022-11-28",
+		};
+
+		// Fetch run details
+		const runRes = await fetch(
+			`https://api.github.com/repos/LLM-Orchestration/conductor/actions/runs/${currentId}`,
+			{
+				headers: commonHeaders,
+			},
+		);
+		if (!runRes.ok)
+			throw new Error(`Failed to fetch run details: ${runRes.statusText}`);
+		run = await runRes.json();
+
+		// Fetch jobs
+		const jobsRes = await fetch(
+			`https://api.github.com/repos/LLM-Orchestration/conductor/actions/runs/${currentId}/jobs`,
+			{
+				headers: commonHeaders,
+			},
+		);
+		if (!jobsRes.ok)
+			throw new Error(`Failed to fetch jobs: ${jobsRes.statusText}`);
+		const jobsData = await jobsRes.json();
+
+		const conductorJob: WorkflowJob | undefined = jobsData.jobs.find(
+			(j: WorkflowJob) => j.name === "run-conductor",
+		);
+
+		if (!conductorJob) {
+			if (run?.status === "completed") {
+				error =
+					"Conductor job (run-conductor) not found in this run. It might have failed early.";
+				stopPolling();
 			}
-			error = 'Not logged in. Redirecting to login...';
 			loading = false;
-			stopPolling();
 			return;
 		}
 
-		try {
-			const commonHeaders = {
-				Authorization: `Bearer ${token}`,
-				'X-GitHub-Api-Version': '2022-11-28'
-			};
-
-			// Fetch run details
-			const runRes = await fetch(`https://api.github.com/repos/LLM-Orchestration/conductor/actions/runs/${currentId}`, {
-				headers: commonHeaders
-			});
-			if (!runRes.ok) throw new Error(`Failed to fetch run details: ${runRes.statusText}`);
-			run = await runRes.json();
-
-			// Fetch jobs
-			const jobsRes = await fetch(`https://api.github.com/repos/LLM-Orchestration/conductor/actions/runs/${currentId}/jobs`, {
-				headers: commonHeaders
-			});
-			if (!jobsRes.ok) throw new Error(`Failed to fetch jobs: ${jobsRes.statusText}`);
-			const jobsData = await jobsRes.json();
-			
-			const conductorJob: WorkflowJob | undefined = jobsData.jobs.find((j: WorkflowJob) => j.name === 'run-conductor');
-			
-			if (!conductorJob) {
-				if (run?.status === 'completed') {
-					error = 'Conductor job (run-conductor) not found in this run. It might have failed early.';
-					stopPolling();
-				}
-				loading = false;
-				return;
-			}
-
-			// Fetch logs
-			const logsRes = await fetch(`https://api.github.com/repos/LLM-Orchestration/conductor/actions/jobs/${conductorJob.id}/logs`, {
-				headers: { 
+		// Fetch logs
+		const logsRes = await fetch(
+			`https://api.github.com/repos/LLM-Orchestration/conductor/actions/jobs/${conductorJob.id}/logs`,
+			{
+				headers: {
 					...commonHeaders,
-					Accept: 'application/vnd.github.v3.raw'
-				}
-			});
-			
-			if (logsRes.status === 404) {
-				// While logs are not available, map steps to temporary events
+					Accept: "application/vnd.github.v3.raw",
+				},
+			},
+		);
+
+		if (logsRes.status === 404) {
+			// While logs are not available, map steps to temporary events
+			events = (conductorJob.steps || [])
+				.filter((s) => s.status !== "queued")
+				.map((step) => ({
+					v: 1,
+					ts: step.started_at || new Date().toISOString(),
+					event: "TASK",
+					data: {
+						message: `${step.name}: ${step.status}${step.conclusion ? ` (${step.conclusion})` : ""}`,
+					},
+				}));
+			logsAvailable = false;
+			isStreamingConductorEvents = false;
+		} else if (logsRes.ok) {
+			const rawLogs = await logsRes.text();
+			const parsedEvents = parseLogs(rawLogs);
+			if (parsedEvents.length > 0) {
+				events = parsedEvents;
+				isStreamingConductorEvents = true;
+			} else {
+				// Fallback to steps if logs exist but have no conductor events yet
 				events = (conductorJob.steps || [])
-					.filter(s => s.status !== 'queued')
-					.map(step => ({
+					.filter((s) => s.status !== "queued")
+					.map((step) => ({
 						v: 1,
 						ts: step.started_at || new Date().toISOString(),
-						event: 'TASK',
+						event: "TASK",
 						data: {
-							message: `${step.name}: ${step.status}${step.conclusion ? ' (' + step.conclusion + ')' : ''}`
-						}
+							message: `${step.name}: ${step.status}${step.conclusion ? ` (${step.conclusion})` : ""}`,
+						},
 					}));
-				logsAvailable = false;
 				isStreamingConductorEvents = false;
-			} else if (logsRes.ok) {
-				const rawLogs = await logsRes.text();
-				const parsedEvents = parseLogs(rawLogs);
-				if (parsedEvents.length > 0) {
-					events = parsedEvents;
-					isStreamingConductorEvents = true;
-				} else {
-					// Fallback to steps if logs exist but have no conductor events yet
-					events = (conductorJob.steps || [])
-						.filter(s => s.status !== 'queued')
-						.map(step => ({
-							v: 1,
-							ts: step.started_at || new Date().toISOString(),
-							event: 'TASK',
-							data: {
-								message: `${step.name}: ${step.status}${step.conclusion ? ' (' + step.conclusion + ')' : ''}`
-							}
-						}));
-					isStreamingConductorEvents = false;
-				}
-				logsAvailable = true;
-			} else {
-				// Some other error, but we might want to keep polling if the run is still in progress
-				console.warn(`Failed to fetch logs: ${logsRes.status} ${logsRes.statusText}`);
-				logsAvailable = false;
 			}
-
-			// Stop polling only if completed and logs are available (not 404)
-			if (run?.status === 'completed' && logsAvailable) {
-				stopPolling();
-			}
-		} catch (e: unknown) {
-			console.error(e);
-			error = e instanceof Error ? e.message : String(e);
-			stopPolling();
-		} finally {
-			loading = false;
-		}
-	}
-
-	function startPolling(currentId: string) {
-		if (polling || !browser) return;
-		polling = true;
-		pollingInterval = setInterval(() => fetchData(currentId), 2000);
-	}
-
-	function stopPolling() {
-		polling = false;
-		if (pollingInterval) {
-			clearInterval(pollingInterval);
-			pollingInterval = null;
-		}
-	}
-
-	onMount(async () => {
-		let currentId = id || page.url.searchParams.get('id');
-		
-		if (!currentId) {
-			for (let i = 0; i < 20; i++) {
-				await new Promise(resolve => setTimeout(resolve, 50));
-				currentId = id || page.url.searchParams.get('id');
-				if (currentId) break;
-			}
-		}
-
-		if (currentId) {
-			await fetchData(currentId, true);
-			if (run?.status !== 'completed' || !logsAvailable) {
-				startPolling(currentId);
-			}
+			logsAvailable = true;
 		} else {
-			error = 'No run ID provided in the URL.';
-			loading = false;
+			// Some other error, but we might want to keep polling if the run is still in progress
+			console.warn(
+				`Failed to fetch logs: ${logsRes.status} ${logsRes.statusText}`,
+			);
+			logsAvailable = false;
 		}
-	});
 
-	onDestroy(() => {
+		// Stop polling only if completed and logs are available (not 404)
+		if (run?.status === "completed" && logsAvailable) {
+			stopPolling();
+		}
+	} catch (e: unknown) {
+		console.error(e);
+		error = e instanceof Error ? e.message : String(e);
 		stopPolling();
-	});
+	} finally {
+		loading = false;
+	}
+}
+
+function startPolling(currentId: string) {
+	if (polling || !browser) return;
+	polling = true;
+	pollingInterval = setInterval(() => fetchData(currentId), 2000);
+}
+
+function stopPolling() {
+	polling = false;
+	if (pollingInterval) {
+		clearInterval(pollingInterval);
+		pollingInterval = null;
+	}
+}
+
+onMount(async () => {
+	let currentId = id || page.url.searchParams.get("id");
+
+	if (!currentId) {
+		for (let i = 0; i < 20; i++) {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			currentId = id || page.url.searchParams.get("id");
+			if (currentId) break;
+		}
+	}
+
+	if (currentId) {
+		await fetchData(currentId, true);
+		if (run?.status !== "completed" || !logsAvailable) {
+			startPolling(currentId);
+		}
+	} else {
+		error = "No run ID provided in the URL.";
+		loading = false;
+	}
+});
+
+onDestroy(() => {
+	stopPolling();
+});
 </script>
 
 <svelte:head>

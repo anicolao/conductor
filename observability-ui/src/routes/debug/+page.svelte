@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { parseLogs } from '$lib/parser';
-  import EventTimeline from '$lib/components/EventTimeline.svelte';
+import EventTimeline from "$lib/components/EventTimeline.svelte";
+import { parseLogs } from "$lib/parser";
 
-  let rawLogs = $state('');
-  let events = $derived(parseLogs(rawLogs));
+let rawLogs = $state("");
+let events = $derived(parseLogs(rawLogs));
 </script>
 
 <div class="debug-page">

@@ -1,69 +1,77 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { PUBLIC_GITHUB_CLIENT_ID } from '$env/static/public';
-	import WorkflowTable from '$lib/components/WorkflowTable.svelte';
-	import type { WorkflowRun, WorkflowRunsResponse } from '$lib/types';
-	import { getAccessToken, clearAccessToken, login, logout as authLogout } from '$lib/auth';
+import { onMount } from "svelte";
+import { PUBLIC_GITHUB_CLIENT_ID } from "$env/static/public";
+import {
+	logout as authLogout,
+	clearAccessToken,
+	getAccessToken,
+	login,
+} from "$lib/auth";
+import WorkflowTable from "$lib/components/WorkflowTable.svelte";
+import type { WorkflowRun, WorkflowRunsResponse } from "$lib/types";
 
-	let user = $state<{ login: string; avatar_url: string } | null>(null);
-	let repo = $state<{ name: string; full_name: string } | null>(null);
-	let workflowRuns = $state<WorkflowRun[]>([]);
-	let loading = $state(true);
-	let error = $state<string | null>(null);
+let user = $state<{ login: string; avatar_url: string } | null>(null);
+let repo = $state<{ name: string; full_name: string } | null>(null);
+let workflowRuns = $state<WorkflowRun[]>([]);
+let loading = $state(true);
+let error = $state<string | null>(null);
 
-	onMount(async () => {
-		const token = getAccessToken();
-		if (token) {
-			try {
-				const [userRes, repoRes, runsRes] = await Promise.all([
-					fetch('https://api.github.com/user', {
-						headers: { Authorization: `Bearer ${token}` }
-					}),
-					fetch('https://api.github.com/repos/LLM-Orchestration/conductor', {
-						headers: { Authorization: `Bearer ${token}` }
-					}),
-					fetch('https://api.github.com/repos/LLM-Orchestration/conductor/actions/workflows/conductor.yml/runs?per_page=50', {
-						headers: { Authorization: `Bearer ${token}` }
-					})
-				]);
+onMount(async () => {
+	const token = getAccessToken();
+	if (token) {
+		try {
+			const [userRes, repoRes, runsRes] = await Promise.all([
+				fetch("https://api.github.com/user", {
+					headers: { Authorization: `Bearer ${token}` },
+				}),
+				fetch("https://api.github.com/repos/LLM-Orchestration/conductor", {
+					headers: { Authorization: `Bearer ${token}` },
+				}),
+				fetch(
+					"https://api.github.com/repos/LLM-Orchestration/conductor/actions/workflows/conductor.yml/runs?per_page=50",
+					{
+						headers: { Authorization: `Bearer ${token}` },
+					},
+				),
+			]);
 
-				if (userRes.ok) {
-					user = await userRes.json();
-				} else {
-					clearAccessToken();
-					error = 'GitHub session expired. Please login again.';
-				}
-
-				if (repoRes.ok) {
-					repo = await repoRes.json();
-				} else if (userRes.ok) {
-					error = 'Failed to verify repository access.';
-				}
-
-				if (runsRes.ok) {
-					const data: WorkflowRunsResponse = await runsRes.json();
-					workflowRuns = data.workflow_runs;
-				} else if (userRes.ok) {
-					error = 'Failed to fetch recent workflows.';
-				}
-			} catch (e) {
-				console.error('Failed to fetch from GitHub', e);
-				error = 'Failed to fetch from GitHub';
+			if (userRes.ok) {
+				user = await userRes.json();
+			} else {
+				clearAccessToken();
+				error = "GitHub session expired. Please login again.";
 			}
+
+			if (repoRes.ok) {
+				repo = await repoRes.json();
+			} else if (userRes.ok) {
+				error = "Failed to verify repository access.";
+			}
+
+			if (runsRes.ok) {
+				const data: WorkflowRunsResponse = await runsRes.json();
+				workflowRuns = data.workflow_runs;
+			} else if (userRes.ok) {
+				error = "Failed to fetch recent workflows.";
+			}
+		} catch (e) {
+			console.error("Failed to fetch from GitHub", e);
+			error = "Failed to fetch from GitHub";
 		}
-		loading = false;
-	});
-
-	function handleLogin() {
-		login();
 	}
+	loading = false;
+});
 
-	function handleLogout() {
-		authLogout();
-		user = null;
-		repo = null;
-		workflowRuns = [];
-	}
+function handleLogin() {
+	login();
+}
+
+function handleLogout() {
+	authLogout();
+	user = null;
+	repo = null;
+	workflowRuns = [];
+}
 </script>
 
 <svelte:head>

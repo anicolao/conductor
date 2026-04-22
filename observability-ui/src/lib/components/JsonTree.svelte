@@ -1,15 +1,16 @@
 <script lang="ts">
-  import JsonTree from './JsonTree.svelte';
+import JsonTree from "./JsonTree.svelte";
 
-  let { data, label = 'Raw Data', depth = 0, isRoot = false } = $props();
-  let expanded = $state(false);
+let { data, label = "Raw Data", depth = 0, isRoot = false } = $props();
+let expanded = $state(false);
 
-  const isObject = (v: unknown): v is Record<string, unknown> | Array<unknown> => v !== null && typeof v === 'object';
-  const toggle = () => (expanded = !expanded);
+const isObject = (v: unknown): v is Record<string, unknown> | Array<unknown> =>
+	v !== null && typeof v === "object";
+const toggle = () => (expanded = !expanded);
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(JSON.stringify(data, null, 2));
-  };
+const copyToClipboard = () => {
+	navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+};
 </script>
 
 <div class="json-tree" class:root={isRoot}>

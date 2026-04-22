@@ -1,44 +1,44 @@
 {
-  "name": "conductor",
-  "version": "0.1.0",
-  "description": "LLM Coordination Framework",
-  "main": "dist/index.js",
-  "scripts": {
-    "build": "tsc",
-    "check": "npm run build",
-    "firebase:deploy": "npx --yes firebase-tools deploy --only functions",
-    "firebase:serve": "npx --yes firebase-tools emulators:start --only functions",
-    "functions:check": "node -c functions/index.js && tsc -p functions/tsconfig.json",
-    "gemini:prepare-auth": "bash ./scripts/prepare-gemini-auth.sh",
-    "human-review": "bash ./scripts/move-to-human-review.sh",
-    "recover:orphans": "node dist/recover-orphans.js",
-    "recover:orphans:dry-run": "node dist/recover-orphans.js --dry-run",
-    "handoff": "bash ./scripts/handoff.sh",
-    "commit": "bash ./scripts/commit.sh",
-    "verify:conductor": "bash ./scripts/conductor-verify.sh",
-    "hook:pre-commit": "bash ./scripts/pre-commit.sh",
-    "hook:pre-push": "bash ./scripts/pre-push.sh",
-    "hooks:install": "bash ./scripts/install-hooks.sh",
-    "start": "node dist/index.js",
-    "prepare": "npm run hooks:install",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "lint": "biome check .",
-    "format": "biome format . --write",
-    "test:watch": "vitest",
-    "validate": "npm run build && npm run functions:check && npm run test"
-  },
-  "dependencies": {
-    "@octokit/rest": "^20.0.0",
-    "dotenv": "^16.0.0",
-    "zod": "^4.3.6"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.4.12",
-    "@playwright/test": "^1.59.1",
-    "@types/node": "^24.0.0",
-    "@vitest/coverage-v8": "^4.1.4",
-    "typescript": "^5.0.0",
-    "vitest": "^4.1.3"
-  }
+	"name": "conductor",
+	"version": "0.1.0",
+	"description": "LLM Coordination Framework",
+	"main": "dist/index.js",
+	"scripts": {
+		"build": "tsc",
+		"check": "npm run build",
+		"firebase:deploy": "npx --yes firebase-tools deploy --only functions",
+		"firebase:serve": "npx --yes firebase-tools emulators:start --only functions",
+		"functions:check": "node -c functions/index.js && tsc -p functions/tsconfig.json",
+		"gemini:prepare-auth": "bash ./scripts/prepare-gemini-auth.sh",
+		"human-review": "bash ./scripts/move-to-human-review.sh",
+		"recover:orphans": "node dist/recover-orphans.js",
+		"recover:orphans:dry-run": "node dist/recover-orphans.js --dry-run",
+		"handoff": "bash ./scripts/handoff.sh",
+		"commit": "bash ./scripts/commit.sh",
+		"verify:conductor": "bash ./scripts/conductor-verify.sh",
+		"hook:pre-commit": "bash ./scripts/pre-commit.sh",
+		"hook:pre-push": "bash ./scripts/pre-push.sh",
+		"hooks:install": "bash ./scripts/install-hooks.sh",
+		"start": "node dist/index.js",
+		"prepare": "npm run hooks:install",
+		"test": "vitest run",
+		"test:coverage": "vitest run --coverage",
+		"lint": "biome check .",
+		"format": "biome format . --write",
+		"test:watch": "vitest",
+		"validate": "npm run build && npm run functions:check && npm run test"
+	},
+	"dependencies": {
+		"@octokit/rest": "^20.0.0",
+		"dotenv": "^16.0.0",
+		"zod": "^4.3.6"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.12",
+		"@playwright/test": "^1.59.1",
+		"@types/node": "^24.0.0",
+		"@vitest/coverage-v8": "^4.1.4",
+		"typescript": "^5.0.0",
+		"vitest": "^4.1.3"
+	}
 }

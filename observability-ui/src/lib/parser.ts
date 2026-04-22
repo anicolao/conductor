@@ -1,1 +1,1 @@
-export { parseLogs } from '../../../src/utils/parser';
+export { parseLogs } from "../../../src/utils/parser";
