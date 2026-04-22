@@ -25,7 +25,7 @@ export const GitHubEventSchema = z.object({
     project_item_id: z.string().optional(),
     project_number: z.number().optional(),
     project_url: z.string().optional(),
-    persona: z.string().optional(),
+    persona: z.string().nullable().optional(),
     event_name: z.string().optional(),
     action: z.string().optional(),
     last_comment_url: z.string().optional(),

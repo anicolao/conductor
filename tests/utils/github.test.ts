@@ -1,10 +1,49 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { spawnSync } from 'child_process';
-import { extractEventData, GitHubEvent, extractMediaUrls, collectAllMediaUrls, injectMediaPaths, postPickupNote } from '../../src/utils/github';
+import { extractEventData, GitHubEvent, extractMediaUrls, collectAllMediaUrls, injectMediaPaths, postPickupNote, GitHubEventSchema } from '../../src/utils/github';
 
 vi.mock('child_process', () => ({
   spawnSync: vi.fn(() => ({ status: 0 }))
 }));
+
+describe('GitHubEventSchema', () => {
+  it('should accept persona as a string', () => {
+    const payload = {
+      client_payload: {
+        persona: 'coder'
+      }
+    };
+    const result = GitHubEventSchema.safeParse(payload);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.client_payload?.persona).toBe('coder');
+    }
+  });
+
+  it('should accept persona as undefined', () => {
+    const payload = {
+      client_payload: {}
+    };
+    const result = GitHubEventSchema.safeParse(payload);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.client_payload?.persona).toBeUndefined();
+    }
+  });
+
+  it('should accept persona as null', () => {
+    const payload = {
+      client_payload: {
+        persona: null
+      }
+    };
+    const result = GitHubEventSchema.safeParse(payload);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.client_payload?.persona).toBeNull();
+    }
+  });
+});
 
 describe('postPickupNote', () => {
   beforeEach(() => {

@@ -145,7 +145,7 @@ async function githubRest(path, token, init = {}) {
   return text.trim() ? JSON.parse(text) : undefined;
 }
 
-async function dispatchProjectActivation(repository, issueNumber, token, eventName, action, issueNodeId, projectNumber, projectUrl, persona = null) {
+async function dispatchProjectActivation(repository, issueNumber, token, eventName, action, issueNodeId, projectNumber, projectUrl, persona = undefined) {
   const response = await fetch(`https://api.github.com/repos/${TARGET_REPO}/dispatches`, {
     method: "POST",
     headers: {
