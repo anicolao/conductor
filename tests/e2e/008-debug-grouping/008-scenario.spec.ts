@@ -14,7 +14,7 @@ test('Observability Debug Message Grouping', async ({ page }, testInfo) => {
 
   const logs = `
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:00.000Z","event":"LOG_DEBUG","persona":"coder","data":{"message":"First debug message"}}
-::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:00.500Z","event":"GEMINI_EVENT","persona":"coder","data":{"type":"init","sessionId":"123","model":"gemini-pro"}}
+::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:00.500Z","event":"GEMINI_EVENT","persona":"coder","data":{"type":"init","session_id":"123","model":"gemini-pro","timestamp":"2026-04-12T10:00:00.500Z"}}
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:01.000Z","event":"LOG_DEBUG","persona":"coder","data":{"message":"Second debug message"}}
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:02.000Z","event":"LOG_INFO","persona":"coder","data":{"message":"An info message"}}
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:03.000Z","event":"LOG_DEBUG","persona":"coder","data":{"message":"Single debug message"}}
@@ -22,7 +22,7 @@ test('Observability Debug Message Grouping', async ({ page }, testInfo) => {
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:04.200Z","event":"GEMINI_EVENT","persona":"coder","data":{"type":"call","method":"test_method","args":{"foo":"bar"}}}
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:04.500Z","event":"GEMINI_EVENT","persona":"coder","data":{"type":"context-update","data":{"new":"context"}}}
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:04.800Z","event":"LOG_INFO","persona":"coder","data":{"message":"Yet another info message"}}
-::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:05.000Z","event":"GEMINI_EVENT","persona":"coder","data":{"type":"message","role":"assistant","content":"I am a message bus message","_isMessageBus":true}}
+::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:05.000Z","event":"GEMINI_EVENT","persona":"coder","data":{"type":"message","role":"assistant","content":"I am a message bus message","_isMessageBus":true,"delta":false,"timestamp":"2026-04-12T10:00:05.000Z"}}
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:05.500Z","event":"GEMINI_EVENT","persona":"coder","data":{"type":"tool-calls-update","toolCalls":[],"schedulerId":"abc"}}
 ::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-12T10:00:06.000Z","event":"LOG_DEBUG","persona":"coder","data":{"message":"Debug after message bus"}}
   `.trim();

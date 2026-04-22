@@ -75,9 +75,9 @@
     for (const event of events) {
       if (event.event === 'GEMINI_EVENT') {
         const data = event.data as GeminiEventData;
-        if (data.type === 'tool_use' || data.type === 'tool_result') {
+        if (data.type === 'tool_use') {
           const tool_id = data.tool_id;
-          const name = data.tool_name || data.name || data.tool;
+          const name = data.tool_name;
           if (typeof tool_id === 'string' && typeof name === 'string') {
             map.set(tool_id, name);
           }
