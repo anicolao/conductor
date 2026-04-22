@@ -1,116 +1,125 @@
 <script lang="ts">
-  import type { ConductorEvent, GeminiEventData } from '../types';
-  import GeminiEvent from './GeminiEvent.svelte';
+import type { ConductorEvent, GeminiEventData } from "../types";
+import GeminiEvent from "./GeminiEvent.svelte";
 
-  let { events = [] }: { events: ConductorEvent[] } = $props();
+let { events = [] }: { events: ConductorEvent[] } = $props();
 
-  const processedEvents = $derived.by(() => {
-    const result: ConductorEvent[] = [];
-    let lastMessage: GeminiEventData | null = null;
-    let currentDebugGroup: ConductorEvent[] = [];
+const processedEvents = $derived.by(() => {
+	const result: ConductorEvent[] = [];
+	let lastMessage: GeminiEventData | null = null;
+	let currentDebugGroup: ConductorEvent[] = [];
 
-    const flushDebugGroup = () => {
-      if (currentDebugGroup.length >= 2) {
-        result.push({
-          v: 1,
-          ts: currentDebugGroup[0].ts,
-          event: 'LOG_DEBUG_GROUP',
-          persona: currentDebugGroup[0].persona,
-          data: { events: [...currentDebugGroup] }
-        });
-      } else if (currentDebugGroup.length === 1) {
-        result.push(currentDebugGroup[0]);
-      }
-      currentDebugGroup = [];
-    };
+	const flushDebugGroup = () => {
+		if (currentDebugGroup.length >= 2) {
+			result.push({
+				v: 1,
+				ts: currentDebugGroup[0].ts,
+				event: "LOG_DEBUG_GROUP",
+				persona: currentDebugGroup[0].persona,
+				data: { events: [...currentDebugGroup] },
+			});
+		} else if (currentDebugGroup.length === 1) {
+			result.push(currentDebugGroup[0]);
+		}
+		currentDebugGroup = [];
+	};
 
-    for (const event of events) {
-      const geminiData = event.event === 'GEMINI_EVENT' ? event.data as GeminiEventData : null;
-      const isDebug = event.event === 'LOG_DEBUG' || 
-                      (geminiData !== null && (
-                        geminiData._isMessageBus === true ||
-                        geminiData.type === 'init' ||
-                        geminiData.type === 'tool-calls-update' ||
-                        geminiData.type === 'call' ||
-                        geminiData.type === 'context-update'
-                      ));
+	for (const event of events) {
+		const geminiData =
+			event.event === "GEMINI_EVENT" ? (event.data as GeminiEventData) : null;
+		const isDebug =
+			event.event === "LOG_DEBUG" ||
+			(geminiData !== null &&
+				(geminiData._isMessageBus === true ||
+					geminiData.type === "init" ||
+					geminiData.type === "tool-calls-update" ||
+					geminiData.type === "call" ||
+					geminiData.type === "context-update"));
 
-      if (isDebug) {
-        currentDebugGroup.push(event);
-        lastMessage = null;
-        continue;
-      } else {
-        flushDebugGroup();
-      }
+		if (isDebug) {
+			currentDebugGroup.push(event);
+			lastMessage = null;
+			continue;
+		} else {
+			flushDebugGroup();
+		}
 
-      if (event.event === 'GEMINI_EVENT' && geminiData) {
-        if (geminiData.type === 'message') {
-          if (lastMessage && lastMessage.type === 'message' && lastMessage.role === geminiData.role) {
-            // Aggregate content
-            lastMessage.content += String(geminiData.content || '');
-            continue;
-          } else {
-            // New message turn
-            lastMessage = { ...geminiData };
-            result.push({ ...event, data: lastMessage } as ConductorEvent);
-          }
-        } else {
-          lastMessage = null;
-          result.push(event);
-        }
-      } else {
-        lastMessage = null;
-        result.push(event);
-      }
-    }
-    flushDebugGroup();
-    return result;
-  });
+		if (event.event === "GEMINI_EVENT" && geminiData) {
+			if (geminiData.type === "message") {
+				if (
+					lastMessage &&
+					lastMessage.type === "message" &&
+					lastMessage.role === geminiData.role
+				) {
+					// Aggregate content
+					lastMessage.content += String(geminiData.content || "");
+				} else {
+					// New message turn
+					lastMessage = { ...geminiData };
+					result.push({ ...event, data: lastMessage } as ConductorEvent);
+				}
+			} else {
+				lastMessage = null;
+				result.push(event);
+			}
+		} else {
+			lastMessage = null;
+			result.push(event);
+		}
+	}
+	flushDebugGroup();
+	return result;
+});
 
-  const terminalEvents = $derived(processedEvents.filter(e => e.event === 'STDOUT' || e.event === 'STDERR'));
-  const otherEvents = $derived(processedEvents.filter(e => e.event !== 'STDOUT' && e.event !== 'STDERR'));
+const terminalEvents = $derived(
+	processedEvents.filter((e) => e.event === "STDOUT" || e.event === "STDERR"),
+);
+const otherEvents = $derived(
+	processedEvents.filter((e) => e.event !== "STDOUT" && e.event !== "STDERR"),
+);
 
-  const toolNameMap = $derived.by(() => {
-    const map = new Map<string, string>();
-    for (const event of events) {
-      if (event.event === 'GEMINI_EVENT') {
-        const data = event.data as GeminiEventData;
-        if (data.type === 'tool_use') {
-          const tool_id = data.tool_id;
-          const name = data.tool_name;
-          if (typeof tool_id === 'string' && typeof name === 'string') {
-            map.set(tool_id, name);
-          }
-        }
-      }
-    }
-    return map;
-  });
+const toolNameMap = $derived.by(() => {
+	const map = new Map<string, string>();
+	for (const event of events) {
+		if (event.event === "GEMINI_EVENT") {
+			const data = event.data as GeminiEventData;
+			if (data.type === "tool_use") {
+				const tool_id = data.tool_id;
+				const name = data.tool_name;
+				if (typeof tool_id === "string" && typeof name === "string") {
+					map.set(tool_id, name);
+				}
+			}
+		}
+	}
+	return map;
+});
 
-  let terminalBody: HTMLDivElement;
+let terminalBody: HTMLDivElement;
 
-  $effect(() => {
-    if (terminalEvents && terminalBody) {
-      terminalBody.scrollTop = terminalBody.scrollHeight;
-    }
-  });
+$effect(() => {
+	if (terminalEvents && terminalBody) {
+		terminalBody.scrollTop = terminalBody.scrollHeight;
+	}
+});
 
-  function formatTimestamp(ts: string) {
-    try {
-      const date = new Date(ts);
-      // Return HH:MM:SS in UTC for consistency
-      return date.toISOString().slice(11, 19);
-    } catch (e) {
-      return ts;
-    }
-  }
+function formatTimestamp(ts: string) {
+	try {
+		const date = new Date(ts);
+		// Return HH:MM:SS in UTC for consistency
+		return date.toISOString().slice(11, 19);
+	} catch (e) {
+		return ts;
+	}
+}
 
-  function getMessage(event: ConductorEvent): string {
-    const data = event.data;
-    if ('text' in data && typeof data.text === 'string') return data.text;
-    if ('message' in data && typeof data.message === 'string') return data.message;
-    return JSON.stringify(data);
-  }
+function getMessage(event: ConductorEvent): string {
+	const data = event.data;
+	if ("text" in data && typeof data.text === "string") return data.text;
+	if ("message" in data && typeof data.message === "string")
+		return data.message;
+	return JSON.stringify(data);
+}
 </script>
 
 <div class="timeline">
