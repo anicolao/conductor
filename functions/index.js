@@ -145,7 +145,7 @@ async function githubRest(path, token, init = {}) {
   return text.trim() ? JSON.parse(text) : undefined;
 }
 
-async function dispatchProjectActivation(repository, issueNumber, token, eventName = null, action = null, issueNodeId = null, projectNumber = null, projectUrl = null, persona = null) {
+async function dispatchProjectActivation(repository, issueNumber, token, eventName, action, issueNodeId, projectNumber, projectUrl, persona = null) {
   const response = await fetch(`https://api.github.com/repos/${TARGET_REPO}/dispatches`, {
     method: "POST",
     headers: {
@@ -310,11 +310,13 @@ exports.githubProjectsV2Webhook = onRequest(
       const statusName = item?.status?.name;
       const personaName = item?.persona?.name;
 
-      if (!issueNumber || !repositoryName) {
+      if (!issueNumber || !repositoryName || !issueNodeId || !projectUrl) {
         logger.info("Ignoring unrelated project item", {
           deliveryId,
           repositoryName,
-          issueNumber
+          issueNumber,
+          issueNodeId,
+          projectUrl
         });
         res.status(204).send("");
         return;

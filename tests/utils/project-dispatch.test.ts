@@ -23,7 +23,12 @@ describe('project dispatch payload', () => {
     const payload = buildProjectDispatchPayload({
       repository: 'LLM-Orchestration/conductor',
       issueNumber: 157,
-      persona: 'coder'
+      issueNodeId: 'I_123',
+      projectNumber: 1,
+      projectUrl: 'https://github.com/orgs/LLM-Orchestration/projects/1',
+      persona: 'coder',
+      eventName: 'projects_v2_item',
+      action: 'edited'
     });
 
     expect(payload.client_payload.persona).toBe('coder');
