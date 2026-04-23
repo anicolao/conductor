@@ -1,4 +1,9 @@
 import type { ConductorEvent } from "../../../src/utils/logger";
+import type {
+	ToolParameters,
+	GeminiCallArgs,
+	GeminiContextUpdateData,
+} from "../../../src/utils/types";
 
 export type { ConductorEvent };
 
@@ -19,14 +24,12 @@ export interface GeminiMessageEvent {
 	_isMessageBus: boolean;
 }
 
-export interface GeminiToolUseEvent {
+export type GeminiToolUseEvent = {
 	type: "tool_use";
-	tool_name: string;
 	tool_id: string;
-	parameters: Record<string, unknown>;
 	timestamp: string;
 	_isMessageBus: boolean;
-}
+} & ToolParameters;
 
 export type GeminiToolResultEvent = {
 	type: "tool_result";
@@ -70,13 +73,13 @@ export interface GeminiToolCallsUpdateEvent {
 export interface GeminiCallEvent {
 	type: "call";
 	method: string;
-	args: Record<string, unknown>;
+	args: GeminiCallArgs;
 	_isMessageBus: boolean;
 }
 
 export interface GeminiContextUpdateEvent {
 	type: "context-update";
-	data: Record<string, unknown>;
+	data: GeminiContextUpdateData;
 	_isMessageBus: boolean;
 }
 
