@@ -8,7 +8,6 @@ export type JsonValue =
 	| number
 	| boolean
 	| null
-	| undefined
 	| { [key: string]: JsonValue }
 	| JsonValue[];
 
@@ -21,7 +20,6 @@ export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
 		z.number(),
 		z.boolean(),
 		z.null(),
-		z.undefined(),
 		z.record(z.string(), JsonValueSchema),
 		z.array(JsonValueSchema),
 	]),
