@@ -23,7 +23,8 @@
 		"prepare": "npm run hooks:install",
 		"test": "vitest run",
 		"test:coverage": "vitest run --coverage",
-		"lint": "biome check .",
+		"lint:complexity": "node scripts/check-boolean-complexity.js",
+		"lint": "biome check . && npm run lint:complexity",
 		"format": "biome format . --write",
 		"test:watch": "vitest",
 		"validate": "npm run build && npm run functions:check && npm run test"
