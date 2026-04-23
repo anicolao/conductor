@@ -59,7 +59,7 @@ some suffix
 		const logs = `
 [stderr] [MESSAGE_BUS] publish: {"type":"tool-calls-update","toolCalls":[],"schedulerId":"root"}
 some other log
-[stderr] [MESSAGE_BUS] publish: {"type":"tool-calls-update","toolCalls":[{"id":"call_1","function":{"name":"read_file"}}],"schedulerId":"root"}
+[stderr] [MESSAGE_BUS] publish: {"type":"tool-calls-update","toolCalls":[{"id":"call_1","function":{"name":"read_file","arguments":"{}"}}],"schedulerId":"root"}
     `;
 		const events = parseLogs(logs);
 		expect(events).toHaveLength(2);
@@ -69,5 +69,6 @@ some other log
 		expect(events[1].event).toBe("GEMINI_EVENT");
 		expect(events[1].data.toolCalls).toHaveLength(1);
 		expect(events[1].data.toolCalls[0].function.name).toBe("read_file");
+		expect(events[1].data.toolCalls[0].function.arguments).toBe("{}");
 	});
 });
