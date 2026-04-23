@@ -65,9 +65,8 @@ export function toProjectIssueItem(
 	const issueNodeId = node.content?.id;
 	const status = node.status?.name;
 
-	if (!repository || !issueNumber || !issueNodeId || !status) {
-		return null;
-	}
+	if (!repository || !issueNumber) return null;
+	if (!issueNodeId || !status) return null;
 
 	return {
 		repository,

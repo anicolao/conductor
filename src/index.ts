@@ -47,11 +47,13 @@ function verifyGitHubCli(repository: string, issueNumber: number): string {
 		});
 
 		const failureDetails = (
-			repoCheck.stderr ||
-			repoCheck.stdout ||
-			authStatus.stderr ||
-			authStatus.stdout ||
-			"No gh output captured"
+			[
+				repoCheck.stderr,
+				repoCheck.stdout,
+				authStatus.stderr,
+				authStatus.stdout,
+				"No gh output captured",
+			].find(Boolean) || ""
 		).trim();
 
 		logger.error(`GitHub CLI preflight failed for ${repository}.`);

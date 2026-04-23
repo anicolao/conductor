@@ -335,7 +335,14 @@ exports.githubProjectsV2Webhook = onRequest(
 			const statusName = item?.status?.name;
 			const personaName = item?.persona?.name;
 
-			if (!issueNumber || !repositoryName || !issueNodeId || !projectUrl) {
+			const hasMissingFields = [
+				issueNumber,
+				repositoryName,
+				issueNodeId,
+				projectUrl,
+			].some((field) => !field);
+
+			if (hasMissingFields) {
 				logger.info("Ignoring unrelated project item", {
 					deliveryId,
 					repositoryName,
@@ -359,11 +366,13 @@ exports.githubProjectsV2Webhook = onRequest(
 
 			// Trigger if Status is "In Progress" (on creation OR on edit to Status)
 			// OR if Persona was changed (only on edit)
-			const isStatusTrigger =
-				(action === "created" && statusName === TARGET_STATUS) ||
-				(action === "edited" &&
-					changedFieldName === "Status" &&
-					statusName === TARGET_STATUS);
+			const isCreatedStatus =
+				action === "created" && statusName === TARGET_STATUS;
+			const isEditedStatus =
+				action === "edited" &&
+				changedFieldName === "Status" &&
+				statusName === TARGET_STATUS;
+			const isStatusTrigger = isCreatedStatus || isEditedStatus;
 			const isPersonaTrigger =
 				action === "edited" && changedFieldName === "Persona";
 
