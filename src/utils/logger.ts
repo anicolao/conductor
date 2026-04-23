@@ -150,6 +150,8 @@ type BaseEvent = {
 	persona: string | null;
 };
 
+export type GeminiEventData = z.infer<typeof GeminiEventDataSchema>;
+
 export type ConductorEvent = BaseEvent &
 	(
 		| { event: "LOG_INFO"; data: { message: string } & JsonObject }
@@ -172,7 +174,7 @@ export type ConductorEvent = BaseEvent &
 							error: string;
 					  };
 		  }
-		| { event: "GEMINI_EVENT"; data: z.infer<typeof GeminiEventDataSchema> }
+		| { event: "GEMINI_EVENT"; data: GeminiEventData }
 		| { event: "TASK"; data: { message: string } }
 		| { event: "LOG_DEBUG_GROUP"; data: { events: ConductorEvent[] } }
 	);
