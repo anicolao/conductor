@@ -5,3 +5,7 @@
 - **Mandatory Helper**: Every E2E test MUST use the `TestStepHelper` for all test steps.
 - **Visual Verification**: Every test step MUST include a visual verification via `toHaveScreenshot()`. This is an ABSOLUTE REQUIREMENT to ensure "Zero-Pixel Tolerance".
 - **Gemini CLI Output**: As of #129, Gemini CLI is invoked with `-o stream-json`. Conductor parses these events and emits `GEMINI_EVENT` for observability.
+
+## Coding Standards
+
+- **Boolean Complexity**: Boolean expressions MUST be limited to at most two logical operations (`&&`, `||`). Expressions that are more complex must be broken down into intermediate variables or refactored for clarity. This is enforced by a custom lint script.
