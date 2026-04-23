@@ -1,4 +1,23 @@
 import { z } from "zod";
+import type {
+	ActivateSkillParameters,
+	EnterPlanModeParameters,
+	GlobParameters,
+	GoogleWebSearchParameters,
+	GrepSearchParameters,
+	InvokeAgentParameters,
+	ListBackgroundProcessesParameters,
+	ListDirectoryParameters,
+	ReadBackgroundOutputParameters,
+	ReadFileParameters,
+	ReplaceParameters,
+	RunShellCommandParameters,
+	SaveMemoryParameters,
+	WebFetchParameters,
+	WriteFileParameters,
+	GeminiCallArgs,
+	GeminiContextUpdateData,
+} from "./types";
 
 /**
  * Conductor Structured Logging
@@ -15,6 +34,174 @@ const BaseEventSchema = z.object({
 	issue: z.number(),
 	persona: z.string(),
 });
+
+const ListDirectoryParametersSchema = z
+	.object({
+		dir_path: z.string(),
+		ignore: z.array(z.string()).optional(),
+		file_filtering_options: z
+			.object({
+				respect_git_ignore: z.boolean().optional(),
+				respect_gemini_ignore: z.boolean().optional(),
+			})
+			.optional(),
+	})
+	.strict();
+
+const ReadFileParametersSchema = z
+	.object({
+		file_path: z.string(),
+		start_line: z.number().optional(),
+		end_line: z.number().optional(),
+	})
+	.strict();
+
+const GrepSearchParametersSchema = z
+	.object({
+		pattern: z.string(),
+		dir_path: z.string().optional(),
+		include_pattern: z.string().optional(),
+		exclude_pattern: z.string().optional(),
+		case_sensitive: z.boolean().optional(),
+		fixed_strings: z.boolean().optional(),
+		before: z.number().optional(),
+		after: z.number().optional(),
+		context: z.number().optional(),
+		total_max_matches: z.number().optional(),
+		max_matches_per_file: z.number().optional(),
+		names_only: z.boolean().optional(),
+		no_ignore: z.boolean().optional(),
+	})
+	.strict();
+
+const GlobParametersSchema = z
+	.object({
+		pattern: z.string(),
+		dir_path: z.string().optional(),
+		respect_git_ignore: z.boolean().optional(),
+		respect_gemini_ignore: z.boolean().optional(),
+		case_sensitive: z.boolean().optional(),
+	})
+	.strict();
+
+const ReplaceParametersSchema = z
+	.object({
+		file_path: z.string(),
+		instruction: z.string(),
+		old_string: z.string(),
+		new_string: z.string(),
+		allow_multiple: z.boolean().optional(),
+	})
+	.strict();
+
+const WriteFileParametersSchema = z
+	.object({
+		file_path: z.string(),
+		content: z.string(),
+	})
+	.strict();
+
+const WebFetchParametersSchema = z
+	.object({
+		prompt: z.string(),
+	})
+	.strict();
+
+const GoogleWebSearchParametersSchema = z
+	.object({
+		query: z.string(),
+	})
+	.strict();
+
+const RunShellCommandParametersSchema = z
+	.object({
+		command: z.string(),
+		description: z.string().optional(),
+		dir_path: z.string().optional(),
+		is_background: z.boolean().optional(),
+		delay_ms: z.number().optional(),
+	})
+	.strict();
+
+const ListBackgroundProcessesParametersSchema = z
+	.object({
+		wait_for_previous: z.boolean().optional(),
+	})
+	.strict();
+
+const ReadBackgroundOutputParametersSchema = z
+	.object({
+		pid: z.number(),
+		lines: z.number().optional(),
+		delay_ms: z.number().optional(),
+		wait_for_previous: z.boolean().optional(),
+	})
+	.strict();
+
+const SaveMemoryParametersSchema = z
+	.object({
+		fact: z.string(),
+		scope: z.enum(["global", "project"]).optional(),
+	})
+	.strict();
+
+const EnterPlanModeParametersSchema = z
+	.object({
+		reason: z.string().optional(),
+	})
+	.strict();
+
+const InvokeAgentParametersSchema = z
+	.object({
+		agent_name: z.string(),
+		prompt: z.string(),
+		wait_for_previous: z.boolean().optional(),
+	})
+	.strict();
+
+const ActivateSkillParametersSchema = z
+	.object({
+		name: z.literal("skill-creator"),
+	})
+	.strict();
+
+const ToolParametersSchema = z.union([
+	ListDirectoryParametersSchema,
+	ReadFileParametersSchema,
+	GrepSearchParametersSchema,
+	GlobParametersSchema,
+	ReplaceParametersSchema,
+	WriteFileParametersSchema,
+	WebFetchParametersSchema,
+	GoogleWebSearchParametersSchema,
+	RunShellCommandParametersSchema,
+	ListBackgroundProcessesParametersSchema,
+	ReadBackgroundOutputParametersSchema,
+	SaveMemoryParametersSchema,
+	EnterPlanModeParametersSchema,
+	InvokeAgentParametersSchema,
+	ActivateSkillParametersSchema,
+	z.record(z.string(), z.unknown()), // Fallback
+]);
+
+const GeminiContextUpdateDataSchema = z
+	.object({
+		memories: z
+			.array(z.object({ scope: z.string(), fact: z.string() }))
+			.optional(),
+		branch: z.string().optional(),
+		labels: z.array(z.string()).optional(),
+	})
+	.passthrough();
+
+const GeminiCallArgsSchema = z
+	.object({
+		prompt: z.string().optional(),
+		agent_name: z.string().optional(),
+		wait_for_previous: z.boolean().optional(),
+		method: z.string().optional(),
+	})
+	.passthrough();
 
 const JsonObjectSchema = z.record(z.string(), z.unknown());
 
@@ -74,7 +261,7 @@ const GeminiToolUseEventSchema = GeminiBaseSchema.extend({
 	type: z.literal("tool_use"),
 	tool_name: z.string(),
 	tool_id: z.string(),
-	parameters: JsonObjectSchema,
+	parameters: ToolParametersSchema,
 	timestamp: z.string(),
 });
 
@@ -129,12 +316,12 @@ const GeminiToolCallsUpdateEventSchema = GeminiBaseSchema.extend({
 const GeminiCallEventSchema = GeminiBaseSchema.extend({
 	type: z.literal("call"),
 	method: z.string(),
-	args: JsonObjectSchema,
+	args: GeminiCallArgsSchema,
 });
 
 const GeminiContextUpdateEventSchema = GeminiBaseSchema.extend({
 	type: z.literal("context-update"),
-	data: JsonObjectSchema,
+	data: GeminiContextUpdateDataSchema,
 });
 
 const GeminiEventDataSchema = z.union([
@@ -278,21 +465,21 @@ export function logEvent(
 }
 
 export const logger = {
-	info: (
+	info: <T extends Record<string, unknown>>(
 		message: string,
-		details?: Record<string, unknown>,
+		details?: T,
 		context?: { persona?: string; issue?: number },
 	) => logEvent("LOG_INFO", details ? { message, details } : { message }, context),
 
-	warn: (
+	warn: <T extends Record<string, unknown>>(
 		message: string,
-		details?: Record<string, unknown>,
+		details?: T,
 		context?: { persona?: string; issue?: number },
 	) => logEvent("LOG_WARN", details ? { message, details } : { message }, context),
 
-	error: (
+	error: <T extends Record<string, unknown>>(
 		message: string,
-		errorOrDetails?: string | Record<string, unknown>,
+		errorOrDetails?: string | T,
 		context?: { persona?: string; issue?: number },
 	) => {
 		if (typeof errorOrDetails === "string") {
@@ -305,9 +492,9 @@ export const logger = {
 		);
 	},
 
-	debug: (
+	debug: <T extends Record<string, unknown>>(
 		message: string,
-		details?: Record<string, unknown>,
+		details?: T,
 		context?: { persona?: string; issue?: number },
 	) =>
 		logEvent("LOG_DEBUG", details ? { message, details } : { message }, context),
@@ -318,3 +505,4 @@ export const logger = {
 	stderr: (text: string, context?: { persona?: string; issue?: number }) =>
 		logEvent("STDERR", { text }, context),
 };
+
