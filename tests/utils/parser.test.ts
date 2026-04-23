@@ -37,10 +37,11 @@ some suffix
 
 	it("should handle marker appearing multiple times in a line", () => {
 		const logs =
-			'prefix ::CONDUCTOR_EVENT:: ignored ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:00Z","event":"GEMINI_EVENT","data":{"type":"test"}}';
+			'prefix ::CONDUCTOR_EVENT:: ignored ::CONDUCTOR_EVENT:: {"v":1,"ts":"2026-04-15T12:00:00Z","event":"GEMINI_EVENT","data":{"type":"init","session_id":"s1","model":"m1","timestamp":"t1"}}';
 		const events = parseLogs(logs);
 		expect(events).toHaveLength(1);
 		expect(events[0].event).toBe("GEMINI_EVENT");
+		expect(events[0].data.type).toBe("init");
 	});
 
 	it("should handle partial lines silently", () => {
