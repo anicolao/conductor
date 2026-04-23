@@ -44,92 +44,101 @@ const SessionEndDataSchema = z.discriminatedUnion("status", [
 	}),
 ]);
 
-const GeminiEventDataSchema = z.union([
-	z.object({
-		type: z.literal("init"),
-		session_id: z.string(),
-		model: z.string(),
-		timestamp: z.string(),
-		_isMessageBus: z.boolean().default(false),
-	}),
-	z.object({
-		type: z.literal("message"),
-		role: z.enum(["user", "assistant"]),
-		content: z.string(),
-		delta: z.boolean(),
-		timestamp: z.string(),
-		_isMessageBus: z.boolean().default(false),
-	}),
-	z.object({
-		type: z.literal("tool_use"),
-		tool_name: z.string(),
-		tool_id: z.string(),
-		parameters: JsonObjectSchema,
-		timestamp: z.string(),
-		_isMessageBus: z.boolean().default(false),
-	}),
-	z.object({
-		type: z.literal("tool_result"),
-		status: z.literal("success"),
-		tool_id: z.string(),
-		output: z.string(),
-		timestamp: z.string(),
-		_isMessageBus: z.boolean().default(false),
-	}),
-	z.object({
-		type: z.literal("tool_result"),
-		status: z.literal("error"),
-		tool_id: z.string(),
-		output: z.string(),
-		timestamp: z.string(),
-		error: z.string(),
-		_isMessageBus: z.boolean().default(false),
-	}),
-	z.object({
-		type: z.literal("result"),
-		status: z.literal("success"),
-		stats: z.object({
-			total_tokens: z.number(),
-			input_tokens: z.number(),
-			output_tokens: z.number(),
-			duration_ms: z.number(),
-		}),
-		timestamp: z.string(),
-		response: z.string(),
-		_isMessageBus: z.boolean().default(false),
-	}),
-	z.object({
-		type: z.literal("result"),
-		status: z.literal("error"),
-		error: z.string(),
-		timestamp: z.string(),
-		_isMessageBus: z.boolean().default(false),
-	}),
-	z.object({
-		type: z.literal("tool-calls-update"),
-		toolCalls: z.array(
-			z.object({
-				id: z.string(),
-				function: z.object({
-					name: z.string(),
-					arguments: z.string(),
-				}),
+const GeminiBaseSchema = z.object({
+	_isMessageBus: z.boolean().default(false),
+});
+
+const GeminiInitEventSchema = GeminiBaseSchema.extend({
+	type: z.literal("init"),
+	session_id: z.string(),
+	model: z.string(),
+	timestamp: z.string(),
+});
+
+const GeminiMessageEventSchema = GeminiBaseSchema.extend({
+	type: z.literal("message"),
+	role: z.enum(["user", "assistant"]),
+	content: z.string(),
+	delta: z.boolean(),
+	timestamp: z.string(),
+});
+
+const GeminiToolUseEventSchema = GeminiBaseSchema.extend({
+	type: z.literal("tool_use"),
+	tool_name: z.string(),
+	tool_id: z.string(),
+	parameters: JsonObjectSchema,
+	timestamp: z.string(),
+});
+
+const GeminiToolResultEventSchema = GeminiBaseSchema.extend({
+	type: z.literal("tool_result"),
+	tool_id: z.string(),
+	output: z.string(),
+	timestamp: z.string(),
+}).and(
+	z.discriminatedUnion("status", [
+		z.object({ status: z.literal("success") }),
+		z.object({ status: z.literal("error"), error: z.string() }),
+	]),
+);
+
+const GeminiResultEventSchema = GeminiBaseSchema.extend({
+	type: z.literal("result"),
+	timestamp: z.string(),
+}).and(
+	z.discriminatedUnion("status", [
+		z.object({
+			status: z.literal("success"),
+			stats: z.object({
+				total_tokens: z.number(),
+				input_tokens: z.number(),
+				output_tokens: z.number(),
+				duration_ms: z.number(),
 			}),
-		),
-		schedulerId: z.string(),
-		_isMessageBus: z.boolean().default(false),
-	}),
-	z.object({
-		type: z.literal("call"),
-		method: z.string(),
-		args: JsonObjectSchema,
-		_isMessageBus: z.boolean().default(false),
-	}),
-	z.object({
-		type: z.literal("context-update"),
-		data: JsonObjectSchema,
-		_isMessageBus: z.boolean().default(false),
-	}),
+			response: z.string(),
+		}),
+		z.object({
+			status: z.literal("error"),
+			error: z.string(),
+		}),
+	]),
+);
+
+const GeminiToolCallsUpdateEventSchema = GeminiBaseSchema.extend({
+	type: z.literal("tool-calls-update"),
+	toolCalls: z.array(
+		z.object({
+			id: z.string(),
+			function: z.object({
+				name: z.string(),
+				arguments: z.string(),
+			}),
+		}),
+	),
+	schedulerId: z.string(),
+});
+
+const GeminiCallEventSchema = GeminiBaseSchema.extend({
+	type: z.literal("call"),
+	method: z.string(),
+	args: JsonObjectSchema,
+});
+
+const GeminiContextUpdateEventSchema = GeminiBaseSchema.extend({
+	type: z.literal("context-update"),
+	data: JsonObjectSchema,
+});
+
+const GeminiEventDataSchema = z.union([
+	GeminiInitEventSchema,
+	GeminiMessageEventSchema,
+	GeminiToolUseEventSchema,
+	GeminiToolResultEventSchema,
+	GeminiResultEventSchema,
+	GeminiToolCallsUpdateEventSchema,
+	GeminiCallEventSchema,
+	GeminiContextUpdateEventSchema,
 ]);
 
 type BaseEvent = {
