@@ -94,6 +94,10 @@ async function fetchData(currentId: string, isInitial = false) {
 				.map((step) => ({
 					v: 1,
 					ts: step.started_at || new Date().toISOString(),
+					run_id: "github",
+					repo: "github",
+					issue: 0,
+					persona: "system",
 					event: "TASK",
 					data: {
 						message: `${step.name}: ${step.status}${step.conclusion ? ` (${step.conclusion})` : ""}`,
@@ -114,6 +118,10 @@ async function fetchData(currentId: string, isInitial = false) {
 					.map((step) => ({
 						v: 1,
 						ts: step.started_at || new Date().toISOString(),
+						run_id: "github",
+						repo: "github",
+						issue: 0,
+						persona: "system",
 						event: "TASK",
 						data: {
 							message: `${step.name}: ${step.status}${step.conclusion ? ` (${step.conclusion})` : ""}`,
@@ -122,7 +130,8 @@ async function fetchData(currentId: string, isInitial = false) {
 				isStreamingConductorEvents = false;
 			}
 			logsAvailable = true;
-		} else {
+		}
+ else {
 			// Some other error, but we might want to keep polling if the run is still in progress
 			console.warn(
 				`Failed to fetch logs: ${logsRes.status} ${logsRes.statusText}`,

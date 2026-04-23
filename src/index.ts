@@ -398,7 +398,7 @@ async function main() {
 		action,
 	} = extractEventData(event, process.env);
 
-	let persona: "conductor" | "coder" | null = null;
+	let persona: "conductor" | "coder" | undefined;
 	let lastCommentUrl = commentUrl;
 	let comments: Comment[] = [];
 
@@ -739,7 +739,7 @@ ${snippet}
 				exitCode: 1,
 				error: error instanceof Error ? error.message : String(error),
 			},
-			{ persona: persona ?? null, issue: issueNumber },
+			{ persona, issue: issueNumber },
 		);
 		process.exit(1);
 	}

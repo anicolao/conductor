@@ -30,7 +30,7 @@ const markdownContent = $derived.by(() => {
 	if (eventData.type === "message" && eventData.content) {
 		return marked.parse(String(eventData.content)) as string;
 	}
-	if (eventData.type === "result" && eventData.response) {
+	if (eventData.type === "result" && eventData.status === "success") {
 		return marked.parse(String(eventData.response)) as string;
 	}
 	return "";
@@ -127,19 +127,19 @@ function getToolArgs(data: GeminiEventData) {
       {/if}
     </div>
     <div class="event-body">
-      {#if eventData.status || eventData.output}
-        {#if eventData.status}
-          <div class="tool-result-status {eventData.status.toLowerCase()}">
-            <strong>Status:</strong> {eventData.status}
-          </div>
-        {/if}
+      {#if eventData.status === 'success'}
+        <div class="tool-result-status success">
+          <strong>Status:</strong> success
+        </div>
         {#if eventData.output}
           <pre class="terminal-output"><code>{eventData.output}</code></pre>
         {/if}
-        {#if eventData.error}
-          <div class="tool-result-status error">
-            <strong>Error:</strong> {eventData.error}
-          </div>
+      {:else if eventData.status === 'error'}
+        <div class="tool-result-status error">
+          <strong>Error:</strong> {eventData.error}
+        </div>
+        {#if eventData.output}
+          <pre class="terminal-output"><code>{eventData.output}</code></pre>
         {/if}
       {:else}
         <pre><code>{JSON.stringify(eventData, null, 2)}</code></pre>
@@ -198,12 +198,12 @@ function getToolArgs(data: GeminiEventData) {
     </div>
     <div class="event-body markdown">
       {@html markdownContent}
-      {#if eventData.error}
+      {#if eventData.status === 'error'}
         <div class="tool-result-status error">
           <strong>Error:</strong> {eventData.error}
         </div>
       {/if}
-      {#if typeof eventData.stats === 'object' && eventData.stats !== null}
+      {#if eventData.status === 'success'}
         <div class="stats">
           <div class="stat">
             <span class="label">Tokens:</span>
@@ -222,8 +222,8 @@ function getToolArgs(data: GeminiEventData) {
   {:else}
     <div class="event-header">
       <span class="icon">❓</span>
-      <span class="event-type">Unknown Event: {eventData.type}</span>
-      {#if eventData._isMessageBus}
+      <span class="event-type">Unknown Event: {(eventData as any).type}</span>
+      {#if (eventData as any)._isMessageBus}
         <span class="debug-badge">🚌 DEBUG</span>
       {/if}
     </div>
