@@ -1,50 +1,117 @@
-# Design Proposal: Eliminating `JsonValue` and `JsonObject`
+# Design Proposal: Eliminating `JsonValue` with "Real Types"
 
 ## Objective
 
-The goal of this design document is to propose a method for eliminating the `JsonValue` and `JsonObject` custom types and their associated Zod schemas across the Conductor codebase. As noted in issue #177, `JsonValue` serves essentially as a synonym for `any` but requires maintaining complex recursive type definitions and schemas that add little runtime safety while complicating the codebase.
+The goal of this design document is to replace the generic `JsonValue`, `JsonObject`, and their recent replacements (`unknown` and `Record<string, unknown>`) with strict, domain-specific interfaces ("real types"). This addresses the feedback in Issue #177 that the previous approach simply traded one form of `any` for another without adding actual type safety or structure ("no teeth").
 
-## Motivation
+## Background & Motivation
 
-1. **Simplicity:** The built-in TypeScript `unknown` type, paired with `Record<string, unknown>` for object structures, provides the same level of safety and flexibility without requiring custom definitions.
-2. **Duplication:** `JsonValue` and `JsonObject` are defined redundantly in both `src/utils/types.ts` and `observability-ui/src/lib/types.ts`.
-3. **Best Practices:** Overuse of generic "catch-all" types discourages defining strict interfaces where data structures are actually known. For truly dynamic data, `unknown` forces the consumer to perform proper type narrowing or validation.
+The Conductor system passes complex payloads in several areas:
+1. **Tool Usage:** `GeminiToolUseEvent` captures the parameters passed to CLI tools.
+2. **Structured Logging:** The `logger` captures arbitrary `details` attached to log messages.
+3. **Internal Events:** `GeminiCallEvent` and `GeminiContextUpdateEvent` pass internal state.
 
-## Proposed Strategy
+Previously, these were modeled using `JsonValue` or `Record<string, unknown>`. This tells the developer nothing about the *shape* of the data expected or emitted, leading to runtime errors and making the Observability UI brittle. We need "real types" that describe the exact schemas of these payloads.
 
-### 1. Remove Custom Types and Schemas
+## Proposed Strategy: "Real Types"
 
-Delete the following definitions entirely:
-- `src/utils/types.ts`: `JsonValue`, `JsonObject`, `JsonValueSchema`, `JsonObjectSchema`
-- `observability-ui/src/lib/types.ts`: `JsonValue`, `JsonObject`
+### 1. Discriminated Unions for Tool Parameters
 
-### 2. Replace with Standard TypeScript Patterns
+Instead of treating tool parameters as a black box, we will define a discriminated union of known tool parameters.
 
-Where `JsonObject` is currently used to denote an object with string keys and arbitrary values, replace it with `Record<string, unknown>`. This is standard, built-in, and accomplishes the exact same constraints.
+```typescript
+// observability-ui/src/lib/types.ts & src/utils/types.ts
 
-- `GeminiToolUseEvent.parameters`: Replace `JsonObject` with `Record<string, unknown>`
-- `GeminiCallEvent.args`: Replace `JsonObject` with `Record<string, unknown>`
-- `GeminiContextUpdateEvent.data`: Replace `JsonObject` with `Record<string, unknown>`
-- `logger.ts` details/context parameters: Replace `JsonObject` with `Record<string, unknown>`
-- `recover-orphans.ts` variables parameter: Replace `JsonObject` with `Record<string, unknown>`
+export interface ReadFileParameters {
+    file_path: string;
+    start_line?: number;
+    end_line?: number;
+}
 
-### 3. Update Zod Schemas
+export interface GrepSearchParameters {
+    pattern: string;
+    dir_path?: string;
+    include_pattern?: string;
+    // ... other grep args
+}
 
-In `src/utils/logger.ts`, wherever `JsonObjectSchema` is used to validate incoming or outgoing structured log payloads, replace it directly with `z.record(z.string(), z.unknown())`.
+export interface RunShellCommandParameters {
+    command: string;
+    is_background?: boolean;
+    timeout?: number;
+}
 
-- `LogEventDataSchema` details field.
-- `GeminiToolUseEventSchema` parameters field.
-- `GeminiCallEventSchema` args field.
-- `GeminiContextUpdateEventSchema` data field.
+// A mapped type or union for all known tools
+export type ToolParameters = 
+    | { tool_name: "read_file"; parameters: ReadFileParameters }
+    | { tool_name: "grep_search"; parameters: GrepSearchParameters }
+    | { tool_name: "run_shell_command"; parameters: RunShellCommandParameters }
+    | { tool_name: "replace"; parameters: { file_path: string; old_string: string; new_string: string } }
+    // Fallback for unknown/future tools, explicitly marked as such
+    | { tool_name: string; parameters: Record<string, unknown> };
+```
+
+This ensures that when a `GeminiToolUseEvent` is processed, TypeScript knows exactly what `parameters` contain based on the `tool_name`.
+
+### 2. Context and Internal Event Types
+
+Similarly, define specific interfaces for internal events.
+
+```typescript
+export interface GeminiContextUpdateData {
+    memories?: Array<{ scope: string; fact: string }>;
+    branch?: string;
+    labels?: string[];
+    // Define the actual fields passed in context updates
+}
+
+export interface GeminiCallArgs {
+    prompt?: string;
+    agent_name?: string;
+    wait_for_previous?: boolean;
+    // Define the actual fields passed to internal calls
+}
+```
+
+### 3. Generic-Driven Structured Logging
+
+The `logger` currently accepts `Record<string, unknown>` for details. We will update the logger to use Generics to enforce type definitions at the call site.
+
+```typescript
+// src/utils/logger.ts
+
+export const logger = {
+    info: <T>(
+        message: string,
+        details?: T,
+        context?: { persona?: string; issue?: number },
+    ) => logEvent("LOG_INFO", details ? { message, details } : { message }, context),
+    // ... apply to warn, error, debug
+};
+```
+
+While the underlying `ConductorEvent` schema will need a broader type to accept these diverse payloads (likely a union of defined schemas or a fallback Zod schema), this forces the *caller* to provide a specific shape.
+
+### 4. Zod Schema Strictness
+
+Update `JsonObjectSchema` in `src/utils/logger.ts`. Instead of a generic `z.record(z.string(), z.unknown())`, we will use `z.union()` with `.strict()` object definitions for known payloads, falling back to a structured, but less strict, schema only when absolutely necessary.
+
+```typescript
+const ToolParametersSchema = z.union([
+    z.object({ file_path: z.string(), start_line: z.number().optional() /* ... */ }).strict(),
+    z.object({ command: z.string() /* ... */ }).strict(),
+    // ...
+]);
+```
 
 ## Implementation Steps
 
-1. Delete the definitions of `JsonValue` and `JsonObject` (and their Zod equivalents) from the relevant files.
-2. In `src/utils/logger.ts`, replace the imported `JsonObject` type with `Record<string, unknown>` and `JsonObjectSchema` with `z.record(z.string(), z.unknown())`.
-3. In `src/recover-orphans.ts`, update the `variables` parameter type to `Record<string, unknown>`.
-4. In `observability-ui/src/lib/types.ts`, update all interface properties currently using `JsonObject` to `Record<string, unknown>`.
-5. Run the TypeScript compiler (`npx tsc`) and all existing tests to ensure type safety and runtime validation are maintained.
+1. **Define Real Types:** Create the strict interfaces (`ReadFileParameters`, `GeminiContextUpdateData`, etc.) in a shared location (e.g., `src/utils/types.ts` and `observability-ui/src/lib/types.ts`).
+2. **Update Zod Schemas:** Modify `src/utils/logger.ts` to replace `JsonObjectSchema` with unions of strict schemas corresponding to the new types.
+3. **Refactor Call Sites:** Search the codebase for `logger.info`, `logger.error`, etc., that pass `details`, and explicitly type those details.
+4. **Update UI:** Refactor `observability-ui/src/lib/components/JsonTree.svelte` and event rendering logic to leverage the new discriminated unions, allowing for tailored UI components based on the specific tool or event type.
 
-## Conclusion
+## Alternatives Considered
 
-This approach completely removes the need for `JsonValue` while maintaining strict validation for fields that must be objects via `Record<string, unknown>`. It simplifies the type definitions across the project and aligns with idiomatic TypeScript and Zod usage.
+*   **Keeping `Record<string, unknown>`:** Rejected by the user. It lacks the constraints necessary for a robust, maintainable codebase and provides no intellisense or compile-time guarantees about payload structure.
+*   **Generating Types from JSON Schema:** Overly complex for the current scale. Manually defining the core tool and event interfaces is more straightforward and idiomatic TypeScript.
