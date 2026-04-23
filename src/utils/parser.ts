@@ -19,7 +19,14 @@ export function parseLogs(logs: string): ConductorEvent[] {
 			}
 
 			try {
-				const event = ConductorEventSchema.parse(JSON.parse(jsonStr));
+				const raw = JSON.parse(jsonStr);
+				const event = ConductorEventSchema.parse({
+					run_id: null,
+					repo: null,
+					issue: null,
+					persona: null,
+					...raw,
+				});
 				events.push(event);
 			} catch (e) {
 				// Only log error if it looks like it SHOULD have been a complete JSON
@@ -39,6 +46,10 @@ export function parseLogs(logs: string): ConductorEvent[] {
 						ConductorEventSchema.parse({
 							v: 1,
 							ts: new Date().toISOString(),
+							run_id: null,
+							repo: null,
+							issue: null,
+							persona: null,
 							event: "GEMINI_EVENT",
 							data,
 						}),

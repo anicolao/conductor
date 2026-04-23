@@ -24,6 +24,7 @@ export interface GeminiInitEvent {
 	session_id: string;
 	model: string;
 	timestamp: string;
+	_isMessageBus: boolean | null;
 }
 
 export interface GeminiMessageEvent {
@@ -32,6 +33,7 @@ export interface GeminiMessageEvent {
 	content: string;
 	delta: boolean;
 	timestamp: string;
+	_isMessageBus: boolean | null;
 }
 
 export interface GeminiToolUseEvent {
@@ -40,6 +42,7 @@ export interface GeminiToolUseEvent {
 	tool_id: string;
 	parameters: JsonObject;
 	timestamp: string;
+	_isMessageBus: boolean | null;
 }
 
 export interface GeminiToolResultEvent {
@@ -48,56 +51,58 @@ export interface GeminiToolResultEvent {
 	status: string;
 	output: string;
 	timestamp: string;
-	error?: string;
+	error: string | null;
+	_isMessageBus: boolean | null;
 }
 
 export interface GeminiResultEvent {
 	type: "result";
 	status: string;
-	stats?: {
+	stats: {
 		total_tokens: number;
 		input_tokens: number;
 		output_tokens: number;
 		duration_ms: number;
-	};
+	} | null;
 	timestamp: string;
-	response?: string;
-	error?: string;
+	response: string | null;
+	error: string | null;
+	_isMessageBus: boolean | null;
 }
 
 export interface GeminiToolCallsUpdateEvent {
 	type: "tool-calls-update";
 	toolCalls: Array<{
-		id?: string;
-		function?: {
+		id: string | null;
+		function: {
 			name: string;
 			arguments: string;
-		};
+		} | null;
 	}>;
 	schedulerId: string;
+	_isMessageBus: boolean | null;
 }
 
 export interface GeminiCallEvent {
 	type: "call";
 	method: string;
 	args: JsonObject;
+	_isMessageBus: boolean | null;
 }
 
 export interface GeminiContextUpdateEvent {
 	type: "context-update";
 	data: JsonObject;
+	_isMessageBus: boolean | null;
 }
 
 export interface GeminiUnknownEvent {
 	type: string;
+	_isMessageBus: boolean | null;
 	[key: string]: JsonValue;
 }
 
-export interface MessageBusMixin {
-	_isMessageBus?: boolean;
-}
-
-export type GeminiEventData = (
+export type GeminiEventData =
 	| GeminiInitEvent
 	| GeminiMessageEvent
 	| GeminiToolUseEvent
@@ -106,9 +111,7 @@ export type GeminiEventData = (
 	| GeminiToolCallsUpdateEvent
 	| GeminiCallEvent
 	| GeminiContextUpdateEvent
-	| GeminiUnknownEvent
-) &
-	MessageBusMixin;
+	| GeminiUnknownEvent;
 
 export interface WorkflowRun {
 	id: number;
