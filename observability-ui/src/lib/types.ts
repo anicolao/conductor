@@ -97,12 +97,6 @@ export interface GeminiContextUpdateEvent {
 	_isMessageBus: boolean;
 }
 
-export interface GeminiUnknownEvent {
-	type: string;
-	_isMessageBus: boolean;
-	[key: string]: JsonValue;
-}
-
 export type GeminiEventData =
 	| GeminiInitEvent
 	| GeminiMessageEvent
@@ -111,8 +105,7 @@ export type GeminiEventData =
 	| GeminiResultEvent
 	| GeminiToolCallsUpdateEvent
 	| GeminiCallEvent
-	| GeminiContextUpdateEvent
-	| GeminiUnknownEvent;
+	| GeminiContextUpdateEvent;
 
 export interface WorkflowRun {
 	id: number;

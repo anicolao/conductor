@@ -28,26 +28,20 @@ const StdoutStderrDataSchema = z.object({
 	text: z.string(),
 });
 
-const SessionStartDataSchema = z
-	.object({
-		branch: z.string(),
-		labels: z.array(z.string()),
-	})
-	.catchall(JsonValueSchema);
+const SessionStartDataSchema = z.object({
+	branch: z.string(),
+	labels: z.array(z.string()),
+});
 
 const SessionEndDataSchema = z.discriminatedUnion("status", [
-	z
-		.object({
-			status: z.literal("success"),
-		})
-		.catchall(JsonValueSchema),
-	z
-		.object({
-			status: z.literal("failure"),
-			exitCode: z.number(),
-			error: z.string(),
-		})
-		.catchall(JsonValueSchema),
+	z.object({
+		status: z.literal("success"),
+	}),
+	z.object({
+		status: z.literal("failure"),
+		exitCode: z.number(),
+		error: z.string(),
+	}),
 ]);
 
 const GeminiEventDataSchema = z.union([
@@ -136,12 +130,6 @@ const GeminiEventDataSchema = z.union([
 		data: JsonObjectSchema,
 		_isMessageBus: z.boolean().default(false),
 	}),
-	z
-		.object({
-			type: z.string(),
-			_isMessageBus: z.boolean().default(false),
-		})
-		.catchall(JsonValueSchema),
 ]);
 
 type BaseEvent = {
@@ -163,20 +151,20 @@ export type ConductorEvent = BaseEvent &
 		| { event: "STDERR"; data: { text: string } }
 		| {
 				event: "session_start";
-				data: { branch: string; labels: string[] } & JsonObject;
+				data: { branch: string; labels: string[] };
 		  }
 		| {
 				event: "session_end";
 				data:
-					| ({ status: "success" } & JsonObject)
-					| ({
+					| { status: "success" }
+					| {
 							status: "failure";
 							exitCode: number;
 							error: string;
-					  } & JsonObject);
+					  };
 		  }
 		| { event: "GEMINI_EVENT"; data: z.infer<typeof GeminiEventDataSchema> }
-		| { event: "TASK"; data: { message: string } & JsonObject }
+		| { event: "TASK"; data: { message: string } }
 		| { event: "LOG_DEBUG_GROUP"; data: { events: ConductorEvent[] } }
 	);
 
@@ -220,7 +208,7 @@ export const ConductorEventSchema: z.ZodType<ConductorEvent> =
 		}),
 		BaseEventSchema.extend({
 			event: z.literal("TASK"),
-			data: z.object({ message: z.string() }).catchall(JsonValueSchema),
+			data: z.object({ message: z.string() }),
 		}),
 		BaseEventSchema.extend({
 			event: z.literal("LOG_DEBUG_GROUP"),
