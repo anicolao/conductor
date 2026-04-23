@@ -24,7 +24,7 @@ export interface GeminiInitEvent {
 	session_id: string;
 	model: string;
 	timestamp: string;
-	_isMessageBus: boolean | null;
+	_isMessageBus: boolean;
 }
 
 export interface GeminiMessageEvent {
@@ -33,7 +33,7 @@ export interface GeminiMessageEvent {
 	content: string;
 	delta: boolean;
 	timestamp: string;
-	_isMessageBus: boolean | null;
+	_isMessageBus: boolean;
 }
 
 export interface GeminiToolUseEvent {
@@ -42,63 +42,64 @@ export interface GeminiToolUseEvent {
 	tool_id: string;
 	parameters: JsonObject;
 	timestamp: string;
-	_isMessageBus: boolean | null;
+	_isMessageBus: boolean;
 }
 
-export interface GeminiToolResultEvent {
+export type GeminiToolResultEvent = {
 	type: "tool_result";
 	tool_id: string;
-	status: string;
 	output: string;
 	timestamp: string;
-	error: string | null;
-	_isMessageBus: boolean | null;
-}
+	_isMessageBus: boolean;
+} & ({ status: "success" } | { status: "error"; error: string });
 
-export interface GeminiResultEvent {
+export type GeminiResultEvent = {
 	type: "result";
-	status: string;
-	stats: {
-		total_tokens: number;
-		input_tokens: number;
-		output_tokens: number;
-		duration_ms: number;
-	} | null;
 	timestamp: string;
-	response: string | null;
-	error: string | null;
-	_isMessageBus: boolean | null;
-}
+	_isMessageBus: boolean;
+} & (
+	| {
+			status: "success";
+			stats: {
+				total_tokens: number;
+				input_tokens: number;
+				output_tokens: number;
+				duration_ms: number;
+			};
+			response: string;
+	  }
+	| { status: "error"; error: string }
+);
 
 export interface GeminiToolCallsUpdateEvent {
 	type: "tool-calls-update";
 	toolCalls: Array<{
-		id: string | null;
+		id: string;
 		function: {
 			name: string;
 			arguments: string;
-		} | null;
+		};
 	}>;
 	schedulerId: string;
-	_isMessageBus: boolean | null;
+	_isMessageBus: boolean;
 }
 
 export interface GeminiCallEvent {
 	type: "call";
 	method: string;
 	args: JsonObject;
-	_isMessageBus: boolean | null;
+	_isMessageBus: boolean;
 }
 
 export interface GeminiContextUpdateEvent {
 	type: "context-update";
 	data: JsonObject;
-	_isMessageBus: boolean | null;
+	_isMessageBus: boolean;
 }
 
 export interface GeminiUnknownEvent {
 	type: string;
-	_isMessageBus: boolean | null;
+	_isMessageBus: boolean;
 	[key: string]: JsonValue;
 }
 

@@ -89,15 +89,16 @@ describe("logger", () => {
 	it("should tighten session_end failure data", () => {
 		logEvent("session_end", {
 			status: "failure",
+			exitCode: 1,
 			error: "something went wrong",
-		} as any);
+		});
 
 		const output = stdoutSpy.mock.calls[0][0] as string;
 		const payload = JSON.parse(output.split("::CONDUCTOR_EVENT::")[1]);
 
 		expect(payload.data.status).toBe("failure");
 		expect(payload.data.error).toBe("something went wrong");
-		expect(payload.data.exitCode).toBe(null); // Filled by default/tightening
+		expect(payload.data.exitCode).toBe(1);
 	});
 
 	it("should tighten GEMINI_EVENT data with defaults", () => {
@@ -107,13 +108,13 @@ describe("logger", () => {
 			status: "success",
 			output: "ok",
 			timestamp: "now",
-		} as any);
+		});
 
 		const output = stdoutSpy.mock.calls[0][0] as string;
 		const payload = JSON.parse(output.split("::CONDUCTOR_EVENT::")[1]);
 
 		expect(payload.data.type).toBe("tool_result");
-		expect(payload.data.error).toBe(null); // Filled by default
-		expect(payload.data._isMessageBus).toBe(null); // Filled by default
+		expect(payload.data.error).toBeUndefined(); // Should be absent in success
+		expect(payload.data._isMessageBus).toBe(false); // Filled by default false
 	});
 });

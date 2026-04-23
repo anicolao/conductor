@@ -44,100 +44,105 @@ const SessionEndDataSchema = z.discriminatedUnion("status", [
 	z
 		.object({
 			status: z.literal("failure"),
-			exitCode: z.number().nullable().default(null),
-			error: z.string().nullable().default(null),
+			exitCode: z.number(),
+			error: z.string(),
 		})
 		.catchall(JsonValueSchema),
 ]);
 
-const GeminiEventDataSchema = z
-	.discriminatedUnion("type", [
-		z.object({
-			type: z.literal("init"),
-			session_id: z.string(),
-			model: z.string(),
-			timestamp: z.string(),
-			_isMessageBus: z.boolean().nullable().default(null),
+const GeminiEventDataSchema = z.union([
+	z.object({
+		type: z.literal("init"),
+		session_id: z.string(),
+		model: z.string(),
+		timestamp: z.string(),
+		_isMessageBus: z.boolean().default(false),
+	}),
+	z.object({
+		type: z.literal("message"),
+		role: z.enum(["user", "assistant"]),
+		content: z.string(),
+		delta: z.boolean(),
+		timestamp: z.string(),
+		_isMessageBus: z.boolean().default(false),
+	}),
+	z.object({
+		type: z.literal("tool_use"),
+		tool_name: z.string(),
+		tool_id: z.string(),
+		parameters: JsonObjectSchema,
+		timestamp: z.string(),
+		_isMessageBus: z.boolean().default(false),
+	}),
+	z.object({
+		type: z.literal("tool_result"),
+		status: z.literal("success"),
+		tool_id: z.string(),
+		output: z.string(),
+		timestamp: z.string(),
+		_isMessageBus: z.boolean().default(false),
+	}),
+	z.object({
+		type: z.literal("tool_result"),
+		status: z.literal("error"),
+		tool_id: z.string(),
+		output: z.string(),
+		timestamp: z.string(),
+		error: z.string(),
+		_isMessageBus: z.boolean().default(false),
+	}),
+	z.object({
+		type: z.literal("result"),
+		status: z.literal("success"),
+		stats: z.object({
+			total_tokens: z.number(),
+			input_tokens: z.number(),
+			output_tokens: z.number(),
+			duration_ms: z.number(),
 		}),
-		z.object({
-			type: z.literal("message"),
-			role: z.enum(["user", "assistant"]),
-			content: z.string(),
-			delta: z.boolean(),
-			timestamp: z.string(),
-			_isMessageBus: z.boolean().nullable().default(null),
-		}),
-		z.object({
-			type: z.literal("tool_use"),
-			tool_name: z.string(),
-			tool_id: z.string(),
-			parameters: JsonObjectSchema,
-			timestamp: z.string(),
-			_isMessageBus: z.boolean().nullable().default(null),
-		}),
-		z.object({
-			type: z.literal("tool_result"),
-			tool_id: z.string(),
-			status: z.string(),
-			output: z.string(),
-			timestamp: z.string(),
-			error: z.string().nullable().default(null),
-			_isMessageBus: z.boolean().nullable().default(null),
-		}),
-		z.object({
-			type: z.literal("result"),
-			status: z.string(),
-			stats: z
-				.object({
-					total_tokens: z.number(),
-					input_tokens: z.number(),
-					output_tokens: z.number(),
-					duration_ms: z.number(),
-				})
-				.nullable()
-				.default(null),
-			timestamp: z.string(),
-			response: z.string().nullable().default(null),
-			error: z.string().nullable().default(null),
-			_isMessageBus: z.boolean().nullable().default(null),
-		}),
-		z.object({
-			type: z.literal("tool-calls-update"),
-			toolCalls: z.array(
-				z.object({
-					id: z.string().nullable().default(null),
-					function: z
-						.object({
-							name: z.string(),
-							arguments: z.string(),
-						})
-						.nullable()
-						.default(null),
+		timestamp: z.string(),
+		response: z.string(),
+		_isMessageBus: z.boolean().default(false),
+	}),
+	z.object({
+		type: z.literal("result"),
+		status: z.literal("error"),
+		error: z.string(),
+		timestamp: z.string(),
+		_isMessageBus: z.boolean().default(false),
+	}),
+	z.object({
+		type: z.literal("tool-calls-update"),
+		toolCalls: z.array(
+			z.object({
+				id: z.string(),
+				function: z.object({
+					name: z.string(),
+					arguments: z.string(),
 				}),
-			),
-			schedulerId: z.string(),
-			_isMessageBus: z.boolean().nullable().default(null),
-		}),
-		z.object({
-			type: z.literal("call"),
-			method: z.string(),
-			args: JsonObjectSchema,
-			_isMessageBus: z.boolean().nullable().default(null),
-		}),
-		z.object({
-			type: z.literal("context-update"),
-			data: JsonObjectSchema,
-			_isMessageBus: z.boolean().nullable().default(null),
-		}),
-	])
-	.or(
-		z
-			.object({
-				type: z.string(),
-				_isMessageBus: z.boolean().nullable().default(null),
-			})
-			.catchall(JsonValueSchema),
-	);
+			}),
+		),
+		schedulerId: z.string(),
+		_isMessageBus: z.boolean().default(false),
+	}),
+	z.object({
+		type: z.literal("call"),
+		method: z.string(),
+		args: JsonObjectSchema,
+		_isMessageBus: z.boolean().default(false),
+	}),
+	z.object({
+		type: z.literal("context-update"),
+		data: JsonObjectSchema,
+		_isMessageBus: z.boolean().default(false),
+	}),
+	z
+		.object({
+			type: z.string(),
+			_isMessageBus: z.boolean().default(false),
+		})
+		.catchall(JsonValueSchema),
+]);
 
 type BaseEvent = {
 	v: number;
@@ -166,8 +171,8 @@ export type ConductorEvent = BaseEvent &
 					| ({ status: "success" } & JsonObject)
 					| ({
 							status: "failure";
-							exitCode: number | null;
-							error: string | null;
+							exitCode: number;
+							error: string;
 					  } & JsonObject);
 		  }
 		| { event: "GEMINI_EVENT"; data: z.infer<typeof GeminiEventDataSchema> }

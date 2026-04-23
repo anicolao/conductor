@@ -701,7 +701,11 @@ ${snippet}
 
 				logEvent(
 					"session_end",
-					{ status: "failure", exitCode: result.status ?? null, error: null },
+					{
+						status: "failure",
+						exitCode: result.status ?? 1,
+						error: "Command failed",
+					},
 					{ persona, issue: issueNumber },
 				);
 				process.exit(result.status || 1);
@@ -732,7 +736,7 @@ ${snippet}
 			"session_end",
 			{
 				status: "failure",
-				exitCode: null,
+				exitCode: 1,
 				error: error instanceof Error ? error.message : String(error),
 			},
 			{ persona: persona ?? null, issue: issueNumber },
