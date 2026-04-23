@@ -1,6 +1,4 @@
 import { z } from "zod";
-import type { JsonObject } from "./types";
-import { JsonObjectSchema, JsonValueSchema } from "./types";
 
 /**
  * Conductor Structured Logging
@@ -17,6 +15,8 @@ const BaseEventSchema = z.object({
 	issue: z.number(),
 	persona: z.string(),
 });
+
+const JsonObjectSchema = z.record(z.string(), z.unknown());
 
 const LogEventDataSchema = z.union([
 	z.object({ message: z.string() }).strict(),
@@ -280,19 +280,19 @@ export function logEvent(
 export const logger = {
 	info: (
 		message: string,
-		details?: JsonObject,
+		details?: Record<string, unknown>,
 		context?: { persona?: string; issue?: number },
 	) => logEvent("LOG_INFO", details ? { message, details } : { message }, context),
 
 	warn: (
 		message: string,
-		details?: JsonObject,
+		details?: Record<string, unknown>,
 		context?: { persona?: string; issue?: number },
 	) => logEvent("LOG_WARN", details ? { message, details } : { message }, context),
 
 	error: (
 		message: string,
-		errorOrDetails?: string | JsonObject,
+		errorOrDetails?: string | Record<string, unknown>,
 		context?: { persona?: string; issue?: number },
 	) => {
 		if (typeof errorOrDetails === "string") {
@@ -307,7 +307,7 @@ export const logger = {
 
 	debug: (
 		message: string,
-		details?: JsonObject,
+		details?: Record<string, unknown>,
 		context?: { persona?: string; issue?: number },
 	) =>
 		logEvent("LOG_DEBUG", details ? { message, details } : { message }, context),
