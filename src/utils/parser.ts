@@ -21,10 +21,10 @@ export function parseLogs(logs: string): ConductorEvent[] {
 			try {
 				const raw = JSON.parse(jsonStr);
 				const event = ConductorEventSchema.parse({
-					run_id: null,
-					repo: null,
-					issue: null,
-					persona: null,
+					run_id: "local",
+					repo: "local",
+					issue: 0,
+					persona: "system",
 					...raw,
 				});
 				events.push(event);
@@ -46,10 +46,10 @@ export function parseLogs(logs: string): ConductorEvent[] {
 						ConductorEventSchema.parse({
 							v: 1,
 							ts: new Date().toISOString(),
-							run_id: null,
-							repo: null,
-							issue: null,
-							persona: null,
+							run_id: "local",
+							repo: "local",
+							issue: 0,
+							persona: "system",
 							event: "GEMINI_EVENT",
 							data,
 						}),

@@ -61,6 +61,23 @@ describe("logger", () => {
 		expect(payload.issue).toBe(99);
 	});
 
+	it("should use strict defaults when env vars are missing", () => {
+		delete process.env.GITHUB_RUN_ID;
+		delete process.env.GITHUB_REPOSITORY;
+		delete process.env.CONDUCTOR_PERSONA;
+		delete process.env.CONDUCTOR_ISSUE;
+
+		logEvent("LOG_INFO", { message: "default test" });
+
+		const output = stdoutSpy.mock.calls[0][0] as string;
+		const payload = JSON.parse(output.split("::CONDUCTOR_EVENT::")[1]);
+
+		expect(payload.run_id).toBe("local");
+		expect(payload.repo).toBe("local");
+		expect(payload.persona).toBe("system");
+		expect(payload.issue).toBe(0);
+	});
+
 	it("logger.info should log LOG_INFO event", () => {
 		logger.info("hello world");
 		const output = stdoutSpy.mock.calls[0][0];
@@ -69,13 +86,22 @@ describe("logger", () => {
 		expect(payload.data.message).toBe("hello world");
 	});
 
-	it("logger.error should log LOG_ERROR event with extra data", () => {
+	it("logger.error should log LOG_ERROR event with extra data in details", () => {
 		logger.error("oops", { code: 500 });
 		const output = stdoutSpy.mock.calls[0][0];
 		const payload = JSON.parse(output.split("::CONDUCTOR_EVENT::")[1]);
 		expect(payload.event).toBe("LOG_ERROR");
 		expect(payload.data.message).toBe("oops");
-		expect(payload.data.code).toBe(500);
+		expect(payload.data.details).toEqual({ code: 500 });
+	});
+
+	it("logger.error should log LOG_ERROR event with error string", () => {
+		logger.error("oops", "something failed");
+		const output = stdoutSpy.mock.calls[0][0];
+		const payload = JSON.parse(output.split("::CONDUCTOR_EVENT::")[1]);
+		expect(payload.event).toBe("LOG_ERROR");
+		expect(payload.data.message).toBe("oops");
+		expect(payload.data.error).toBe("something failed");
 	});
 
 	it("logger.stdout should log STDOUT event", () => {

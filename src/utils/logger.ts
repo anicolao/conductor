@@ -12,17 +12,24 @@ import { JsonObjectSchema, JsonValueSchema } from "./types";
 const BaseEventSchema = z.object({
 	v: z.number(),
 	ts: z.string(),
-	run_id: z.string().nullable(),
-	repo: z.string().nullable(),
-	issue: z.number().nullable(),
-	persona: z.string().nullable(),
+	run_id: z.string(),
+	repo: z.string(),
+	issue: z.number(),
+	persona: z.string(),
 });
 
-const LogEventDataSchema = z
-	.object({
-		message: z.string(),
-	})
-	.catchall(JsonValueSchema);
+const LogEventDataSchema = z.union([
+	z.object({ message: z.string() }).strict(),
+	z.object({ message: z.string(), error: z.string() }).strict(),
+	z.object({ message: z.string(), details: JsonObjectSchema }).strict(),
+	z
+		.object({
+			message: z.string(),
+			error: z.string(),
+			details: JsonObjectSchema,
+		})
+		.strict(),
+]);
 
 const StdoutStderrDataSchema = z.object({
 	text: z.string(),
@@ -144,20 +151,20 @@ const GeminiEventDataSchema = z.union([
 type BaseEvent = {
 	v: number;
 	ts: string;
-	run_id: string | null;
-	repo: string | null;
-	issue: number | null;
-	persona: string | null;
+	run_id: string;
+	repo: string;
+	issue: number;
+	persona: string;
 };
 
 export type GeminiEventData = z.infer<typeof GeminiEventDataSchema>;
 
 export type ConductorEvent = BaseEvent &
 	(
-		| { event: "LOG_INFO"; data: { message: string } & JsonObject }
-		| { event: "LOG_WARN"; data: { message: string } & JsonObject }
-		| { event: "LOG_ERROR"; data: { message: string } & JsonObject }
-		| { event: "LOG_DEBUG"; data: { message: string } & JsonObject }
+		| { event: "LOG_INFO"; data: z.infer<typeof LogEventDataSchema> }
+		| { event: "LOG_WARN"; data: z.infer<typeof LogEventDataSchema> }
+		| { event: "LOG_ERROR"; data: z.infer<typeof LogEventDataSchema> }
+		| { event: "LOG_DEBUG"; data: z.infer<typeof LogEventDataSchema> }
 		| { event: "STDOUT"; data: { text: string } }
 		| { event: "STDERR"; data: { text: string } }
 		| {
@@ -237,7 +244,7 @@ export const ConductorEventSchema: z.ZodType<ConductorEvent> =
 export function logEvent(
 	event: ConductorEvent["event"],
 	data: ConductorEvent["data"],
-	context: { persona?: string | null; issue?: number | null } = {},
+	context: { persona?: string; issue?: number } = {},
 ) {
 	// Tighten data using schemas if applicable to ensure required fields are present (as null)
 	let finalData = data;
@@ -255,14 +262,14 @@ export function logEvent(
 	const payload = {
 		v: 1,
 		ts: new Date().toISOString(),
-		run_id: process.env.GITHUB_RUN_ID || null,
-		repo: process.env.GITHUB_REPOSITORY || null,
+		run_id: process.env.GITHUB_RUN_ID || "local",
+		repo: process.env.GITHUB_REPOSITORY || "local",
 		issue:
 			context.issue ||
 			(process.env.CONDUCTOR_ISSUE
 				? parseInt(process.env.CONDUCTOR_ISSUE, 10)
-				: null),
-		persona: context.persona || process.env.CONDUCTOR_PERSONA || null,
+				: 0),
+		persona: context.persona || process.env.CONDUCTOR_PERSONA || "system",
 		event,
 		data: finalData,
 	} as ConductorEvent;
@@ -273,35 +280,41 @@ export function logEvent(
 export const logger = {
 	info: (
 		message: string,
-		data?: JsonObject,
-		context?: { persona?: string | null; issue?: number | null },
-	) => logEvent("LOG_INFO", { message, ...data }, context),
+		details?: JsonObject,
+		context?: { persona?: string; issue?: number },
+	) => logEvent("LOG_INFO", details ? { message, details } : { message }, context),
 
 	warn: (
 		message: string,
-		data?: JsonObject,
-		context?: { persona?: string | null; issue?: number | null },
-	) => logEvent("LOG_WARN", { message, ...data }, context),
+		details?: JsonObject,
+		context?: { persona?: string; issue?: number },
+	) => logEvent("LOG_WARN", details ? { message, details } : { message }, context),
 
 	error: (
 		message: string,
-		data?: JsonObject,
-		context?: { persona?: string | null; issue?: number | null },
-	) => logEvent("LOG_ERROR", { message, ...data }, context),
+		errorOrDetails?: string | JsonObject,
+		context?: { persona?: string; issue?: number },
+	) => {
+		if (typeof errorOrDetails === "string") {
+			return logEvent("LOG_ERROR", { message, error: errorOrDetails }, context);
+		}
+		return logEvent(
+			"LOG_ERROR",
+			errorOrDetails ? { message, details: errorOrDetails } : { message },
+			context,
+		);
+	},
 
 	debug: (
 		message: string,
-		data?: JsonObject,
-		context?: { persona?: string | null; issue?: number | null },
-	) => logEvent("LOG_DEBUG", { message, ...data }, context),
+		details?: JsonObject,
+		context?: { persona?: string; issue?: number },
+	) =>
+		logEvent("LOG_DEBUG", details ? { message, details } : { message }, context),
 
-	stdout: (
-		text: string,
-		context?: { persona?: string | null; issue?: number | null },
-	) => logEvent("STDOUT", { text }, context),
+	stdout: (text: string, context?: { persona?: string; issue?: number }) =>
+		logEvent("STDOUT", { text }, context),
 
-	stderr: (
-		text: string,
-		context?: { persona?: string | null; issue?: number | null },
-	) => logEvent("STDERR", { text }, context),
+	stderr: (text: string, context?: { persona?: string; issue?: number }) =>
+		logEvent("STDERR", { text }, context),
 };

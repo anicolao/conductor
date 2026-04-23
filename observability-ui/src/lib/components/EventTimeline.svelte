@@ -14,8 +14,11 @@ const processedEvents = $derived.by(() => {
 			result.push({
 				v: 1,
 				ts: currentDebugGroup[0].ts,
-				event: "LOG_DEBUG_GROUP",
+				run_id: currentDebugGroup[0].run_id,
+				repo: currentDebugGroup[0].repo,
+				issue: currentDebugGroup[0].issue,
 				persona: currentDebugGroup[0].persona,
+				event: "LOG_DEBUG_GROUP",
 				data: { events: [...currentDebugGroup] },
 			});
 		} else if (currentDebugGroup.length === 1) {
@@ -179,10 +182,8 @@ function getMessage(event: ConductorEvent): string {
               <span class="timestamp">{formatTimestamp(event.ts)}</span>
             </div>
             <div class="event-body">
-              {#if data.error}
+              {#if data.status === 'failure'}
                 <p class="error-msg"><strong>Error:</strong> {data.error}</p>
-              {/if}
-              {#if data.exitCode !== undefined}
                 <p><strong>Exit Code:</strong> {data.exitCode}</p>
               {/if}
             </div>

@@ -137,7 +137,7 @@ describe("exec utility", () => {
 
 		it("should intercept any JSON event in stderr with a type field", async () => {
 			const logEventSpy = vi.spyOn(loggerModule, "logEvent");
-			const msg = 'SOME_PREFIX {"type":"generic-event","foo":"bar"}';
+			const msg = 'SOME_PREFIX {"type":"call","method":"test","args":{}}';
 			const result = await runStreamingCommand(
 				"sh",
 				["-c", `echo '${msg}' >&2`],
@@ -146,8 +146,9 @@ describe("exec utility", () => {
 
 			expect(result.status).toBe(0);
 			expect(logEventSpy).toHaveBeenCalledWith("GEMINI_EVENT", {
-				type: "generic-event",
-				foo: "bar",
+				type: "call",
+				method: "test",
+				args: {},
 			});
 			expect(logEventSpy).not.toHaveBeenCalledWith("STDERR", expect.anything());
 		});

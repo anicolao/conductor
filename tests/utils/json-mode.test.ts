@@ -23,8 +23,9 @@ describe("JSON mode and Debug intercept", () => {
 		// We'll use sh -c to echo a JSON line
 		const json = JSON.stringify({
 			type: "init",
-			sessionId: "123",
+			session_id: "123",
 			model: "gemini-pro",
+			timestamp: "2026-04-23T12:00:00Z",
 		});
 		await runStreamingCommand("sh", ["-c", `echo '${json}'`], process.env);
 
@@ -32,7 +33,8 @@ describe("JSON mode and Debug intercept", () => {
 			"GEMINI_EVENT",
 			expect.objectContaining({
 				type: "init",
-				sessionId: "123",
+				session_id: "123",
+				model: "gemini-pro",
 			}),
 		);
 		expect(logger.stdout).not.toHaveBeenCalled();
