@@ -11,7 +11,6 @@ import {
 	type ProjectItemNode,
 	toProjectIssueItem,
 } from "./utils/recover";
-import type { JsonObject } from "./utils/types";
 
 const ORG_LOGIN = process.env.CONDUCTOR_PROJECT_OWNER || "LLM-Orchestration";
 const PROJECT_NUMBER = Number(process.env.CONDUCTOR_PROJECT_NUMBER || "1");
@@ -137,7 +136,7 @@ function parseArgs(argv: string[]): RecoverOptions {
 async function githubGraphql<T>(
 	schema: z.ZodType<T>,
 	query: string,
-	variables: JsonObject,
+	variables: Record<string, unknown>,
 	token: string,
 ): Promise<T> {
 	const response = await fetch("https://api.github.com/graphql", {
