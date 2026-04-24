@@ -127,6 +127,7 @@ function buildGeminiEnv(): NodeJS.ProcessEnv {
 		"CONDUCTOR_TOKEN",
 		"GH_TOKEN",
 		"GITHUB_TOKEN",
+		"GEMINI_CLI_TRUST_WORKSPACE",
 	];
 	const env: NodeJS.ProcessEnv = {};
 
