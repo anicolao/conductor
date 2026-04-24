@@ -90,6 +90,7 @@ jobs:
           CONDUCTOR_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
           GH_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.CONDUCTOR_TOKEN }}
+          GEMINI_CLI_TRUST_WORKSPACE: "true"
           GITHUB_EVENT_PATH: ${{ github.event_path }}
           GITHUB_REPOSITORY: ${{ steps.metadata.outputs.repository }}
           CONDUCTOR_ROOT: ${{ github.workspace }}/conductor
