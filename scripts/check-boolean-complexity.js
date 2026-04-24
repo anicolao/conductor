@@ -4,6 +4,7 @@ const path = require("node:path");
 
 const MAX_OPERATORS = 2;
 const TARGET_DIRS = ["src", "functions", "observability-ui/src"];
+const SKIPPED_DIRS = new Set(["node_modules", "dist", ".svelte-kit"]);
 
 let hasViolations = false;
 
@@ -127,6 +128,7 @@ function walkDir(dir) {
 		const filePath = path.join(dir, file);
 		const stat = fs.statSync(filePath);
 		if (stat.isDirectory()) {
+			if (SKIPPED_DIRS.has(file)) continue;
 			walkDir(filePath);
 		} else {
 			const ext = path.extname(filePath);

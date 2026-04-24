@@ -127,7 +127,7 @@ describe("logger", () => {
 		expect(payload.data.exitCode).toBe(1);
 	});
 
-	it("should tighten GEMINI_EVENT data with defaults", () => {
+	it("should normalize known GEMINI_EVENT data with defaults", () => {
 		logEvent("GEMINI_EVENT", {
 			type: "tool_result",
 			tool_id: "123",
@@ -142,5 +142,94 @@ describe("logger", () => {
 		expect(payload.data.type).toBe("tool_result");
 		expect(payload.data.error).toBeUndefined(); // Should be absent in success
 		expect(payload.data._isMessageBus).toBe(false); // Filled by default false
+	});
+
+	it("should preserve Gemini user messages without delta", () => {
+		const consoleErrorSpy = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => undefined);
+
+		logEvent("GEMINI_EVENT", {
+			type: "message",
+			timestamp: "2026-04-24T19:03:04.833Z",
+			role: "user",
+			content: "Investigate the issue",
+		});
+
+		const output = stdoutSpy.mock.calls[0][0] as string;
+		const payload = JSON.parse(output.split("::CONDUCTOR_EVENT::")[1]);
+
+		expect(consoleErrorSpy).not.toHaveBeenCalled();
+		expect(payload.data).toEqual({
+			type: "message",
+			timestamp: "2026-04-24T19:03:04.833Z",
+			role: "user",
+			content: "Investigate the issue",
+			delta: false,
+			_isMessageBus: false,
+		});
+	});
+
+	it("should preserve current Gemini tool-calls-update payloads", () => {
+		const consoleErrorSpy = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => undefined);
+		const toolCall = {
+			status: "validating",
+			request: {
+				callId: "g8x1xk14",
+				name: "read_file",
+				args: { file_path: "DOCUMENTATION_PLAN.md" },
+				schedulerId: "root",
+			},
+			tool: {
+				name: "read_file",
+				displayName: "ReadFile",
+				parameterSchema: { type: "object" },
+			},
+		};
+
+		logEvent("GEMINI_EVENT", {
+			type: "tool-calls-update",
+			toolCalls: [toolCall],
+			schedulerId: "root",
+		});
+
+		const output = stdoutSpy.mock.calls[0][0] as string;
+		const payload = JSON.parse(output.split("::CONDUCTOR_EVENT::")[1]);
+
+		expect(consoleErrorSpy).not.toHaveBeenCalled();
+		expect(payload.data.type).toBe("tool-calls-update");
+		expect(payload.data.toolCalls[0]).toEqual(toolCall);
+		expect(payload.data._isMessageBus).toBe(false);
+	});
+
+	it("should preserve successful Gemini results without response", () => {
+		const consoleErrorSpy = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => undefined);
+
+		logEvent("GEMINI_EVENT", {
+			type: "result",
+			timestamp: "2026-04-24T19:04:01.977Z",
+			status: "success",
+			stats: {
+				total_tokens: 213764,
+				input_tokens: 208748,
+				output_tokens: 2056,
+				duration_ms: 57218,
+				cached: 138120,
+				tool_calls: 12,
+			},
+		});
+
+		const output = stdoutSpy.mock.calls[0][0] as string;
+		const payload = JSON.parse(output.split("::CONDUCTOR_EVENT::")[1]);
+
+		expect(consoleErrorSpy).not.toHaveBeenCalled();
+		expect(payload.data.response).toBeUndefined();
+		expect(payload.data.stats.cached).toBe(138120);
+		expect(payload.data.stats.tool_calls).toBe(12);
+		expect(payload.data._isMessageBus).toBe(false);
 	});
 });

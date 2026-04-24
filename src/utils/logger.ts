@@ -1,23 +1,4 @@
 import { z } from "zod";
-import type {
-	ActivateSkillParameters,
-	EnterPlanModeParameters,
-	GlobParameters,
-	GoogleWebSearchParameters,
-	GrepSearchParameters,
-	InvokeAgentParameters,
-	ListBackgroundProcessesParameters,
-	ListDirectoryParameters,
-	ReadBackgroundOutputParameters,
-	ReadFileParameters,
-	ReplaceParameters,
-	RunShellCommandParameters,
-	SaveMemoryParameters,
-	WebFetchParameters,
-	WriteFileParameters,
-	GeminiCallArgs,
-	GeminiContextUpdateData,
-} from "./types";
 
 /**
  * Conductor Structured Logging
@@ -238,9 +219,11 @@ const SessionEndDataSchema = z.discriminatedUnion("status", [
 	}),
 ]);
 
-const GeminiBaseSchema = z.object({
-	_isMessageBus: z.boolean().default(false),
-});
+const GeminiBaseSchema = z
+	.object({
+		_isMessageBus: z.boolean().default(false),
+	})
+	.passthrough();
 
 const GeminiInitEventSchema = GeminiBaseSchema.extend({
 	type: z.literal("init"),
@@ -253,7 +236,7 @@ const GeminiMessageEventSchema = GeminiBaseSchema.extend({
 	type: z.literal("message"),
 	role: z.enum(["user", "assistant"]),
 	content: z.string(),
-	delta: z.boolean(),
+	delta: z.boolean().default(false),
 	timestamp: z.string(),
 });
 
@@ -268,48 +251,35 @@ const GeminiToolUseEventSchema = GeminiBaseSchema.extend({
 const GeminiToolResultEventSchema = GeminiBaseSchema.extend({
 	type: z.literal("tool_result"),
 	tool_id: z.string(),
-	output: z.string(),
+	output: z.string().optional(),
 	timestamp: z.string(),
 }).and(
-	z.discriminatedUnion("status", [
-		z.object({ status: z.literal("success") }),
-		z.object({ status: z.literal("error"), error: z.string() }),
-	]),
+	z.object({
+		status: z.string(),
+		error: z.string().optional(),
+	}),
 );
 
 const GeminiResultEventSchema = GeminiBaseSchema.extend({
 	type: z.literal("result"),
 	timestamp: z.string(),
-}).and(
-	z.discriminatedUnion("status", [
-		z.object({
-			status: z.literal("success"),
-			stats: z.object({
-				total_tokens: z.number(),
-				input_tokens: z.number(),
-				output_tokens: z.number(),
-				duration_ms: z.number(),
-			}),
-			response: z.string(),
-		}),
-		z.object({
-			status: z.literal("error"),
-			error: z.string(),
-		}),
-	]),
-);
+	status: z.string(),
+	stats: z
+		.object({
+			total_tokens: z.number().optional(),
+			input_tokens: z.number().optional(),
+			output_tokens: z.number().optional(),
+			duration_ms: z.number().optional(),
+		})
+		.passthrough()
+		.optional(),
+	response: z.string().optional(),
+	error: z.string().optional(),
+});
 
 const GeminiToolCallsUpdateEventSchema = GeminiBaseSchema.extend({
 	type: z.literal("tool-calls-update"),
-	toolCalls: z.array(
-		z.object({
-			id: z.string(),
-			function: z.object({
-				name: z.string(),
-				arguments: z.string(),
-			}),
-		}),
-	),
+	toolCalls: z.array(z.record(z.string(), z.unknown())),
 	schedulerId: z.string(),
 });
 
@@ -324,6 +294,10 @@ const GeminiContextUpdateEventSchema = GeminiBaseSchema.extend({
 	data: GeminiContextUpdateDataSchema,
 });
 
+const RawGeminiEventDataSchema = GeminiBaseSchema.extend({
+	type: z.string(),
+});
+
 const GeminiEventDataSchema = z.union([
 	GeminiInitEventSchema,
 	GeminiMessageEventSchema,
@@ -333,6 +307,7 @@ const GeminiEventDataSchema = z.union([
 	GeminiToolCallsUpdateEventSchema,
 	GeminiCallEventSchema,
 	GeminiContextUpdateEventSchema,
+	RawGeminiEventDataSchema,
 ]);
 
 type BaseEvent = {
@@ -433,17 +408,13 @@ export function logEvent(
 	data: ConductorEvent["data"],
 	context: { persona?: string; issue?: number } = {},
 ) {
-	// Tighten data using schemas if applicable to ensure required fields are present (as null)
 	let finalData = data;
-	try {
-		if (event === "GEMINI_EVENT") {
-			finalData = GeminiEventDataSchema.parse(data);
-		} else if (event === "session_end") {
-			finalData = SessionEndDataSchema.parse(data);
-		}
-	} catch (e) {
-		// Fallback to original data if parsing fails (shouldn't happen with correct types)
-		console.error(`Failed to tighten data for event ${event}:`, e);
+	if (event === "GEMINI_EVENT") {
+		const parsed = GeminiEventDataSchema.safeParse(data);
+		if (parsed.success) finalData = parsed.data;
+	} else if (event === "session_end") {
+		const parsed = SessionEndDataSchema.safeParse(data);
+		if (parsed.success) finalData = parsed.data;
 	}
 
 	const payload = {
@@ -469,13 +440,15 @@ export const logger = {
 		message: string,
 		details?: T,
 		context?: { persona?: string; issue?: number },
-	) => logEvent("LOG_INFO", details ? { message, details } : { message }, context),
+	) =>
+		logEvent("LOG_INFO", details ? { message, details } : { message }, context),
 
 	warn: <T extends Record<string, unknown>>(
 		message: string,
 		details?: T,
 		context?: { persona?: string; issue?: number },
-	) => logEvent("LOG_WARN", details ? { message, details } : { message }, context),
+	) =>
+		logEvent("LOG_WARN", details ? { message, details } : { message }, context),
 
 	error: <T extends Record<string, unknown>>(
 		message: string,
@@ -497,7 +470,11 @@ export const logger = {
 		details?: T,
 		context?: { persona?: string; issue?: number },
 	) =>
-		logEvent("LOG_DEBUG", details ? { message, details } : { message }, context),
+		logEvent(
+			"LOG_DEBUG",
+			details ? { message, details } : { message },
+			context,
+		),
 
 	stdout: (text: string, context?: { persona?: string; issue?: number }) =>
 		logEvent("STDOUT", { text }, context),
@@ -505,4 +482,3 @@ export const logger = {
 	stderr: (text: string, context?: { persona?: string; issue?: number }) =>
 		logEvent("STDERR", { text }, context),
 };
-

@@ -72,4 +72,26 @@ some other log
 		expect(events[1].data.toolCalls[0].function.name).toBe("read_file");
 		expect(events[1].data.toolCalls[0].function.arguments).toBe("{}");
 	});
+
+	it("should parse current Gemini stream-json event shapes", () => {
+		const logs = `
+::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-24T19:03:04.844Z","event":"GEMINI_EVENT","data":{"type":"message","timestamp":"2026-04-24T19:03:04.833Z","role":"user","content":"Investigate the issue"}}
+::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-24T19:03:05.000Z","event":"GEMINI_EVENT","data":{"type":"tool-calls-update","toolCalls":[{"status":"validating","request":{"callId":"g8x1xk14","name":"read_file","args":{"file_path":"DOCUMENTATION_PLAN.md"},"schedulerId":"root"},"tool":{"name":"read_file","displayName":"ReadFile","parameterSchema":{"type":"object"}}}],"schedulerId":"root"}}
+::CONDUCTOR_EVENT::{"v":1,"ts":"2026-04-24T19:04:01.977Z","event":"GEMINI_EVENT","data":{"type":"result","timestamp":"2026-04-24T19:04:01.977Z","status":"success","stats":{"total_tokens":213764,"input_tokens":208748,"output_tokens":2056,"duration_ms":57218,"cached":138120,"tool_calls":12}}}
+    `;
+
+		const events = parseLogs(logs);
+
+		expect(events).toHaveLength(3);
+		expect(events[0].data).toMatchObject({
+			type: "message",
+			role: "user",
+			content: "Investigate the issue",
+			delta: false,
+			_isMessageBus: false,
+		});
+		expect(events[1].data.toolCalls[0].request.name).toBe("read_file");
+		expect(events[2].data.response).toBeUndefined();
+		expect(events[2].data.stats.cached).toBe(138120);
+	});
 });

@@ -30,7 +30,11 @@ const markdownContent = $derived.by(() => {
 	if (eventData.type === "message" && eventData.content) {
 		return marked.parse(String(eventData.content)) as string;
 	}
-	if (eventData.type === "result" && eventData.status === "success") {
+	if (
+		eventData.type === "result" &&
+		eventData.status === "success" &&
+		eventData.response
+	) {
 		return marked.parse(String(eventData.response)) as string;
 	}
 	return "";
@@ -69,6 +73,20 @@ function getToolArgs(data: GeminiEventData) {
 		return data.parameters;
 	}
 	return {};
+}
+
+function getToolCallLabel(toolCall: Record<string, unknown>) {
+	const fn = toolCall.function as { name?: unknown } | undefined;
+	if (typeof fn?.name === "string") return fn.name;
+
+	const request = toolCall.request as
+		| { name?: unknown; callId?: unknown }
+		| undefined;
+	if (typeof request?.name === "string") return request.name;
+	if (typeof request?.callId === "string") return request.callId;
+
+	if (typeof toolCall.id === "string") return toolCall.id;
+	return "unknown";
 }
 </script>
 
@@ -154,14 +172,14 @@ function getToolArgs(data: GeminiEventData) {
       {/if}
     </div>
     <div class="event-body">
-      {#if eventData.toolCalls && Array.isArray(eventData.toolCalls) && eventData.toolCalls.length > 0}
-        <div class="active-tool-calls">
-          {#each eventData.toolCalls as toolCall}
-            <span class="tool-call-pill">
-              <code>{(toolCall as { id?: string, function?: { name: string } }).function?.name || (toolCall as { id?: string }).id || 'unknown'}</code>
-            </span>
-          {/each}
-        </div>
+	      {#if eventData.toolCalls && Array.isArray(eventData.toolCalls) && eventData.toolCalls.length > 0}
+	        <div class="active-tool-calls">
+	          {#each eventData.toolCalls as toolCall}
+	            <span class="tool-call-pill">
+	              <code>{getToolCallLabel(toolCall)}</code>
+	            </span>
+	          {/each}
+	        </div>
       {:else}
         <p class="no-tool-calls">No active tool calls</p>
       {/if}
@@ -203,20 +221,20 @@ function getToolArgs(data: GeminiEventData) {
           <strong>Error:</strong> {eventData.error}
         </div>
       {/if}
-      {#if eventData.status === 'success'}
-        <div class="stats">
-          <div class="stat">
-            <span class="label">Tokens:</span>
-            <span class="value"
-              >{eventData.stats.total_tokens || 0} (P: {eventData.stats.input_tokens || 0}, C: {eventData.stats.output_tokens ||
-                0})</span
-              >
-          </div>
-          <div class="stat">
-            <span class="label">Latency:</span>
-            <span class="value">{eventData.stats.duration_ms}ms</span>
-          </div>
-        </div>
+	      {#if eventData.status === 'success'}
+	        <div class="stats">
+	          <div class="stat">
+	            <span class="label">Tokens:</span>
+	            <span class="value"
+	              >{eventData.stats?.total_tokens || 0} (P: {eventData.stats?.input_tokens || 0}, C: {eventData.stats?.output_tokens ||
+	                0})</span
+	              >
+	          </div>
+	          <div class="stat">
+	            <span class="label">Latency:</span>
+	            <span class="value">{eventData.stats?.duration_ms || 0}ms</span>
+	          </div>
+	        </div>
       {/if}
     </div>
   {:else}

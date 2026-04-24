@@ -1,11 +1,39 @@
 import type { ConductorEvent } from "../../../src/utils/logger";
-import type {
-	ToolParameters,
-	GeminiCallArgs,
-	GeminiContextUpdateData,
-} from "../../../src/utils/types";
 
 export type { ConductorEvent };
+
+export interface GeminiStats {
+	total_tokens?: number;
+	input_tokens?: number;
+	output_tokens?: number;
+	duration_ms?: number;
+	[key: string]: unknown;
+}
+
+export interface GeminiEventData {
+	type: string;
+	_isMessageBus?: boolean;
+	role?: string;
+	content?: string;
+	delta?: boolean;
+	timestamp?: string;
+	session_id?: string;
+	model?: string;
+	tool_name?: string;
+	tool_id?: string;
+	parameters?: Record<string, unknown>;
+	status?: string;
+	output?: string;
+	response?: string;
+	error?: string;
+	stats?: GeminiStats;
+	toolCalls?: Array<Record<string, unknown>>;
+	schedulerId?: string;
+	method?: string;
+	args?: Record<string, unknown>;
+	data?: Record<string, unknown>;
+	[key: string]: unknown;
+}
 
 export interface GeminiInitEvent {
 	type: "init";
@@ -29,7 +57,9 @@ export type GeminiToolUseEvent = {
 	tool_id: string;
 	timestamp: string;
 	_isMessageBus: boolean;
-} & ToolParameters;
+	tool_name: string;
+	parameters: Record<string, unknown>;
+};
 
 export type GeminiToolResultEvent = {
 	type: "tool_result";
@@ -46,26 +76,15 @@ export type GeminiResultEvent = {
 } & (
 	| {
 			status: "success";
-			stats: {
-				total_tokens: number;
-				input_tokens: number;
-				output_tokens: number;
-				duration_ms: number;
-			};
-			response: string;
+			stats?: GeminiStats;
+			response?: string;
 	  }
 	| { status: "error"; error: string }
 );
 
 export interface GeminiToolCallsUpdateEvent {
 	type: "tool-calls-update";
-	toolCalls: Array<{
-		id: string;
-		function: {
-			name: string;
-			arguments: string;
-		};
-	}>;
+	toolCalls: Array<Record<string, unknown>>;
 	schedulerId: string;
 	_isMessageBus: boolean;
 }
@@ -73,17 +92,17 @@ export interface GeminiToolCallsUpdateEvent {
 export interface GeminiCallEvent {
 	type: "call";
 	method: string;
-	args: GeminiCallArgs;
+	args: Record<string, unknown>;
 	_isMessageBus: boolean;
 }
 
 export interface GeminiContextUpdateEvent {
 	type: "context-update";
-	data: GeminiContextUpdateData;
+	data: Record<string, unknown>;
 	_isMessageBus: boolean;
 }
 
-export type GeminiEventData =
+export type KnownGeminiEventData =
 	| GeminiInitEvent
 	| GeminiMessageEvent
 	| GeminiToolUseEvent
