@@ -82,9 +82,7 @@ fi
 
 # Strip local media path markers that might have been repeated by the LLM
 # This prevents broken image tags in GitHub comments.
-sed -i 's/ <!-- CONDUCTOR_MEDIA_PATH: [^>]* -->//g' "$body_file"
-# Also strip the old format just in case
-sed -i 's/ @\/tmp\/gemini-media-[^ ]*//g' "$body_file"
+strip_local_media_markers "$body_file"
 
 edit_args=()
 while IFS= read -r label; do
