@@ -129,6 +129,18 @@ validate_git_state() {
   export branch_name
 }
 
+strip_local_media_markers() {
+  local body_file="$1"
+  local tmp_file
+
+  tmp_file="$(mktemp)"
+  sed \
+    -e 's/ <!-- CONDUCTOR_MEDIA_PATH: [^>]* -->//g' \
+    -e 's/ @\/tmp\/gemini-media-[^ ]*//g' \
+    "$body_file" > "$tmp_file"
+  mv "$tmp_file" "$body_file"
+}
+
 update_project_v2_field() {
   local field_name="$1"
   local option_name="$2"
