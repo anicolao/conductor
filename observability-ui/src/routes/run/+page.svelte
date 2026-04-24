@@ -130,8 +130,7 @@ async function fetchData(currentId: string, isInitial = false) {
 				isStreamingConductorEvents = false;
 			}
 			logsAvailable = true;
-		}
- else {
+		} else {
 			// Some other error, but we might want to keep polling if the run is still in progress
 			console.warn(
 				`Failed to fetch logs: ${logsRes.status} ${logsRes.statusText}`,
