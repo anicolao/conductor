@@ -96,6 +96,16 @@ function handleLogout() {
 		</div>
 	{/if}
 
+	<div class="npa-book">
+		<h2>NPA Book (Documentation)</h2>
+		<p>High-fidelity documentation generated from E2E tests.</p>
+		<ul class="docs-list">
+			<li><a href="{base}/docs/tests/e2e/005-run-details/README.md">Run Details Streaming</a></li>
+			<li><a href="{base}/docs/tests/e2e/009-zoom-lens/README.md">Zoom Lens Magnifier</a></li>
+			<li><a href="{base}/docs/tests/e2e/007-json-mode/README.md">JSON Mode & Message Bus</a></li>
+		</ul>
+	</div>
+
 	<h2>Recent Workflows</h2>
 	{#if workflowRuns.length > 0}
 		<WorkflowTable runs={workflowRuns} />
@@ -139,5 +149,44 @@ function handleLogout() {
 
 	.error {
 		color: #991b1b;
+	}
+
+	.npa-book {
+		margin: 2rem 0;
+		padding: 1.5rem;
+		background: #f8fafc;
+		border: 1px solid #e2e8f0;
+		border-radius: 0.5rem;
+	}
+
+	.npa-book h2 {
+		margin-top: 0;
+	}
+
+	.docs-list {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+		gap: 1rem;
+		padding: 0;
+		list-style: none;
+		margin-top: 1rem;
+	}
+
+	.docs-list li a {
+		display: block;
+		padding: 1rem;
+		background: white;
+		border: 1px solid #e2e8f0;
+		border-radius: 0.4rem;
+		text-decoration: none;
+		color: #2563eb;
+		font-weight: 500;
+		transition: all 0.2s ease;
+	}
+
+	.docs-list li a:hover {
+		border-color: #2563eb;
+		box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+		transform: translateY(-2px);
 	}
 </style>

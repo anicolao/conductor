@@ -64,11 +64,15 @@ const fsSource = `
         
         float zoom_mask = circle(u_lens_radius, zoom_pos, uv, aspect);
         
-        vec2 zoomed_p = (uv - zoom_pos) / u_zoom_factor + zoom_pos;
+        // Adjust zoomed_p to also account for aspect ratio to keep zoom centered
+        vec2 zoomed_p = (uv - zoom_pos);
+        // We don't scale X here because uv and zoom_pos are already in the same space
+        zoomed_p = zoomed_p / u_zoom_factor + zoom_pos;
+        
         vec4 zoomed_bg = texture2D(u_texture, zoomed_p);
         
-        float ring_mask = ring(u_lens_radius, 0.02, zoom_pos, uv, aspect);
-        vec4 ring_color = vec4(0.1, 0.2, 0.2, 1.0);
+        float ring_mask = ring(u_lens_radius, 0.01, zoom_pos, uv, aspect);
+        vec4 ring_color = vec4(0.2, 0.4, 0.4, 1.0);
         
         gl_FragColor = (zoomed_bg * zoom_mask) + (background * (1.0 - zoom_mask)) + (ring_color * ring_mask);
     }
@@ -182,59 +186,33 @@ onMount(() => {
 });
 
 $effect(() => {
-	const hasInput = mouseX || mouseY;
-	const hasState = isActive || isPinned;
-	const needsRender = hasInput || hasState;
-	if (needsRender && gl) {
+	if (isActive || isPinned) {
 		render();
 	}
 });
 
-function handleMouseMove(e: MouseEvent) {
-	if (isPinned) return;
+function handlePointerMove(e: PointerEvent) {
+	if (isPinned || e.pointerType === "touch") return;
 	const rect = canvas.getBoundingClientRect();
 	mouseX = e.clientX - rect.left;
 	mouseY = e.clientY - rect.top;
 	isActive = true;
 }
 
-function handleTouchMove(e: TouchEvent) {
-	if (isPinned) return;
-	const touch = e.touches[0];
+function handlePointerDown(e: PointerEvent) {
+	const isTouch = e.pointerType === "touch";
 	const rect = canvas.getBoundingClientRect();
-	mouseX = touch.clientX - rect.left;
-	mouseY = touch.clientY - rect.top;
-	isActive = true;
-	if (e.cancelable) e.preventDefault();
-}
-
-function togglePin(e: MouseEvent | TouchEvent) {
-	const isTouch = e.type.startsWith("touch");
-	const clientX =
-		"clientX" in e
-			? (e as MouseEvent).clientX
-			: (e as TouchEvent).touches[0]?.clientX ||
-				(e as TouchEvent).changedTouches[0]?.clientX;
-	const clientY =
-		"clientY" in e
-			? (e as MouseEvent).clientY
-			: (e as TouchEvent).touches[0]?.clientY ||
-				(e as TouchEvent).changedTouches[0]?.clientY;
-
-	if (clientX === undefined || clientY === undefined) return;
-
-	const rect = canvas.getBoundingClientRect();
-	const currentMouseX = clientX - rect.left;
-	const currentMouseY = clientY - rect.top;
+	const currentMouseX = e.clientX - rect.left;
+	const currentMouseY = e.clientY - rect.top;
 
 	if (isPinned) {
 		isPinned = false;
-		// On mobile, unpinning should also deactivate
 		if (isTouch) {
 			isActive = false;
 		} else {
 			mouseX = currentMouseX;
 			mouseY = currentMouseY;
+			isActive = true;
 		}
 	} else {
 		isPinned = true;
@@ -242,21 +220,19 @@ function togglePin(e: MouseEvent | TouchEvent) {
 		mouseX = currentMouseX;
 		mouseY = currentMouseY;
 	}
+}
 
-	// Prevent double triggers on touch
-	if (isTouch && e.cancelable) {
-		e.preventDefault();
-	}
+function handlePointerLeave(e: PointerEvent) {
+	if (isPinned || e.pointerType === "touch") return;
+	isActive = false;
 }
 </script>
 
 <div 
 	class="magnifier-container"
-	onmousemove={handleMouseMove}
-	onmouseenter={() => !isPinned && (isActive = true)}
-	onmouseleave={() => !isPinned && (isActive = false)}
-	onclick={togglePin}
-	ontouchmove={handleTouchMove}
+	onpointermove={handlePointerMove}
+	onpointerdown={handlePointerDown}
+	onpointerleave={handlePointerLeave}
 	role="presentation"
 >
 	<canvas bind:this={canvas} {alt} style="max-width: 100%; height: auto;"></canvas>
@@ -273,24 +249,30 @@ function togglePin(e: MouseEvent | TouchEvent) {
 		max-width: 100%;
 		border-radius: 4px;
 		overflow: hidden;
-		box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+		box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+		transition: transform 0.2s ease;
+	}
+	.magnifier-container:hover {
+		transform: scale(1.01);
 	}
 	canvas {
 		display: block;
 		cursor: crosshair;
+		touch-action: none;
 	}
 	.pin-indicator {
 		position: absolute;
-		top: 8px;
-		right: 8px;
-		background: rgba(0, 0, 0, 0.6);
+		top: 12px;
+		right: 12px;
+		background: rgba(37, 99, 235, 0.8);
 		color: white;
-		padding: 2px 8px;
-		border-radius: 10px;
-		font-size: 10px;
+		padding: 4px 10px;
+		border-radius: 12px;
+		font-size: 11px;
 		font-weight: bold;
 		pointer-events: none;
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
+		box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 	}
 </style>
