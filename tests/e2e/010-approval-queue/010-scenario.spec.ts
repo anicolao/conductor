@@ -134,16 +134,17 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 				body: JSON.stringify([
 					{
 						filename: "TEST.md",
-						raw_url: "https://raw.githubusercontent.com/test/TEST.md"
+						raw_url: "https://raw.githubusercontent.com/test/TEST.md",
+						contents_url: `https://api.github.com/repos/${owner}/${repo}/contents/TEST.md?ref=test-sha`
 					}
 				]),
 			});
 		}
 	);
 
-	// Mock raw file content
+	// Mock raw file content via API
 	await page.route(
-		"https://raw.githubusercontent.com/test/TEST.md",
+		`https://api.github.com/repos/${owner}/${repo}/contents/TEST.md?ref=test-sha`,
 		async (route) => {
 			await route.fulfill({
 				status: 200,
