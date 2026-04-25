@@ -136,9 +136,9 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 				contentType: "application/json",
 				body: JSON.stringify([
 					{
-						filename: "TEST.md",
-						raw_url: "https://raw.githubusercontent.com/test/TEST.md",
-						contents_url: `https://api.github.com/repos/${owner}/${repo}/contents/TEST.md?ref=test-sha`,
+						filename: "tests/e2e/010-approval-queue/README.md",
+						raw_url: `https://raw.githubusercontent.com/${owner}/${repo}/raw/test-sha/tests%2Fe2e%2F010-approval-queue%2FREADME.md`,
+						contents_url: `https://api.github.com/repos/${owner}/${repo}/contents/tests/e2e/010-approval-queue/README.md?ref=test-sha`,
 					},
 				]),
 			});
@@ -147,7 +147,7 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 
 	// Mock raw file content via API
 	await page.route(
-		`https://api.github.com/repos/${owner}/${repo}/contents/TEST.md?ref=test-sha`,
+		`https://api.github.com/repos/${owner}/${repo}/contents/tests/e2e/010-approval-queue/README.md?ref=test-sha`,
 		async (route) => {
 			await route.fulfill({
 				status: 200,
@@ -252,7 +252,7 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 			},
 			{
 				spec: "Markdown artifact is listed",
-				check: async () => expect(page.getByText("TEST.md")).toBeVisible(),
+				check: async () => expect(page.getByText("tests/e2e/010-approval-queue/README.md")).toBeVisible(),
 			},
 			{
 				spec: "Actions buttons are visible",
@@ -272,7 +272,7 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 	});
 
 	// Expand markdown
-	await page.click('text="TEST.md"');
+	await page.click('text="tests/e2e/010-approval-queue/README.md"');
 	await helper.step("markdown_expanded", {
 		description:
 			"Markdown artifact can be expanded to view content and relative URLs are resolved",
@@ -290,7 +290,7 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 					const img = page.locator('img[alt="Relative Image"]');
 					await expect(img).toHaveAttribute(
 						"src",
-						"https://raw.githubusercontent.com/test/screenshots/img.png",
+						`https://raw.githubusercontent.com/${owner}/${repo}/raw/test-sha/tests/e2e/010-approval-queue/screenshots/img.png`,
 					);
 				},
 			},
@@ -300,7 +300,7 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 					const img = page.locator('img[alt="Raw HTML Image"]');
 					await expect(img).toHaveAttribute(
 						"src",
-						"https://raw.githubusercontent.com/test/screenshots/img2.png",
+						`https://raw.githubusercontent.com/${owner}/${repo}/raw/test-sha/tests/e2e/010-approval-queue/screenshots/img2.png`,
 					);
 				},
 			},
@@ -310,7 +310,7 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 					const link = page.getByRole("link", { name: "Relative Link" });
 					await expect(link).toHaveAttribute(
 						"href",
-						"https://raw.githubusercontent.com/test/docs/other.md",
+						`https://raw.githubusercontent.com/${owner}/${repo}/raw/test-sha/tests/e2e/010-approval-queue/docs/other.md`,
 					);
 				},
 			},
