@@ -51,6 +51,14 @@ onMount(async () => {
 });
 
 async function fetchData(token: string) {
+	const o = owner;
+	const r = repo;
+	const n = issue_number;
+
+	if (!o || !r || !n) {
+		throw new Error("Missing route parameters");
+	}
+
 	// Fetch issue and find linked PR via GraphQL
 	const query = `
 		query IssueDetails($owner: String!, $repo: String!, $number: Int!) {
@@ -97,7 +105,11 @@ async function fetchData(token: string) {
 		},
 		body: JSON.stringify({
 			query,
-			variables: { owner, repo, number: parseInt(issue_number!, 10) },
+			variables: {
+				owner: o,
+				repo: r,
+				number: parseInt(n, 10),
+			},
 		}),
 	});
 
@@ -222,6 +234,11 @@ async function updateProjectField(fieldId: string, optionId: string | null) {
 }
 
 async function updateLabels(add: string[], remove: string[]) {
+	const o = owner;
+	const r = repo;
+	const n = issue_number;
+	if (!o || !r || !n) throw new Error("Missing route parameters");
+
 	const token = getAccessToken();
 	const currentLabels = issue.labels.nodes.map((l: any) => l.name);
 	let newLabels = currentLabels.filter((l: string) => !remove.includes(l));
@@ -231,33 +248,32 @@ async function updateLabels(add: string[], remove: string[]) {
 		}
 	}
 
-	const res = await fetch(
-		`https://api.github.com/repos/${owner}/${repo}/issues/${issue_number}/labels`,
-		{
-			method: "PUT",
-			headers: {
-				Authorization: `Bearer ${token}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({ labels: newLabels }),
+	const res = await fetch(`https://api.github.com/repos/${o}/${r}/issues/${n}/labels`, {
+		method: "PUT",
+		headers: {
+			Authorization: `Bearer ${token}`,
+			"Content-Type": "application/json",
 		},
-	);
+		body: JSON.stringify({ labels: newLabels }),
+	});
 	if (!res.ok) throw new Error("Failed to update labels");
 }
 
 async function addComment(text: string) {
+	const o = owner;
+	const r = repo;
+	const n = issue_number;
+	if (!o || !r || !n) throw new Error("Missing route parameters");
+
 	const token = getAccessToken();
-	const res = await fetch(
-		`https://api.github.com/repos/${owner}/${repo}/issues/${issue_number}/comments`,
-		{
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${token}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({ body: text }),
+	const res = await fetch(`https://api.github.com/repos/${o}/${r}/issues/${n}/comments`, {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${token}`,
+			"Content-Type": "application/json",
 		},
-	);
+		body: JSON.stringify({ body: text }),
+	});
 	if (!res.ok) throw new Error("Failed to add comment");
 }
 
