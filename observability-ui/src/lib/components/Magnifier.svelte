@@ -182,7 +182,10 @@ onMount(() => {
 });
 
 $effect(() => {
-	if ((mouseX || mouseY || isActive || isPinned) && gl) {
+	const hasInput = mouseX || mouseY;
+	const hasState = isActive || isPinned;
+	const needsRender = hasInput || hasState;
+	if (needsRender && gl) {
 		render();
 	}
 });

@@ -35,7 +35,9 @@ function enhanceImages(node: HTMLElement) {
 
 	return {
 		destroy() {
-			unmounts.forEach((u) => u());
+			unmounts.forEach((u) => {
+				u();
+			});
 		},
 	};
 }
