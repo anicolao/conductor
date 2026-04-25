@@ -1,5 +1,6 @@
 <script lang="ts">
 import { onMount } from "svelte";
+import { base } from "$app/paths";
 import { PUBLIC_GITHUB_CLIENT_ID } from "$env/static/public";
 import {
 	logout as authLogout,
@@ -93,6 +94,9 @@ function handleLogout() {
 		<div class="repo-verification">
 			<p>Accessing repository: <strong>{repo.full_name}</strong></p>
 			<p class="success">GitHub API Verified ✅</p>
+			<div class="nav-links">
+				<a href="{base}/approval" class="nav-button">Approval Queue</a>
+			</div>
 		</div>
 	{/if}
 
@@ -135,6 +139,26 @@ function handleLogout() {
 	.success {
 		color: #166534;
 		font-weight: bold;
+	}
+
+	.nav-links {
+		margin-top: 1rem;
+		display: flex;
+		gap: 1rem;
+	}
+
+	.nav-button {
+		display: inline-block;
+		padding: 0.5rem 1rem;
+		background-color: #2563eb;
+		color: white;
+		text-decoration: none;
+		border-radius: 0.375rem;
+		font-weight: 500;
+	}
+
+	.nav-button:hover {
+		background-color: #1d4ed8;
 	}
 
 	.error {
