@@ -25,12 +25,12 @@ const STATUS_OPTIONS = {
 	TODO: "f75ad846",
 	IN_PROGRESS: "47fc9ee4",
 	HUMAN_REVIEW: "0fd775be",
-	DONE: "98236657"
+	DONE: "98236657",
 };
 
 const PERSONA_OPTIONS = {
 	CONDUCTOR: "e1ea423a",
-	CODER: "ea5e8807"
+	CODER: "ea5e8807",
 };
 
 onMount(async () => {
@@ -97,7 +97,7 @@ async function fetchData(token: string) {
 		},
 		body: JSON.stringify({
 			query,
-			variables: { owner, repo, number: parseInt(issue_number) },
+			variables: { owner, repo, number: parseInt(issue_number, 10) },
 		}),
 	});
 
@@ -111,35 +111,56 @@ async function fetchData(token: string) {
 	const prNodes = issue.timelineItems.nodes
 		.filter((n: any) => n.source && n.source.number)
 		.map((n: any) => n.source);
-	
+
 	pullRequest = prNodes[prNodes.length - 1];
 
 	if (pullRequest) {
 		// Fetch PR files
-		const filesRes = await fetch(`https://api.github.com/repos/${pullRequest.baseRepository.owner.login}/${pullRequest.baseRepository.name}/pulls/${pullRequest.number}/files`, {
-			headers: { Authorization: `Bearer ${token}` }
-		});
+		const filesRes = await fetch(
+			`https://api.github.com/repos/${pullRequest.baseRepository.owner.login}/${pullRequest.baseRepository.name}/pulls/${pullRequest.number}/files`,
+			{
+				headers: { Authorization: `Bearer ${token}` },
+			},
+		);
 		if (!filesRes.ok) throw new Error("Failed to fetch PR files");
 		const files = await filesRes.json();
 
 		const mdFiles = files.filter((f: any) => f.filename.endsWith(".md"));
-		
+
 		// Fetch content for each md file
-		markdownFiles = await Promise.all(mdFiles.map(async (file: any) => {
-			const contentRes = await fetch(file.contents_url, {
-				headers: {
-					Authorization: `Bearer ${token}`,
-					Accept: "application/vnd.github.v3.raw"
-				}
-			});
-			const content = await contentRes.text();
-			return {
-				filename: file.filename,
-				raw_url: file.raw_url,
-				content: marked.parse(content)
-			};
-		}));
+		markdownFiles = await Promise.all(
+			mdFiles.map(async (file: any) => {
+				const contentRes = await fetch(file.contents_url, {
+					headers: {
+						Authorization: `Bearer ${token}`,
+						Accept: "application/vnd.github.v3.raw",
+					},
+				});
+				const content = await contentRes.text();
+				const parsedHtml = marked.parse(content) as string;
+				return {
+					filename: file.filename,
+					raw_url: file.raw_url,
+					content: resolveRelativeUrls(parsedHtml, file.raw_url),
+				};
+			}),
+		);
 	}
+}
+
+function resolveRelativeUrls(html: string, baseUrl: string): string {
+	return html.replace(/(src|href)=["']([^"']+)["']/g, (match, attr, val) => {
+		// Skip if it's already an absolute URL or special protocol
+		if (/^(https?:\/\/|\/|#|mailto:|data:)/i.test(val)) {
+			return match;
+		}
+
+		try {
+			return `${attr}="${new URL(val, baseUrl).href}"`;
+		} catch (e) {
+			return match;
+		}
+	});
 }
 
 async function updateProjectField(fieldId: string, optionId: string | null) {
@@ -167,7 +188,7 @@ async function updateProjectField(fieldId: string, optionId: string | null) {
 			projectId: PROJECT_ID,
 			itemId: projectItemId,
 			fieldId: fieldId,
-			optionId: optionId
+			optionId: optionId,
 		};
 	} else {
 		query = `
@@ -184,7 +205,7 @@ async function updateProjectField(fieldId: string, optionId: string | null) {
 		variables = {
 			projectId: PROJECT_ID,
 			itemId: projectItemId,
-			fieldId: fieldId
+			fieldId: fieldId,
 		};
 	}
 
@@ -194,7 +215,7 @@ async function updateProjectField(fieldId: string, optionId: string | null) {
 			Authorization: `Bearer ${token}`,
 			"Content-Type": "application/json",
 		},
-		body: JSON.stringify({ query, variables })
+		body: JSON.stringify({ query, variables }),
 	});
 	const result = await res.json();
 	if (result.errors) throw new Error(result.errors[0].message);
@@ -210,27 +231,33 @@ async function updateLabels(add: string[], remove: string[]) {
 		}
 	}
 
-	const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${issue_number}/labels`, {
-		method: "PUT",
-		headers: {
-			Authorization: `Bearer ${token}`,
-			"Content-Type": "application/json",
+	const res = await fetch(
+		`https://api.github.com/repos/${owner}/${repo}/issues/${issue_number}/labels`,
+		{
+			method: "PUT",
+			headers: {
+				Authorization: `Bearer ${token}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ labels: newLabels }),
 		},
-		body: JSON.stringify({ labels: newLabels })
-	});
+	);
 	if (!res.ok) throw new Error("Failed to update labels");
 }
 
 async function addComment(text: string) {
 	const token = getAccessToken();
-	const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${issue_number}/comments`, {
-		method: "POST",
-		headers: {
-			Authorization: `Bearer ${token}`,
-			"Content-Type": "application/json",
+	const res = await fetch(
+		`https://api.github.com/repos/${owner}/${repo}/issues/${issue_number}/comments`,
+		{
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${token}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ body: text }),
 		},
-		body: JSON.stringify({ body: text })
-	});
+	);
 	if (!res.ok) throw new Error("Failed to add comment");
 }
 
@@ -239,20 +266,23 @@ async function handleApprove() {
 	actionLoading = true;
 	try {
 		const token = getAccessToken();
-		
+
 		// Add comment
 		await addComment("Approved");
 
 		// Merge PR if exists
 		if (pullRequest && pullRequest.state === "OPEN") {
-			const mergeRes = await fetch(`https://api.github.com/repos/${pullRequest.baseRepository.owner.login}/${pullRequest.baseRepository.name}/pulls/${pullRequest.number}/merge`, {
-				method: "PUT",
-				headers: {
-					Authorization: `Bearer ${token}`,
-					"Content-Type": "application/json",
+			const mergeRes = await fetch(
+				`https://api.github.com/repos/${pullRequest.baseRepository.owner.login}/${pullRequest.baseRepository.name}/pulls/${pullRequest.number}/merge`,
+				{
+					method: "PUT",
+					headers: {
+						Authorization: `Bearer ${token}`,
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({ merge_method: "squash" }),
 				},
-				body: JSON.stringify({ merge_method: "squash" })
-			});
+			);
 			if (!mergeRes.ok) {
 				const errorData = await mergeRes.json();
 				throw new Error(`Failed to merge PR: ${errorData.message}`);
@@ -261,16 +291,19 @@ async function handleApprove() {
 
 		// Update status to Done
 		await updateProjectField(STATUS_FIELD_ID, STATUS_OPTIONS.DONE);
-		
+
 		// Clear persona field
 		await updateProjectField(PERSONA_FIELD_ID, null);
 
 		// Remove persona and branch labels
 		const labelsToRemove = issue.labels.nodes
 			.map((l: any) => l.name)
-			.filter((name: string) => name.startsWith("persona:") || name.startsWith("branch:"));
+			.filter(
+				(name: string) =>
+					name.startsWith("persona:") || name.startsWith("branch:"),
+			);
 		await updateLabels([], labelsToRemove);
-		
+
 		alert("Approved and merged successfully!");
 		window.location.href = `${base}/approval`;
 	} catch (e: any) {
@@ -289,14 +322,17 @@ async function handleCommentInProgress() {
 	try {
 		await addComment(commentText);
 		await updateProjectField(STATUS_FIELD_ID, STATUS_OPTIONS.IN_PROGRESS);
-		
+
 		// Update persona field to conductor
 		await updateProjectField(PERSONA_FIELD_ID, PERSONA_OPTIONS.CONDUCTOR);
 
 		// Set persona: conductor label
 		const labelsToRemove = issue.labels.nodes
 			.map((l: any) => l.name)
-			.filter((name: string) => name.startsWith("persona:") && name !== "persona: conductor");
+			.filter(
+				(name: string) =>
+					name.startsWith("persona:") && name !== "persona: conductor",
+			);
 		await updateLabels(["persona: conductor"], labelsToRemove);
 
 		alert("Comment added and moved back to In Progress.");
@@ -315,7 +351,7 @@ async function handleBackToTodo() {
 			await addComment(commentText);
 		}
 		await updateProjectField(STATUS_FIELD_ID, STATUS_OPTIONS.TODO);
-		
+
 		// Clear persona field
 		await updateProjectField(PERSONA_FIELD_ID, null);
 
