@@ -277,7 +277,7 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 
 	// Test Approve Action
 	await page.click('button:has-text("Approve & Merge")');
-	await page.waitForURL(/\/approval$/);
+	await page.waitForURL(/\/approval\/?$/);
 
 	await helper.step("approved_successfully", {
 		description: "Approve action redirects back to queue",
