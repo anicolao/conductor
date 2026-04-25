@@ -126,7 +126,12 @@ async function fetchData(token: string) {
 		
 		// Fetch content for each md file
 		markdownFiles = await Promise.all(mdFiles.map(async (file: any) => {
-			const contentRes = await fetch(file.raw_url);
+			const contentRes = await fetch(file.contents_url, {
+				headers: {
+					Authorization: `Bearer ${token}`,
+					Accept: "application/vnd.github.v3.raw"
+				}
+			});
 			const content = await contentRes.text();
 			return {
 				filename: file.filename,
