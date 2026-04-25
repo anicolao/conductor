@@ -1,17 +1,26 @@
 import { expect, test } from "@playwright/test";
 import { TestStepHelper } from "../helpers/test-step-helper";
 
-test("Zoom Lens Magnifier in Gemini Events", async ({ page }, testInfo) => {
+test.use({
+	viewport: { width: 390, height: 844 },
+	userAgent:
+		"Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
+	hasTouch: true,
+});
+
+test("Mobile Zoom Lens Magnifier in Gemini Events", async ({
+	page,
+}, testInfo) => {
 	const helper = new TestStepHelper(page, testInfo);
 	helper.setMetadata(
-		"Zoom Lens Magnifier",
-		"Verify that images in Gemini messages are enhanced with the zoom lens magnifier.",
+		"Mobile Zoom Lens Magnifier",
+		"Verify that images in Gemini messages are enhanced with the zoom lens magnifier and support touch interactions.",
 	);
 
-	const runId = "9876543";
-	const jobId = 3210;
+	const runId = "mobile-zoom-test-robust";
+	const jobId = 4569;
 
-	// Mock GitHub User API
+	// Mock GitHub APIs
 	await page.route("https://api.github.com/user", async (route) => {
 		await route.fulfill({
 			status: 200,
@@ -23,7 +32,6 @@ test("Zoom Lens Magnifier in Gemini Events", async ({ page }, testInfo) => {
 		});
 	});
 
-	// Mock GitHub Repo API
 	await page.route(
 		"https://api.github.com/repos/LLM-Orchestration/conductor",
 		async (route) => {
@@ -35,7 +43,6 @@ test("Zoom Lens Magnifier in Gemini Events", async ({ page }, testInfo) => {
 		},
 	);
 
-	// Mock GitHub Run Details API
 	await page.route(
 		`https://api.github.com/repos/LLM-Orchestration/conductor/actions/runs/${runId}`,
 		async (route) => {
@@ -43,8 +50,8 @@ test("Zoom Lens Magnifier in Gemini Events", async ({ page }, testInfo) => {
 				status: 200,
 				contentType: "application/json",
 				body: JSON.stringify({
-					id: parseInt(runId, 10),
-					display_title: "Zoom Lens Test Run",
+					id: 12347,
+					display_title: "Mobile Zoom Test Run Robust",
 					status: "completed",
 					conclusion: "success",
 					html_url: `https://github.com/LLM-Orchestration/conductor/actions/runs/${runId}`,
@@ -53,7 +60,6 @@ test("Zoom Lens Magnifier in Gemini Events", async ({ page }, testInfo) => {
 		},
 	);
 
-	// Mock GitHub Jobs API
 	await page.route(
 		`https://api.github.com/repos/LLM-Orchestration/conductor/actions/runs/${runId}/jobs`,
 		async (route) => {
@@ -67,11 +73,10 @@ test("Zoom Lens Magnifier in Gemini Events", async ({ page }, testInfo) => {
 		},
 	);
 
-	// Mock GitHub Logs API
 	await page.route(
 		`https://api.github.com/repos/LLM-Orchestration/conductor/actions/jobs/${jobId}/logs`,
 		async (route) => {
-			const event1 = {
+			const event = {
 				v: 1,
 				ts: "2026-04-18T10:00:00Z",
 				event: "GEMINI_EVENT",
@@ -79,10 +84,10 @@ test("Zoom Lens Magnifier in Gemini Events", async ({ page }, testInfo) => {
 					type: "message",
 					role: "assistant",
 					content:
-						"Here is a screenshot:\n\n![Test Image](https://raw.githubusercontent.com/LLM-Orchestration/conductor/main/observability-ui/static/favicon.svg)",
+						"Mobile screenshot robust:\n\n![Mobile Image](https://raw.githubusercontent.com/LLM-Orchestration/conductor/main/observability-ui/static/favicon.svg)",
 				},
 			};
-			const logs = `2026-04-18T10:00:00Z ::CONDUCTOR_EVENT:: ${JSON.stringify(event1)}`;
+			const logs = `2026-04-18T10:00:00Z ::CONDUCTOR_EVENT:: ${JSON.stringify(event)}`;
 			await route.fulfill({
 				status: 200,
 				contentType: "text/plain",
@@ -104,35 +109,30 @@ test("Zoom Lens Magnifier in Gemini Events", async ({ page }, testInfo) => {
 		timeout: 15000,
 	});
 
-	await helper.step("magnifier_rendered", {
-		description: "Magnifier component is rendered instead of a plain img tag",
+	const magnifier = page.locator(".magnifier-container");
+	const canvas = magnifier.locator("canvas");
+
+	await helper.step("mobile_tap_to_pin", {
+		description: "Tapping pins the magnifier on mobile",
 		verifications: [
 			{
 				spec: "Magnifier container exists",
 				check: async () => {
-					await expect(page.locator(".magnifier-container")).toBeVisible();
+					await expect(magnifier).toBeVisible();
 				},
 			},
 			{
-				spec: "Canvas exists inside magnifier",
+				spec: "Canvas exists and is loaded",
 				check: async () => {
-					await expect(
-						page.locator(".magnifier-container canvas"),
-					).toBeVisible();
+					await expect(canvas).toBeVisible();
+					// Wait for canvas to have a non-zero size which means image is loaded
+					await expect(async () => {
+						const box = await canvas.boundingBox();
+						expect(box?.width).toBeGreaterThan(0);
+						expect(box?.height).toBeGreaterThan(0);
+					}).toPass();
 				},
 			},
-			{
-				spec: "No plain img tag remains",
-				check: async () => {
-					await expect(page.locator(".event-body.markdown img")).toHaveCount(0);
-				},
-			},
-		],
-	});
-
-	await helper.step("pinning_functionality", {
-		description: "Clicking pins the magnifier",
-		verifications: [
 			{
 				spec: "Pin indicator is initially hidden",
 				check: async () => {
@@ -140,17 +140,23 @@ test("Zoom Lens Magnifier in Gemini Events", async ({ page }, testInfo) => {
 				},
 			},
 			{
-				spec: "Clicking shows pin indicator",
+				spec: "Tapping shows pin indicator",
 				check: async () => {
-					await page.click(".magnifier-container");
+					await magnifier.tap();
 					await expect(page.locator(".pin-indicator")).toBeVisible();
 					await expect(page.locator(".pin-indicator")).toHaveText("PINNED");
 				},
 			},
+		],
+	});
+
+	await helper.step("mobile_tap_to_unpin_and_dismiss", {
+		description: "Tapping again unpins and dismisses the magnifier on mobile",
+		verifications: [
 			{
-				spec: "Clicking again hides pin indicator",
+				spec: "Tapping again hides pin indicator",
 				check: async () => {
-					await page.click(".magnifier-container");
+					await magnifier.tap();
 					await expect(page.locator(".pin-indicator")).not.toBeVisible();
 				},
 			},
