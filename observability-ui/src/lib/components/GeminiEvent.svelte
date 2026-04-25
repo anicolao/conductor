@@ -1,6 +1,5 @@
 <script lang="ts">
 import { marked } from "marked";
-import { enhanceImages } from "$lib";
 import type { ConductorEvent, GeminiEventData } from "../types";
 import JsonTree from "./JsonTree.svelte";
 
@@ -34,7 +33,7 @@ const markdownContent = $derived.by(() => {
 	}
 	if (
 		eventData.type === "result" &&
-		eventData.status === "success" &&
+		String(eventData.status).toLowerCase() === "success" &&
 		eventData.response
 	) {
 		return marked.parse(String(eventData.response)) as string;
@@ -114,7 +113,7 @@ function getToolCallLabel(toolCall: Record<string, unknown>) {
         <span class="debug-badge">🚌 DEBUG</span>
       {/if}
     </div>
-    <div class="event-body markdown" use:enhanceImages>
+    <div class="event-body markdown">
       {@html markdownContent}
     </div>
   {:else if eventData.type === 'tool_use'}
@@ -147,7 +146,7 @@ function getToolCallLabel(toolCall: Record<string, unknown>) {
       {/if}
     </div>
     <div class="event-body">
-      {#if eventData.status === 'success'}
+      {#if String(eventData.status).toLowerCase() === 'success'}
         <div class="tool-result-status success">
           <strong>Status:</strong> success
         </div>
@@ -216,14 +215,14 @@ function getToolCallLabel(toolCall: Record<string, unknown>) {
         <span class="debug-badge">🚌 DEBUG</span>
       {/if}
     </div>
-    <div class="event-body markdown" use:enhanceImages>
+    <div class="event-body markdown">
       {@html markdownContent}
       {#if eventData.status === 'error'}
         <div class="tool-result-status error">
           <strong>Error:</strong> {eventData.error}
         </div>
       {/if}
-	      {#if eventData.status === 'success'}
+	      {#if String(eventData.status).toLowerCase() === 'success'}
 	        <div class="stats">
 	          <div class="stat">
 	            <span class="label">Tokens:</span>
