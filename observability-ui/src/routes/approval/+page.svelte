@@ -68,8 +68,10 @@ onMount(async () => {
 		}
 
 		const allItems = result.data.organization.projectV2.items.nodes;
-		items = allItems.filter((item: any) => 
-			item.status?.optionId === HUMAN_REVIEW_OPTION_ID && item.content?.number
+		items = allItems.filter(
+			(item: any) =>
+				item.status?.optionId === HUMAN_REVIEW_OPTION_ID &&
+				item.content?.number,
 		);
 	} catch (e: any) {
 		console.error(e);

@@ -40,7 +40,7 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 	// Mock GitHub GraphQL API for listing
 	await page.route("https://api.github.com/graphql", async (route) => {
 		const requestBody = route.request().postDataJSON();
-		
+
 		if (requestBody.query.includes("ProjectItems")) {
 			await route.fulfill({
 				status: 200,
@@ -55,7 +55,7 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 											id: "item_1",
 											status: {
 												name: "Human Review",
-												optionId: "0fd775be"
+												optionId: "0fd775be",
 											},
 											content: {
 												number: issueNumber,
@@ -63,15 +63,15 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 												repository: {
 													nameWithOwner: `${owner}/${repo}`,
 													owner: { login: owner },
-													name: repo
-												}
-											}
-										}
-									]
-								}
-							}
-						}
-					}
+													name: repo,
+												},
+											},
+										},
+									],
+								},
+							},
+						},
+					},
 				}),
 			});
 		} else if (requestBody.query.includes("IssueDetails")) {
@@ -96,27 +96,30 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 												state: "OPEN",
 												baseRepository: {
 													owner: { login: owner },
-													name: repo
-												}
-											}
-										}
-									]
-								}
-							}
-						}
-					}
+													name: repo,
+												},
+											},
+										},
+									],
+								},
+							},
+						},
+					},
 				}),
 			});
-		} else if (requestBody.query.includes("UpdateField") || requestBody.query.includes("ClearField")) {
+		} else if (
+			requestBody.query.includes("UpdateField") ||
+			requestBody.query.includes("ClearField")
+		) {
 			await route.fulfill({
 				status: 200,
 				contentType: "application/json",
 				body: JSON.stringify({
 					data: {
 						updateProjectV2ItemFieldValue: {
-							projectV2Item: { id: "item_1" }
-						}
-					}
+							projectV2Item: { id: "item_1" },
+						},
+					},
 				}),
 			});
 		} else {
@@ -135,11 +138,11 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 					{
 						filename: "TEST.md",
 						raw_url: "https://raw.githubusercontent.com/test/TEST.md",
-						contents_url: `https://api.github.com/repos/${owner}/${repo}/contents/TEST.md?ref=test-sha`
-					}
+						contents_url: `https://api.github.com/repos/${owner}/${repo}/contents/TEST.md?ref=test-sha`,
+					},
 				]),
 			});
-		}
+		},
 	);
 
 	// Mock raw file content via API
@@ -149,9 +152,12 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 			await route.fulfill({
 				status: 200,
 				contentType: "text/plain",
-				body: "# Test Markdown Content",
+				body: `# Test Markdown Content
+![Relative Image](./screenshots/img.png)
+<img src="./screenshots/img2.png" alt="Raw HTML Image">
+[Relative Link](./docs/other.md)`,
 			});
-		}
+		},
 	);
 
 	// Mock Issue Comment API
@@ -163,7 +169,7 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 				contentType: "application/json",
 				body: JSON.stringify({ id: 123 }),
 			});
-		}
+		},
 	);
 
 	// Mock Issue Labels API
@@ -175,7 +181,7 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 				contentType: "application/json",
 				body: JSON.stringify([{ name: "persona: conductor" }]),
 			});
-		}
+		},
 	);
 
 	// Mock PR Merge API
@@ -187,7 +193,7 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 				contentType: "application/json",
 				body: JSON.stringify({ merged: true }),
 			});
-		}
+		},
 	);
 
 	// Set token and navigate to home
@@ -203,14 +209,16 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 			{
 				spec: "Approval Queue button is visible",
 				check: async () =>
-					expect(page.getByRole("link", { name: "Approval Queue" })).toBeVisible(),
+					expect(
+						page.getByRole("link", { name: "Approval Queue" }),
+					).toBeVisible(),
 			},
 		],
 	});
 
 	// Navigate to Approval Queue
 	await page.click('text="Approval Queue"');
-	
+
 	await helper.step("approval_queue_list_loaded", {
 		description: "Approval queue list shows items in Human Review",
 		verifications: [
@@ -222,7 +230,9 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 			{
 				spec: "View & Approve link is visible",
 				check: async () =>
-					expect(page.getByRole("link", { name: "View & Approve" })).toBeVisible(),
+					expect(
+						page.getByRole("link", { name: "View & Approve" }),
+					).toBeVisible(),
 			},
 		],
 	});
@@ -236,19 +246,26 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 			{
 				spec: "Issue title is visible",
 				check: async () =>
-					expect(page.getByRole("heading", { name: "Test Issue" })).toBeVisible(),
+					expect(
+						page.getByRole("heading", { name: "Test Issue" }),
+					).toBeVisible(),
 			},
 			{
 				spec: "Markdown artifact is listed",
-				check: async () =>
-					expect(page.getByText("TEST.md")).toBeVisible(),
+				check: async () => expect(page.getByText("TEST.md")).toBeVisible(),
 			},
 			{
 				spec: "Actions buttons are visible",
 				check: async () => {
-					await expect(page.getByRole("button", { name: "Approve & Merge" })).toBeVisible();
-					await expect(page.getByRole("button", { name: "Comment & Move to In Progress" })).toBeVisible();
-					await expect(page.getByRole("button", { name: "Back to TODO" })).toBeVisible();
+					await expect(
+						page.getByRole("button", { name: "Approve & Merge" }),
+					).toBeVisible();
+					await expect(
+						page.getByRole("button", { name: "Comment & Move to In Progress" }),
+					).toBeVisible();
+					await expect(
+						page.getByRole("button", { name: "Back to TODO" }),
+					).toBeVisible();
 				},
 			},
 		],
@@ -257,21 +274,54 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 	// Expand markdown
 	await page.click('text="TEST.md"');
 	await helper.step("markdown_expanded", {
-		description: "Markdown artifact can be expanded to view content",
+		description:
+			"Markdown artifact can be expanded to view content and relative URLs are resolved",
 		verifications: [
 			{
 				spec: "Rendered markdown content is visible",
 				check: async () =>
-					expect(page.getByRole("heading", { name: "Test Markdown Content" })).toBeVisible(),
+					expect(
+						page.getByRole("heading", { name: "Test Markdown Content" }),
+					).toBeVisible(),
+			},
+			{
+				spec: "Relative image URL is resolved",
+				check: async () => {
+					const img = page.locator('img[alt="Relative Image"]');
+					await expect(img).toHaveAttribute(
+						"src",
+						"https://raw.githubusercontent.com/test/screenshots/img.png",
+					);
+				},
+			},
+			{
+				spec: "Relative raw HTML image URL is resolved",
+				check: async () => {
+					const img = page.locator('img[alt="Raw HTML Image"]');
+					await expect(img).toHaveAttribute(
+						"src",
+						"https://raw.githubusercontent.com/test/screenshots/img2.png",
+					);
+				},
+			},
+			{
+				spec: "Relative link URL is resolved",
+				check: async () => {
+					const link = page.getByRole("link", { name: "Relative Link" });
+					await expect(link).toHaveAttribute(
+						"href",
+						"https://raw.githubusercontent.com/test/docs/other.md",
+					);
+				},
 			},
 		],
 	});
 
 	// Mock window.confirm and alert
-	page.on('dialog', async dialog => {
-		if (dialog.type() === 'confirm') {
+	page.on("dialog", async (dialog) => {
+		if (dialog.type() === "confirm") {
 			await dialog.accept();
-		} else if (dialog.type() === 'alert') {
+		} else if (dialog.type() === "alert") {
 			await dialog.accept();
 		}
 	});
@@ -285,8 +335,7 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 		verifications: [
 			{
 				spec: "Redirected back to /approval",
-				check: async () =>
-					expect(page.url()).toContain("/approval"),
+				check: async () => expect(page.url()).toContain("/approval"),
 			},
 		],
 	});

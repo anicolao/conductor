@@ -32,12 +32,15 @@ Verify the approval queue listing, detail view, and actions.
 
 ---
 
-## Markdown artifact can be expanded to view content
+## Markdown artifact can be expanded to view content and relative URLs are resolved
 
-![Markdown artifact can be expanded to view content](./screenshots/003-markdown-expanded.png)
+![Markdown artifact can be expanded to view content and relative URLs are resolved](./screenshots/003-markdown-expanded.png)
 
 ### Verifications
 - [x] Rendered markdown content is visible
+- [x] Relative image URL is resolved
+- [x] Relative raw HTML image URL is resolved
+- [x] Relative link URL is resolved
 
 ---
 
