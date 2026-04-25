@@ -97,7 +97,7 @@ async function fetchData(token: string) {
 		},
 		body: JSON.stringify({
 			query,
-			variables: { owner, repo, number: parseInt(issue_number, 10) },
+			variables: { owner, repo, number: parseInt(issue_number!, 10) },
 		}),
 	});
 
