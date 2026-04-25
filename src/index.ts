@@ -370,6 +370,28 @@ function activatePersonaLabel(
 	}
 }
 
+export function loadPrompts(conductorRoot: string, persona: string): string {
+	const efficiencyPath = path.join(conductorRoot, "prompts", "efficiency.md");
+	let efficiencyPrompt = "";
+	if (fs.existsSync(efficiencyPath)) {
+		efficiencyPrompt = fs.readFileSync(efficiencyPath, "utf8");
+	} else {
+		logger.warn(`Efficiency prompt not found at ${efficiencyPath}`);
+	}
+
+	const promptPath = path.join(conductorRoot, "prompts", `${persona}.md`);
+	if (!fs.existsSync(promptPath)) {
+		logger.error(`Prompt not found at ${promptPath} for persona: ${persona}`);
+		process.exit(1);
+	}
+	const personaPrompt = fs.readFileSync(promptPath, "utf8");
+
+	if (efficiencyPrompt) {
+		return `${efficiencyPrompt}\n\n${personaPrompt}`;
+	}
+	return personaPrompt;
+}
+
 async function main() {
 	dotenv.config();
 
@@ -515,12 +537,7 @@ async function main() {
 		// 3. Load Prompt
 		const conductorRoot =
 			process.env.CONDUCTOR_ROOT || path.join(__dirname, "..", "..");
-		const promptPath = path.join(conductorRoot, "prompts", `${persona}.md`);
-		if (!fs.existsSync(promptPath)) {
-			logger.error(`Prompt not found at ${promptPath} for persona: ${persona}`);
-			process.exit(1);
-		}
-		const systemPrompt = fs.readFileSync(promptPath, "utf8");
+		const systemPrompt = loadPrompts(conductorRoot, persona);
 
 		// 4. Prepare Context
 		let lastHumanCommentBody = "N/A (No human comments found)";
