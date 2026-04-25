@@ -28,7 +28,7 @@ export function login(redirectPath?: string): void {
 	localStorage.setItem("oauth_redirect_path", path);
 
 	const clientId = PUBLIC_GITHUB_CLIENT_ID;
-	const scope = "repo,workflow";
+	const scope = "repo,workflow,project";
 	window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=${scope}`;
 }
 
