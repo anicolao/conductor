@@ -161,6 +161,7 @@ async function fetchData(token: string) {
 }
 
 function resolveRelativeUrls(html: string, baseUrl: string): string {
+	const decodedBaseUrl = decodeURIComponent(baseUrl);
 	return html.replace(/(src|href)=["']([^"']+)["']/g, (match, attr, val) => {
 		// Skip if it's already an absolute URL or special protocol
 		if (/^(https?:\/\/|\/|#|mailto:|data:)/i.test(val)) {
@@ -168,7 +169,7 @@ function resolveRelativeUrls(html: string, baseUrl: string): string {
 		}
 
 		try {
-			return `${attr}="${new URL(val, baseUrl).href}"`;
+			return `${attr}="${new URL(val, decodedBaseUrl).href}"`;
 		} catch (e) {
 			return match;
 		}
