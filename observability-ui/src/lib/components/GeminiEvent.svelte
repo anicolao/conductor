@@ -1,7 +1,9 @@
 <script lang="ts">
 import { marked } from "marked";
+import { mount, unmount } from "svelte";
 import type { ConductorEvent, GeminiEventData } from "../types";
 import JsonTree from "./JsonTree.svelte";
+import Magnifier from "./Magnifier.svelte";
 
 interface ToolResultData {
 	status?: string;
@@ -12,6 +14,31 @@ let {
 	event,
 	toolNameMap = new Map(),
 }: { event: ConductorEvent; toolNameMap?: Map<string, string> } = $props();
+
+function enhanceImages(node: HTMLElement) {
+	const images = node.querySelectorAll("img");
+	const unmounts: (() => void)[] = [];
+
+	images.forEach((img) => {
+		const src = img.getAttribute("src");
+		const alt = img.getAttribute("alt") || "";
+		if (src) {
+			const container = document.createElement("div");
+			img.replaceWith(container);
+			const component = mount(Magnifier, {
+				target: container,
+				props: { src, alt },
+			});
+			unmounts.push(() => unmount(component));
+		}
+	});
+
+	return {
+		destroy() {
+			unmounts.forEach((u) => u());
+		},
+	};
+}
 const eventData = $derived(
 	event.event === "GEMINI_EVENT" ? (event.data as GeminiEventData) : null,
 );
@@ -112,7 +139,7 @@ function getToolCallLabel(toolCall: Record<string, unknown>) {
         <span class="debug-badge">🚌 DEBUG</span>
       {/if}
     </div>
-    <div class="event-body markdown">
+    <div class="event-body markdown" use:enhanceImages>
       {@html markdownContent}
     </div>
   {:else if eventData.type === 'tool_use'}
@@ -214,7 +241,7 @@ function getToolCallLabel(toolCall: Record<string, unknown>) {
         <span class="debug-badge">🚌 DEBUG</span>
       {/if}
     </div>
-    <div class="event-body markdown">
+    <div class="event-body markdown" use:enhanceImages>
       {@html markdownContent}
       {#if eventData.status === 'error'}
         <div class="tool-result-status error">
