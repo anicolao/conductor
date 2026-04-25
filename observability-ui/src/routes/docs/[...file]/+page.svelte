@@ -10,13 +10,14 @@ let error = $state<string | null>(null);
 
 const file = $derived(page.params.file.replace(/\/$/, ""));
 
+declare const __GIT_BRANCH__: string;
+
 async function fetchMarkdown(path: string) {
 	loading = true;
 	error = null;
 	try {
 		// Use the GitHub Raw URL. 
-		// We use 'main' as default, but we could eventually make this configurable.
-		const branch = "main";
+		const branch = typeof __GIT_BRANCH__ !== 'undefined' ? __GIT_BRANCH__ : "main";
 		const baseUrl = `https://raw.githubusercontent.com/LLM-Orchestration/conductor/${branch}/`;
 		const response = await fetch(`${baseUrl}${path}`);
 		
@@ -67,7 +68,7 @@ $effect(() => {
 			<p>Make sure the file exists in the repository: <code>{file}</code></p>
 		</div>
 	{:else}
-		<article class="markdown-body" use:enhanceImages>
+		<article class="markdown-body" use:enhanceImages={content}>
 			{@html content}
 		</article>
 	{/if}

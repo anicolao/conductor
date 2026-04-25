@@ -64,17 +64,17 @@ const fsSource = `
         
         float zoom_mask = circle(u_lens_radius, zoom_pos, uv, aspect);
         
-        // Adjust zoomed_p to also account for aspect ratio to keep zoom centered
         vec2 zoomed_p = (uv - zoom_pos);
-        // We don't scale X here because uv and zoom_pos are already in the same space
         zoomed_p = zoomed_p / u_zoom_factor + zoom_pos;
         
         vec4 zoomed_bg = texture2D(u_texture, zoomed_p);
         
-        float ring_mask = ring(u_lens_radius, 0.01, zoom_pos, uv, aspect);
-        vec4 ring_color = vec4(0.2, 0.4, 0.4, 1.0);
+        float ring_mask = ring(u_lens_radius, 0.02, zoom_pos, uv, aspect);
+        vec4 ring_color = vec4(0.1, 0.2, 0.2, 1.0);
         
-        gl_FragColor = (zoomed_bg * zoom_mask) + (background * (1.0 - zoom_mask)) + (ring_color * ring_mask);
+        // Closely follow the requested blend logic
+        vec3 final_rgb = (zoomed_bg.rgb * zoom_mask) + (background.rgb * (1.0 - zoom_mask)) + (ring_color.rgb * ring_mask);
+        gl_FragColor = vec4(final_rgb, 1.0);
     }
 `;
 
@@ -251,6 +251,7 @@ function handlePointerLeave(e: PointerEvent) {
 		overflow: hidden;
 		box-shadow: 0 2px 12px rgba(0,0,0,0.15);
 		transition: transform 0.2s ease;
+		margin: 1rem 0;
 	}
 	.magnifier-container:hover {
 		transform: scale(1.01);

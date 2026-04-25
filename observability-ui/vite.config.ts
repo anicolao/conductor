@@ -5,6 +5,7 @@ import { defineConfig } from "vite";
 
 const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
 const commitHash = execSync("git rev-parse --short HEAD").toString().trim();
+const branchName = execSync("git rev-parse --abbrev-ref HEAD").toString().trim();
 
 const rawCommitHash = process.env.VITE_COMMIT_HASH || commitHash;
 const finalCommitHash =
@@ -22,5 +23,8 @@ export default defineConfig({
 			process.env.VITE_BUILD_DATE || new Date().toISOString().split("T")[0],
 		),
 		__COMMIT_HASH__: JSON.stringify(finalCommitHash),
+		__GIT_BRANCH__: JSON.stringify(
+			process.env.VITE_GIT_BRANCH || branchName || "main",
+		),
 	},
 });
