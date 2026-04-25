@@ -536,7 +536,7 @@ async function main() {
 
 		// 3. Load Prompt
 		const conductorRoot =
-			process.env.CONDUCTOR_ROOT || path.join(__dirname, "..", "..");
+			process.env.CONDUCTOR_ROOT || path.join(__dirname, "..");
 		const systemPrompt = loadPrompts(conductorRoot, persona);
 
 		// 4. Prepare Context
@@ -763,9 +763,11 @@ ${snippet}
 	}
 }
 
-main().catch((err) => {
-	logger.error("Fatal error", {
-		error: err instanceof Error ? err.message : String(err),
+if (require.main === module) {
+	main().catch((err) => {
+		logger.error("Fatal error", {
+			error: err instanceof Error ? err.message : String(err),
+		});
+		process.exit(1);
 	});
-	process.exit(1);
-});
+}
