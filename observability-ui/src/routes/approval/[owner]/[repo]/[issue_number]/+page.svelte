@@ -63,6 +63,9 @@ async function fetchData(token: string) {
 	const query = `
 		query IssueDetails($owner: String!, $repo: String!, $number: Int!) {
 			repository(owner: $owner, name: $repo) {
+				mergeCommitAllowed
+				squashMergeAllowed
+				rebaseMergeAllowed
 				issue(number: $number) {
 					id
 					title
@@ -116,13 +119,23 @@ async function fetchData(token: string) {
 	const result = await res.json();
 	if (result.errors) throw new Error(result.errors[0].message);
 
-	issue = result.data.repository.issue;
+	const repository = result.data.repository;
+	issue = repository.issue;
 	if (!issue) throw new Error("Issue not found");
 
 	// Find the latest open or merged PR
 	const prNodes = issue.timelineItems.nodes
 		.filter((n: any) => n.source && n.source.number)
-		.map((n: any) => n.source);
+		.map((n: any) => {
+			return {
+				...n.source,
+				repositorySettings: {
+					mergeCommitAllowed: repository.mergeCommitAllowed,
+					squashMergeAllowed: repository.squashMergeAllowed,
+					rebaseMergeAllowed: repository.rebaseMergeAllowed,
+				},
+			};
+		});
 
 	pullRequest = prNodes[prNodes.length - 1];
 
@@ -289,6 +302,15 @@ async function handleApprove() {
 
 		// Merge PR if exists
 		if (pullRequest && pullRequest.state === "OPEN") {
+			let mergeMethod = "merge";
+			if (pullRequest.repositorySettings.squashMergeAllowed) {
+				mergeMethod = "squash";
+			} else if (pullRequest.repositorySettings.rebaseMergeAllowed) {
+				mergeMethod = "rebase";
+			} else if (pullRequest.repositorySettings.mergeCommitAllowed) {
+				mergeMethod = "merge";
+			}
+
 			const mergeRes = await fetch(
 				`https://api.github.com/repos/${pullRequest.baseRepository.owner.login}/${pullRequest.baseRepository.name}/pulls/${pullRequest.number}/merge`,
 				{
@@ -297,7 +319,7 @@ async function handleApprove() {
 						Authorization: `Bearer ${token}`,
 						"Content-Type": "application/json",
 					},
-					body: JSON.stringify({ merge_method: "squash" }),
+					body: JSON.stringify({ merge_method: mergeMethod }),
 				},
 			);
 			if (!mergeRes.ok) {

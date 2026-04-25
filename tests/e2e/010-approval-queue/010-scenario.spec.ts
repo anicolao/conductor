@@ -81,6 +81,9 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 				body: JSON.stringify({
 					data: {
 						repository: {
+							mergeCommitAllowed: true,
+							squashMergeAllowed: true,
+							rebaseMergeAllowed: true,
 							issue: {
 								id: "issue_node_id",
 								title: "Test Issue",
@@ -188,6 +191,16 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 	await page.route(
 		`https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/merge`,
 		async (route) => {
+			const postData = route.request().postDataJSON();
+			// Since we mocked all merge methods as true, it should prefer squash
+			if (postData.merge_method !== "squash") {
+				await route.fulfill({
+					status: 400,
+					contentType: "application/json",
+					body: JSON.stringify({ message: `Expected merge_method squash, got ${postData.merge_method}` }),
+				});
+				return;
+			}
 			await route.fulfill({
 				status: 200,
 				contentType: "application/json",
@@ -195,6 +208,19 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 			});
 		},
 	);
+
+	// Mock image requests to return a dummy image
+	await page.route("**/*.png", async (route) => {
+		const dummyImage = Buffer.from(
+			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+			"base64",
+		);
+		await route.fulfill({
+			status: 200,
+			contentType: "image/png",
+			body: dummyImage,
+		});
+	});
 
 	// Set token and navigate to home
 	await page.goto("/");
