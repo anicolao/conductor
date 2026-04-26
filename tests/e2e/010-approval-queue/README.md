@@ -1,55 +1,35 @@
-# Approval Queue Flow
+# Multiple PRs Approval Detail
 
-Verify the approval queue listing, detail view, and actions.
+Verify that the approvals UI correctly handles multiple linked PRs by showing artifacts from all PRs and hiding the approve button.
 
-## Approval Queue button is visible on dashboard
+## Approval detail page shows artifacts from multiple PRs and warning message
 
-![Approval Queue button is visible on dashboard](./screenshots/000-home-page-loaded.png)
+![Approval detail page shows artifacts from multiple PRs and warning message](./screenshots/000-approval-detail-loaded-multiple-prs.png)
 
 ### Verifications
-- [x] Approval Queue button is visible
+- [x] Warning message is visible
+- [x] Artifact from PR1 is visible
+- [x] Artifact from PR2 is visible
+- [x] Approve & Merge button is NOT visible
+- [x] Other action buttons are still visible
 
 ---
 
-## Approval queue list shows items in Human Review
+## Artifact from PR1 can be expanded to view content
 
-![Approval queue list shows items in Human Review](./screenshots/001-approval-queue-list-loaded.png)
+![Artifact from PR1 can be expanded to view content](./screenshots/001-artifact-pr1-expanded.png)
 
 ### Verifications
-- [x] Issue #192 is listed
-- [x] View & Approve link is visible
+- [x] Rendered markdown content from PR1 is visible
 
 ---
 
-## Approval detail page shows markdown artifacts and actions
+## Artifact from PR2 can be expanded to view content
 
-![Approval detail page shows markdown artifacts and actions](./screenshots/002-approval-detail-loaded.png)
-
-### Verifications
-- [x] Issue title is visible
-- [x] Markdown artifact is listed
-- [x] Actions buttons are visible
-
----
-
-## Markdown artifact can be expanded to view content and relative URLs are resolved
-
-![Markdown artifact can be expanded to view content and relative URLs are resolved](./screenshots/003-markdown-expanded.png)
+![Artifact from PR2 can be expanded to view content](./screenshots/002-artifact-pr2-expanded.png)
 
 ### Verifications
-- [x] Rendered markdown content is visible
-- [x] Relative image URL is resolved
-- [x] Relative raw HTML image URL is resolved
-- [x] Relative link URL is resolved
-
----
-
-## Approve action redirects back to queue
-
-![Approve action redirects back to queue](./screenshots/004-approved-successfully.png)
-
-### Verifications
-- [x] Redirected back to /approval
+- [x] Rendered markdown content from PR2 is visible
 
 ---
 

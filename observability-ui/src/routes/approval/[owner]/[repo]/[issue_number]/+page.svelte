@@ -10,8 +10,7 @@ const repo = $derived(page.params.repo);
 const issue_number = $derived(page.params.issue_number);
 
 let issue = $state<any>(null);
-let pullRequest = $state<any>(null);
-let markdownFiles = $state<any[]>([]);
+let pullRequests = $state<any[]>([]);
 let loading = $state(true);
 let error = $state<string | null>(null);
 let commentText = $state("");
@@ -123,7 +122,7 @@ async function fetchData(token: string) {
 	issue = repository.issue;
 	if (!issue) throw new Error("Issue not found");
 
-	// Find the latest open or merged PR
+	// Find all unique PRs
 	const prNodes = issue.timelineItems.nodes
 		.filter((n: any) => n.source && n.source.number)
 		.map((n: any) => {
@@ -137,40 +136,51 @@ async function fetchData(token: string) {
 			};
 		});
 
-	pullRequest = prNodes[prNodes.length - 1];
-
-	if (pullRequest) {
-		// Fetch PR files
-		const filesRes = await fetch(
-			`https://api.github.com/repos/${pullRequest.baseRepository.owner.login}/${pullRequest.baseRepository.name}/pulls/${pullRequest.number}/files`,
-			{
-				headers: { Authorization: `Bearer ${token}` },
-			},
-		);
-		if (!filesRes.ok) throw new Error("Failed to fetch PR files");
-		const files = await filesRes.json();
-
-		const mdFiles = files.filter((f: any) => f.filename.endsWith(".md"));
-
-		// Fetch content for each md file
-		markdownFiles = await Promise.all(
-			mdFiles.map(async (file: any) => {
-				const contentRes = await fetch(file.contents_url, {
-					headers: {
-						Authorization: `Bearer ${token}`,
-						Accept: "application/vnd.github.v3.raw",
-					},
-				});
-				const content = await contentRes.text();
-				const parsedHtml = marked.parse(content) as string;
-				return {
-					filename: file.filename,
-					raw_url: file.raw_url,
-					content: resolveRelativeUrls(parsedHtml, file.raw_url),
-				};
-			}),
-		);
+	const uniquePrs = new Map<number, any>();
+	for (const pr of prNodes) {
+		uniquePrs.set(pr.number, pr);
 	}
+
+	pullRequests = await Promise.all(
+		Array.from(uniquePrs.values()).map(async (pr) => {
+			// Fetch PR files
+			const filesRes = await fetch(
+				`https://api.github.com/repos/${pr.baseRepository.owner.login}/${pr.baseRepository.name}/pulls/${pr.number}/files`,
+				{
+					headers: { Authorization: `Bearer ${token}` },
+				},
+			);
+			if (!filesRes.ok)
+				throw new Error(`Failed to fetch PR files for #${pr.number}`);
+			const files = await filesRes.json();
+
+			const mdFiles = files.filter((f: any) => f.filename.endsWith(".md"));
+
+			// Fetch content for each md file
+			const markdownFiles = await Promise.all(
+				mdFiles.map(async (file: any) => {
+					const contentRes = await fetch(file.contents_url, {
+						headers: {
+							Authorization: `Bearer ${token}`,
+							Accept: "application/vnd.github.v3.raw",
+						},
+					});
+					const content = await contentRes.text();
+					const parsedHtml = marked.parse(content) as string;
+					return {
+						filename: file.filename,
+						raw_url: file.raw_url,
+						content: resolveRelativeUrls(parsedHtml, file.raw_url),
+					};
+				}),
+			);
+
+			return {
+				...pr,
+				markdownFiles,
+			};
+		}),
+	);
 }
 
 function resolveRelativeUrls(html: string, baseUrl: string): string {
@@ -300,7 +310,9 @@ async function handleApprove() {
 		// Add comment
 		await addComment("Approved");
 
-		// Merge PR if exists
+		// Merge PR if exactly one exists
+		const pullRequest = pullRequests.length === 1 ? pullRequests[0] : null;
+
 		if (pullRequest && pullRequest.state === "OPEN") {
 			let mergeMethod = "merge";
 			if (pullRequest.repositorySettings.squashMergeAllowed) {
@@ -429,20 +441,38 @@ async function handleBackToTodo() {
 			<p class="repo-name">{owner}/{repo}</p>
 		</header>
 
-		{#if markdownFiles.length > 0}
+		{#if pullRequests.length > 1}
+			<div class="warning">
+				<p><strong>Multiple pull requests are linked to this issue.</strong></p>
+				<p>Please approve and merge them manually on GitHub. The "Approve & Merge" button is disabled to avoid ambiguity.</p>
+			</div>
+		{/if}
+
+		{#each pullRequests as pr}
 			<section class="artifacts">
-				<h2>Markdown Artifacts</h2>
-				{#each markdownFiles as file}
-					<details class="artifact-card">
-						<summary>{file.filename}</summary>
-						<div class="markdown-content">
-							{@html file.content}
-						</div>
-					</details>
-				{/each}
+				<h2>PR #{pr.number} Artifacts</h2>
+				<p class="pr-link">
+					<a href={pr.url} target="_blank" rel="noopener noreferrer">
+						View PR #{pr.number} on GitHub
+					</a>
+				</p>
+				{#if pr.markdownFiles.length > 0}
+					{#each pr.markdownFiles as file}
+						<details class="artifact-card">
+							<summary>{file.filename}</summary>
+							<div class="markdown-content">
+								{@html file.content}
+							</div>
+						</details>
+					{/each}
+				{:else}
+					<p class="info">No markdown artifacts found in PR #{pr.number}.</p>
+				{/if}
 			</section>
-		{:else}
-			<p class="info">No markdown artifacts found in the linked PR.</p>
+		{/each}
+
+		{#if pullRequests.length === 0}
+			<p class="info">No linked pull requests found.</p>
 		{/if}
 
 		<section class="actions">
@@ -459,13 +489,15 @@ async function handleBackToTodo() {
 			</div>
 
 			<div class="button-group">
-				<button 
-					class="btn approve" 
-					onclick={handleApprove} 
-					disabled={actionLoading}
-				>
-					{actionLoading ? 'Processing...' : 'Approve & Merge'}
-				</button>
+				{#if pullRequests.length <= 1}
+					<button 
+						class="btn approve" 
+						onclick={handleApprove} 
+						disabled={actionLoading}
+					>
+						{actionLoading ? 'Processing...' : 'Approve & Merge'}
+					</button>
+				{/if}
 				
 				<button 
 					class="btn in-progress" 
@@ -529,6 +561,33 @@ async function handleBackToTodo() {
 		margin-top: 2rem;
 		margin-bottom: 1rem;
 		color: #374151;
+	}
+
+	.pr-link {
+		margin-bottom: 1rem;
+	}
+
+	.pr-link a {
+		color: #2563eb;
+		text-decoration: none;
+		font-weight: 500;
+	}
+
+	.pr-link a:hover {
+		text-decoration: underline;
+	}
+
+	.warning {
+		background-color: #fffbeb;
+		border: 1px solid #fcd34d;
+		color: #92400e;
+		padding: 1rem;
+		border-radius: 0.5rem;
+		margin-bottom: 2rem;
+	}
+
+	.warning p {
+		margin: 0.25rem 0;
 	}
 
 	.artifact-card {
