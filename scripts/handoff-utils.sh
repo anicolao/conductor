@@ -229,7 +229,7 @@ process.stdout.write(match ? match[2] : '');
   echo "Verifying Project V2 $field_name update via targeted readback..."
   project_verified=0
   for i in 1 2 3 4 5; do
-    current_val=$(gh api graphql -f id="$item_id" -q '
+    current_val=$(gh api graphql -f id="$item_id" '
       query($id: ID!) {
         node(id: $id) {
           ... on ProjectV2Item {
