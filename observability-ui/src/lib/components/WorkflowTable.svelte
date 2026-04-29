@@ -143,83 +143,121 @@ function formatStatus(status: string) {
 }
 </script>
 
-<div class="table-container">
-	<table>
-		<thead>
-			<tr>
-				<th>Repository</th>
-				<th>Issue</th>
-				<th>PR</th>
-				<th>Workflow Run</th>
-				<th>Timestamp</th>
-			</tr>
-		</thead>
-		<tbody>
-			{#each runs as run}
-				{@const parsed = parseTitle(run.display_title)}
+<div class="workflow-container">
+	<div class="desktop-view">
+		<table>
+			<thead>
 				<tr>
-					<td>
-						{#if parsed}
-							<a href="https://github.com/{parsed.repo}" target="_blank" rel="noopener noreferrer">
-								{parsed.repo}
-							</a>
-						{:else}
-							<span class="fallback">{run.display_title}</span>
-						{/if}
-					</td>
-					<td>
-						{#if parsed}
-							{@const path = `${parsed.repo}/issues/${parsed.issue}`}
-							<a href="https://github.com/{path}" target="_blank" rel="noopener noreferrer">
-								#{parsed.issue}{issueDetails[path] ? `: ${issueDetails[path].title}` : ''}
-							</a>
-						{:else}
-							-
-						{/if}
-					</td>
-					<td>
-						{#if parsed}
-							{@const path = `${parsed.repo}/issues/${parsed.issue}`}
-							{#if issueDetails[path]?.pull_request}
-								<a
-									href={issueDetails[path].pull_request?.html_url}
-									target="_blank"
-									rel="noopener noreferrer"
-								>
-									PR #{issueDetails[path].number}
+					<th>Repository</th>
+					<th>Issue</th>
+					<th>PR</th>
+					<th>Workflow Run</th>
+					<th>Timestamp</th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each runs as run}
+					{@const parsed = parseTitle(run.display_title)}
+					<tr>
+						<td>
+							{#if parsed}
+								<a href="https://github.com/{parsed.repo}" target="_blank" rel="noopener noreferrer">
+									{parsed.repo}
 								</a>
-							{:else if prDetails[run.id.toString()]}
-								<a
-									href={prDetails[run.id.toString()].html_url}
-									target="_blank"
-									rel="noopener noreferrer"
-								>
-									PR #{prDetails[run.id.toString()].number}
+							{:else}
+								<span class="fallback">{run.display_title}</span>
+							{/if}
+						</td>
+						<td>
+							{#if parsed}
+								{@const path = `${parsed.repo}/issues/${parsed.issue}`}
+								<a href="https://github.com/{path}" target="_blank" rel="noopener noreferrer">
+									#{parsed.issue}{issueDetails[path] ? `: ${issueDetails[path].title}` : ''}
 								</a>
 							{:else}
 								-
 							{/if}
+						</td>
+						<td>
+							{#if parsed}
+								{@const path = `${parsed.repo}/issues/${parsed.issue}`}
+								{#if issueDetails[path]?.pull_request}
+									<a
+										href={issueDetails[path].pull_request?.html_url}
+										target="_blank"
+										rel="noopener noreferrer"
+									>
+										PR #{issueDetails[path].number}
+									</a>
+								{:else if prDetails[run.id.toString()]}
+									<a
+										href={prDetails[run.id.toString()].html_url}
+										target="_blank"
+										rel="noopener noreferrer"
+									>
+										PR #{prDetails[run.id.toString()].number}
+									</a>
+								{:else}
+									-
+								{/if}
+							{:else}
+								-
+							{/if}
+						</td>
+						<td>
+							<a href="{base}/run?id={run.id}"> {formatStatus(run.status)} </a>
+						</td>
+						<td>{formatDate(run.created_at)}</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	</div>
+
+	<div class="mobile-view">
+		{#each runs as run}
+			{@const parsed = parseTitle(run.display_title)}
+			{@const path = parsed ? `${parsed.repo}/issues/${parsed.issue}` : ''}
+			{@const pr = parsed ? (issueDetails[path]?.pull_request || prDetails[run.id.toString()]) : null}
+			<div class="mobile-item">
+				<div class="item-header">
+					<span class="repo-tag">
+						{#if parsed}
+							{parsed.repo}
 						{:else}
-							-
+							{run.display_title}
 						{/if}
-					</td>
-					<td>
-						<a href="{base}/run?id={run.id}"> {formatStatus(run.status)} </a>
-					</td>
-					<td>{formatDate(run.created_at)}</td>
-				</tr>
-			{/each}
-		</tbody>
-	</table>
+					</span>
+					<span class="timestamp">{formatDate(run.created_at)}</span>
+				</div>
+				<div class="item-content">
+					<div class="item-identifiers">
+						{#if parsed}
+							<span class="issue-tag">#{parsed.issue}</span>
+						{/if}
+						{#if pr}
+							<span class="pr-tag">PR #{pr.number}</span>
+						{/if}
+					</div>
+					<a href="{base}/run?id={run.id}" class="status-link">
+						{formatStatus(run.status)} →
+					</a>
+				</div>
+			</div>
+		{/each}
+	</div>
 </div>
 
 <style>
-	.table-container {
+	.workflow-container {
 		width: 100%;
-		overflow-x: auto;
 		margin-top: 2rem;
+	}
+
+	.desktop-view {
 		border: 1px solid #e5e7eb;
 		border-radius: 0.5rem;
+		overflow-x: auto;
 	}
 
 	table {
@@ -263,5 +301,75 @@ function formatStatus(status: string) {
 	.fallback {
 		font-style: italic;
 		color: #9ca3af;
+	}
+
+	/* Mobile View Styles */
+	.mobile-view {
+		display: none;
+	}
+
+	@media (max-width: 768px) {
+		.workflow-container {
+			margin-top: 1rem;
+		}
+
+		.desktop-view {
+			display: none;
+		}
+
+		.mobile-view {
+			display: flex;
+			flex-direction: column;
+		}
+	}
+
+	.mobile-item {
+		padding: 0.75rem 0;
+		border-bottom: 1px solid #f3f4f6;
+	}
+
+	.item-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 0.25rem;
+	}
+
+	.repo-tag {
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: #6b7280;
+		text-transform: uppercase;
+		letter-spacing: 0.025em;
+	}
+
+	.timestamp {
+		font-size: 0.7rem;
+		color: #9ca3af;
+	}
+
+	.item-content {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+
+	.item-identifiers {
+		display: flex;
+		gap: 0.5rem;
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: #374151;
+	}
+
+	.status-link {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: #2563eb;
+		text-decoration: none;
+	}
+
+	.status-link:hover {
+		text-decoration: underline;
 	}
 </style>
