@@ -54,7 +54,7 @@ echo "Parent issue: #$ISSUE_NUMBER"
 PROJECT_NUMBER=1
 PROJECT_OWNER="LLM-Orchestration"
 
-ITEM_DATA=$(gh api graphql -f id="$ISSUE_NODE_ID" '
+ITEM_DATA=$(gh api graphql -f id="$ISSUE_NODE_ID" -f query='
   query($id: ID!) {
     node(id: $id) {
       ... on Issue {
