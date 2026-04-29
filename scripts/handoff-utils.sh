@@ -81,7 +81,17 @@ try {
 ")"
   fi
 
-  export issue_number target_repo project_number project_url issue_node_id
+  if [ -z "${project_item_id:-}" ] && [ -n "${GITHUB_EVENT_PATH:-}" ]; then
+    project_item_id="$(node -e "
+const fs = require('fs');
+try {
+  const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+  process.stdout.write(event.client_payload?.project_item_id || '');
+} catch (e) {}
+")"
+  fi
+
+  export issue_number target_repo project_number project_url issue_node_id project_item_id
 }
 
 validate_git_state() {
@@ -162,20 +172,19 @@ process.stdout.write(match ? match[2] : '');
     exit 1
   fi
 
-  if [ -z "$issue_node_id" ]; then
-    echo "Warning: issue_node_id is missing, will attempt to find project item by issue number and repository" >&2
+  item_id="${project_item_id:-}"
+
+  if [ -z "$item_id" ]; then
+    echo "Finding project item for issue $issue_number in repository $target_repo in project $project_number"
+    # Use targeted GraphQL via gh issue view --json projectItems
+    item_id=$(gh issue view "$issue_number" -R "$target_repo" --json projectItems --jq ".projectItems[] | select(.project.number == $project_number) | .id" | head -n 1)
   fi
 
-  echo "Finding project item for issue $issue_number in repository $target_repo in project $project_number"
-
-  item_data=$(gh project item-list "$project_number" --owner "$project_owner" --limit 1000 --format json --jq ".items[] | select((.content.number == $issue_number and .content.repository == \"$target_repo\") or .content.id == \"$issue_node_id\")" | head -n 1)
-  
-  if [ -z "$item_data" ]; then
-    echo "Error: Could not find project item for issue node ID $issue_node_id in project $project_number (owner: $project_owner)" >&2
+  if [ -z "$item_id" ] || [ "$item_id" == "null" ]; then
+    echo "Error: Could not find project item for issue $issue_number in project $project_number (owner: $project_owner)" >&2
     exit 1
   fi
 
-  item_id=$(echo "$item_data" | jq -r '.id')
   project_id=$(gh project view "$project_number" --owner "$project_owner" --format json --jq '.id')
   
   if [ -z "$project_id" ] || [ "$project_id" == "null" ]; then
@@ -202,11 +211,29 @@ process.stdout.write(match ? match[2] : '');
   echo "Updating Project V2 item $item_id $field_name to $option_name ($option_id)"
   gh project item-edit --id "$item_id" --project-id "$project_id" --field-id "$field_id" --single-select-option-id "$option_id" > /dev/null
 
-  # Verify Project V2 update with retries
-  echo "Verifying Project V2 $field_name update via readback..."
+  # Verify Project V2 update with targeted GraphQL readback
+  echo "Verifying Project V2 $field_name update via targeted readback..."
   project_verified=0
   for i in 1 2 3 4 5; do
-    current_val=$(gh project item-list "$project_number" --owner "$project_owner" --limit 1000 --format json --jq ".items[] | select(.id == \"$item_id\") | $verification_jq_path // empty" 2>/dev/null | head -n 1)
+    current_val=$(gh api graphql -f id="$item_id" -q '
+      query($id: ID!) {
+        node(id: $id) {
+          ... on ProjectV2Item {
+            fieldValues(first: 20) {
+              nodes {
+                ... on ProjectV2ItemFieldSingleSelectValue {
+                  name
+                  field {
+                    ... on ProjectV2FieldCommon {
+                      name
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }' --jq ".data.node.fieldValues.nodes[] | select(.field.name == \"$field_name\") | .name" 2>/dev/null | head -n 1 || true)
     
     if [ "$current_val" == "$target_value_for_verification" ]; then
       project_verified=1

@@ -13,8 +13,8 @@ fi
 
 echo "Handling validation failure for PR #$PR_NUMBER in $REPOSITORY"
 
-# 1. Use gh pr view to get PR body and headRefName.
-PR_DATA=$(gh pr view "$PR_NUMBER" -R "$REPOSITORY" --json body,headRefName)
+# 1. Use gh api to get PR body and headRefName.
+PR_DATA=$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '{body: .body, headRefName: .head.ref}')
 PR_BODY=$(echo "$PR_DATA" | jq -r '.body')
 HEAD_REF=$(echo "$PR_DATA" | jq -r '.headRefName')
 
@@ -34,7 +34,10 @@ if [[ "$HEAD_REF" =~ ^issue-[0-9]+$ ]]; then
   IS_SYSTEM_CREATED=true
 fi
 
-ISSUE_LABELS=$(gh issue view "$ISSUE_NUMBER" -R "$REPOSITORY" --json labels --jq '.labels[].name')
+ISSUE_DATA=$(gh api "repos/$REPOSITORY/issues/$ISSUE_NUMBER")
+ISSUE_LABELS=$(echo "$ISSUE_DATA" | jq -r '.labels[].name')
+ISSUE_NODE_ID=$(echo "$ISSUE_DATA" | jq -r '.node_id')
+
 if echo "$ISSUE_LABELS" | grep -q "^persona:"; then
   IS_SYSTEM_CREATED=true
 fi
@@ -46,21 +49,36 @@ fi
 
 echo "Parent issue: #$ISSUE_NUMBER"
 
-# 4. Use gh issue view --json projectItems to find the project item and current status of the parent issue.
+# 4. Use targeted GraphQL to find the project item and current status of the parent issue.
 # The project we are interested in is project number 1 ("Platform 10").
 PROJECT_NUMBER=1
 PROJECT_OWNER="LLM-Orchestration"
 
-# Note: projectItems is an array. We filter for the specific project number.
-# Using --jq to filter and extract status and other info.
-ITEM_DATA=$(gh issue view "$ISSUE_NUMBER" -R "$REPOSITORY" --json projectItems --jq ".projectItems[] | select(.project.number == $PROJECT_NUMBER)" | head -n 1)
+ITEM_DATA=$(gh api graphql -f id="$ISSUE_NODE_ID" -q '
+  query($id: ID!) {
+    node(id: $id) {
+      ... on Issue {
+        projectItems(first: 20) {
+          nodes {
+            id
+            project {
+              id
+              number
+            }
+            status: fieldValueByName(name: "Status") {
+              ... on ProjectV2ItemFieldSingleSelectValue {
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }' --jq ".data.node.projectItems.nodes[] | select(.project.number == $PROJECT_NUMBER) | {id: .id, project: {id: .project.id}, status: .status.name}" | head -n 1)
 
 if [ -z "$ITEM_DATA" ]; then
   echo "Parent issue #$ISSUE_NUMBER is not in project $PROJECT_NUMBER. Skipping project status update."
 else
-  # The jq path for status name might depend on gh version, but usually it's .status
-  # Let's try to be safe and use .statusValue if .status is not what we want, 
-  # but standard gh output for projectItems includes .status as the title of the status.
   CURRENT_STATUS=$(echo "$ITEM_DATA" | jq -r '.status // empty')
   
   # 5. If the status is NOT "In Progress", move it back to "In Progress".

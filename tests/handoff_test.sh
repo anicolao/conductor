@@ -108,32 +108,43 @@ case "\$*" in
     ;;
   "label create"*)
     exit 0
-    ;;
-  "issue view"*--jq*)
-    echo "persona: coder"
-    echo "branch: test-branch"
-    ;;
-  "issue view"*)
-    echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: test-branch"}], "url": "https://github.com/LLM-Orchestration/conductor/issues/123"}'
-    ;;
-  *"project item-list"*)
-    if [ -f "$TEST_DIR/mock_project_item_missing" ]; then
-      echo ""
-    elif echo "\$*" | grep -q -- "--jq"; then
-      if echo "\$*" | grep -q -- ".persona"; then
-        echo "coder"
-      else
-        echo '{"id": "ITEM_123", "content": {"id": "I_123"}, "persona": "coder"}'
-      fi
+  ;;
+  "api"*"repos/LLM-Orchestration/conductor/labels"*)
+    if [ -f "$TEST_DIR/mock_label_exists" ]; then
+      echo "branch: test-branch"
     else
-      echo '{"items": [{"id": "ITEM_123", "content": {"id": "I_123"}, "persona": "coder"}]}'
+      echo ""
     fi
     ;;
-  "project field-list"*)
-    echo '{"fields": [{"name": "Persona", "id": "F_P", "options": [{"name": "coder", "id": "O_C"}, {"name": "conductor", "id": "O_CON"}]}]}'
+  "api"*"repos/LLM-Orchestration/conductor/issues/123"*)
+    if echo "\$*" | grep -q -- ".html_url"; then
+      echo "https://github.com/LLM-Orchestration/conductor/issues/123"
+    elif echo "\$*" | grep -q -- ".labels\[\].name"; then
+      echo "persona: coder"
+      echo "branch: test-branch"
+    else
+      echo '{"labels":[{"name":"persona: coder"}, {"name":"branch: test-branch"}], "html_url": "https://github.com/LLM-Orchestration/conductor/issues/123"}'
+    fi
+    ;;
+  "api"*"graphql"*)
+    if [ -f "$TEST_DIR/mock_project_item_missing" ]; then
+      echo ""
+    else
+      echo "coder"
+    fi
+    ;;
+  "issue view"*--json" projectItems"*)
+    if [ -f "$TEST_DIR/mock_project_item_missing" ]; then
+      echo ""
+    else
+      echo "ITEM_123"
+    fi
     ;;
   "project view"*)
     echo '"PVT_kwDOA123"'
+    ;;
+  "project field-list"*)
+    echo '{"fields": [{"name": "Persona", "id": "F_P", "options": [{"name": "coder", "id": "O_C"}, {"name": "conductor", "id": "O_CON"}]}]}'
     ;;
   *)
     exit 0
@@ -152,7 +163,7 @@ if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md" 2> "$TEST_DIR/stderr
   echo "Error: handoff.sh should have failed but exited with 0"
   exit 1
 else
-  if grep -q "Error: Could not find project item for issue node ID I_123 in project 1 (owner: LLM-Orchestration)" "$TEST_DIR/stderr"; then
+  if grep -q "Error: Could not find project item for issue 123 in project 1 (owner: LLM-Orchestration)" "$TEST_DIR/stderr"; then
     echo "Success: Test 1 passed"
   else
     echo "Error: Test 1 failed with wrong message"
@@ -267,10 +278,11 @@ echo "Running Test 8: Label creation when missing..."
 rm -f "$TEST_DIR/mock_label_exists"
 rm -f "$TEST_DIR/gh_calls"
 if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md"; then
-  if grep -q "label create branch: test-branch" "$TEST_DIR/gh_calls"; then
+  if grep -E "gh api repos/.*/labels -X POST" "$TEST_DIR/gh_calls" >/dev/null; then
     echo "Success: Test 8 passed"
   else
     echo "Error: Test 8 failed (label creation NOT triggered)"
+    cat "$TEST_DIR/gh_calls"
     exit 1
   fi
 else
@@ -283,7 +295,7 @@ echo "Running Test 9: No label creation when already exists..."
 touch "$TEST_DIR/mock_label_exists"
 rm -f "$TEST_DIR/gh_calls"
 if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md" > /dev/null 2>&1; then
-  if grep -q "label create branch: test-branch" "$TEST_DIR/gh_calls"; then
+  if grep -E "gh api repos/.*/labels -X POST" "$TEST_DIR/gh_calls" >/dev/null; then
     echo "Error: Test 9 failed (label creation triggered but label exists)"
     exit 1
   else

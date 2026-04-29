@@ -74,7 +74,7 @@ if [ -s "$body_file" ]; then
   gh issue comment "$issue_number" -R "$target_repo" --body-file "$body_file"
 fi
 
-existing_labels="$(gh issue view "$issue_number" -R "$target_repo" --json labels --jq '.labels[].name')"
+existing_labels="$(gh api "repos/$target_repo/issues/$issue_number" --jq '.labels[].name')"
 edit_args=()
 while IFS= read -r label; do
   case "$label" in

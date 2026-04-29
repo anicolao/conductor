@@ -25,15 +25,7 @@ import { sanitize } from "./utils/sanitize";
 function verifyGitHubCli(repository: string, issueNumber: number): string {
 	const repoCheck = spawnSync(
 		"gh",
-		[
-			"repo",
-			"view",
-			repository,
-			"--json",
-			"nameWithOwner",
-			"--jq",
-			".nameWithOwner",
-		],
+		["api", `repos/${repository}`, "--jq", ".full_name"],
 		{
 			encoding: "utf8",
 			env: process.env,
@@ -417,6 +409,7 @@ async function main() {
 		commentUrl,
 		projectNumber,
 		projectUrl,
+		projectItemId,
 		eventName: extractedEventName,
 		action,
 	} = extractEventData(event, process.env);
@@ -602,6 +595,7 @@ Repository: ${repository}
 Issue URL: ${issueUrl}
 Issue Node ID: ${issueNodeId}
 Project: ${projectUrl || "N/A"} (#${projectNumber || "N/A"})
+Project Item ID: ${projectItemId || "N/A"}
 Event: ${extractedEventName}${action ? ` (${action})` : ""}
 Current Branch: ${currentBranch}
 Labels: ${labels.join(", ")}
