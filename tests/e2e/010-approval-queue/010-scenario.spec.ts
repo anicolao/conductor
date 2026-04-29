@@ -253,20 +253,24 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 			{
 				spec: "Issue #192 is listed",
 				check: async () =>
-					expect(page.getByText(`#${issueNumber}`)).toBeVisible(),
+					expect(
+						page.locator(".desktop-view").getByText(`#${issueNumber}`),
+					).toBeVisible(),
 			},
 			{
 				spec: "View & Approve link is visible",
 				check: async () =>
 					expect(
-						page.getByRole("link", { name: "View & Approve" }),
+						page
+							.locator(".desktop-view")
+							.getByRole("link", { name: "View & Approve" }),
 					).toBeVisible(),
 			},
 		],
 	});
 
 	// Navigate to Detail Page
-	await page.click('text="View & Approve"');
+	await page.locator(".desktop-view").getByText("View & Approve").click();
 
 	await helper.step("approval_detail_loaded", {
 		description: "Approval detail page shows markdown artifacts and actions",
