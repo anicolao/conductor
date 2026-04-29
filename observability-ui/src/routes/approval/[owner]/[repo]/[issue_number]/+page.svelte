@@ -1,9 +1,9 @@
 <script lang="ts">
+import { marked } from "marked";
 import { onMount } from "svelte";
 import { base } from "$app/paths";
 import { page } from "$app/state";
 import { getAccessToken, login } from "$lib/auth";
-import { marked } from "marked";
 
 const owner = $derived(page.params.owner);
 const repo = $derived(page.params.repo);
@@ -124,7 +124,7 @@ async function fetchData(token: string) {
 
 	// Find all unique PRs
 	const prNodes = issue.timelineItems.nodes
-		.filter((n: any) => n.source && n.source.number)
+		.filter((n: any) => n.source?.number)
 		.map((n: any) => {
 			return {
 				...n.source,
@@ -526,6 +526,29 @@ async function handleBackToTodo() {
 		padding: 2rem;
 	}
 
+	@media (max-width: 768px) {
+		.container {
+			padding: 1rem;
+		}
+
+		h1 {
+			font-size: 1.5rem !important;
+		}
+
+		.button-group {
+			flex-direction: column;
+		}
+
+		.btn {
+			width: 100%;
+			text-align: center;
+		}
+
+		.artifact-card summary {
+			padding: 0.75rem;
+		}
+	}
+
 	nav {
 		margin-bottom: 2rem;
 	}
@@ -670,6 +693,10 @@ async function handleBackToTodo() {
 		cursor: pointer;
 		border: none;
 		font-size: 1rem;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 44px;
 	}
 
 	.btn:disabled {

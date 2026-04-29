@@ -100,30 +100,47 @@ onMount(async () => {
 	{:else if items.length === 0}
 		<p>No items currently in Human Review.</p>
 	{:else}
-		<table>
-			<thead>
-				<tr>
-					<th>Issue</th>
-					<th>Repository</th>
-					<th>Title</th>
-					<th>Action</th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each items as item}
+		<div class="desktop-view">
+			<table>
+				<thead>
 					<tr>
-						<td>#{item.content.number}</td>
-						<td>{item.content.repository.nameWithOwner}</td>
-						<td>{item.content.title}</td>
-						<td>
-							<a href="{base}/approval/{item.content.repository.owner.login}/{item.content.repository.name}/{item.content.number}" class="view-link">
-								View & Approve
-							</a>
-						</td>
+						<th>Issue</th>
+						<th>Repository</th>
+						<th>Title</th>
+						<th>Action</th>
 					</tr>
-				{/each}
-			</tbody>
-		</table>
+				</thead>
+				<tbody>
+					{#each items as item}
+						<tr>
+							<td>#{item.content.number}</td>
+							<td>{item.content.repository.nameWithOwner}</td>
+							<td>{item.content.title}</td>
+							<td>
+								<a href="{base}/approval/{item.content.repository.owner.login}/{item.content.repository.name}/{item.content.number}" class="view-link">
+									View & Approve
+								</a>
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
+
+		<div class="mobile-view">
+			{#each items as item}
+				<div class="approval-card">
+					<div class="card-header">
+						<span class="issue-tag">#{item.content.number}</span>
+						<span class="repo-tag">{item.content.repository.nameWithOwner}</span>
+					</div>
+					<h2 class="card-title">{item.content.title}</h2>
+					<a href="{base}/approval/{item.content.repository.owner.login}/{item.content.repository.name}/{item.content.number}" class="mobile-action-btn">
+						View & Approve
+					</a>
+				</div>
+			{/each}
+		</div>
 	{/if}
 </div>
 
@@ -132,6 +149,28 @@ onMount(async () => {
 		max-width: 1000px;
 		margin: 0 auto;
 		padding: 2rem;
+	}
+
+	@media (max-width: 768px) {
+		.container {
+			padding: 1rem;
+		}
+
+		.desktop-view {
+			display: none;
+		}
+
+		.mobile-view {
+			display: flex;
+			flex-direction: column;
+			gap: 1rem;
+		}
+	}
+
+	@media (min-width: 769px) {
+		.mobile-view {
+			display: none;
+		}
 	}
 
 	nav {
@@ -172,6 +211,61 @@ onMount(async () => {
 
 	.view-link:hover {
 		text-decoration: underline;
+	}
+
+	/* Mobile Card Styles */
+	.approval-card {
+		background: white;
+		border: 1px solid #e5e7eb;
+		border-radius: 0.75rem;
+		padding: 1.25rem;
+		box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+	}
+
+	.card-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 0.75rem;
+	}
+
+	.issue-tag {
+		font-weight: 600;
+		color: #6b7280;
+		font-size: 0.875rem;
+	}
+
+	.repo-tag {
+		font-size: 0.75rem;
+		color: #9ca3af;
+		background: #f3f4f6;
+		padding: 0.25rem 0.5rem;
+		border-radius: 0.25rem;
+	}
+
+	.card-title {
+		font-size: 1.125rem;
+		font-weight: 600;
+		color: #111827;
+		margin: 0 0 1.25rem 0;
+		line-height: 1.4;
+	}
+
+	.mobile-action-btn {
+		display: block;
+		width: 100%;
+		text-align: center;
+		background-color: #2563eb;
+		color: white;
+		text-decoration: none;
+		padding: 0.75rem;
+		border-radius: 0.5rem;
+		font-weight: 600;
+		transition: background-color 0.2s;
+	}
+
+	.mobile-action-btn:active {
+		background-color: #1d4ed8;
 	}
 
 	.error {
