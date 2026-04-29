@@ -9,3 +9,4 @@
 ## Coding Standards
 
 - **Boolean Complexity**: Boolean expressions MUST be limited to at most two logical operations (`&&`, `||`). Expressions that are more complex must be broken down into intermediate variables or refactored for clarity. This is enforced by a custom lint script.
+- **API Efficiency**: Minimize use of high-cost GraphQL calls. Prefer `gh api` (REST) for metadata. **NEVER** scan projects with `gh project item-list --limit 1000`; use direct item IDs or targeted queries instead.
