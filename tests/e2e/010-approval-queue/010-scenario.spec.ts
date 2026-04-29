@@ -197,7 +197,9 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 				await route.fulfill({
 					status: 400,
 					contentType: "application/json",
-					body: JSON.stringify({ message: `Expected merge_method squash, got ${postData.merge_method}` }),
+					body: JSON.stringify({
+						message: `Expected merge_method squash, got ${postData.merge_method}`,
+					}),
 				});
 				return;
 			}
@@ -278,7 +280,10 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 			},
 			{
 				spec: "Markdown artifact is listed",
-				check: async () => expect(page.getByText("tests/e2e/010-approval-queue/README.md")).toBeVisible(),
+				check: async () =>
+					expect(
+						page.getByText("tests/e2e/010-approval-queue/README.md"),
+					).toBeVisible(),
 			},
 			{
 				spec: "Actions buttons are visible",
