@@ -163,7 +163,8 @@ test("Multiple PRs Approval Detail", async ({ page }, testInfo) => {
 	await page.goto(`/approval/${owner}/${repo}/${issueNumber}`);
 
 	await helper.step("approval_detail_loaded_multiple_prs", {
-		description: "Approval detail page shows artifacts from multiple PRs and warning message",
+		description:
+			"Approval detail page shows artifacts from multiple PRs and warning message",
 		verifications: [
 			{
 				spec: "Warning message is visible",
@@ -174,11 +175,13 @@ test("Multiple PRs Approval Detail", async ({ page }, testInfo) => {
 			},
 			{
 				spec: "Artifact from PR1 is visible",
-				check: async () => expect(page.getByText("artifact-pr1.md")).toBeVisible(),
+				check: async () =>
+					expect(page.getByText("artifact-pr1.md")).toBeVisible(),
 			},
 			{
 				spec: "Artifact from PR2 is visible",
-				check: async () => expect(page.getByText("artifact-pr2.md")).toBeVisible(),
+				check: async () =>
+					expect(page.getByText("artifact-pr2.md")).toBeVisible(),
 			},
 			{
 				spec: "Approve & Merge button is NOT visible",
