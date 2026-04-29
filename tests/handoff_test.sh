@@ -129,8 +129,12 @@ case "\$*" in
   "api"*"graphql"*)
     if [ -f "$TEST_DIR/mock_project_item_missing" ]; then
       echo ""
-    elif echo "\$*" | grep -q "projectItems"; then
-      echo "ITEM_123"
+    elif echo "\$*" | grep -q "projectItems" || echo "\$*" | grep -q "query"; then
+      if echo "\$*" | grep -q "ProjectV2Item"; then
+        echo "coder"
+      else
+        echo "ITEM_123"
+      fi
     else
       echo "coder"
     fi
