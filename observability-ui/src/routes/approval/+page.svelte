@@ -3,7 +3,28 @@ import { onMount } from "svelte";
 import { base } from "$app/paths";
 import { getAccessToken, login } from "$lib/auth";
 
-let items = $state<any[]>([]);
+interface GitHubRepo {
+	nameWithOwner: string;
+	owner: { login: string };
+	name: string;
+}
+
+interface GitHubIssue {
+	number: number;
+	title: string;
+	repository: GitHubRepo;
+}
+
+interface ProjectItem {
+	id: string;
+	status?: {
+		name: string;
+		optionId: string;
+	};
+	content: GitHubIssue;
+}
+
+let items = $state<ProjectItem[]>([]);
 let loading = $state(true);
 let error = $state<string | null>(null);
 
@@ -69,13 +90,13 @@ onMount(async () => {
 
 		const allItems = result.data.organization.projectV2.items.nodes;
 		items = allItems.filter(
-			(item: any) =>
+			(item: ProjectItem) =>
 				item.status?.optionId === HUMAN_REVIEW_OPTION_ID &&
 				item.content?.number,
 		);
-	} catch (e: any) {
+	} catch (e: unknown) {
 		console.error(e);
-		error = e.message;
+		error = e instanceof Error ? e.message : String(e);
 	} finally {
 		loading = false;
 	}
@@ -129,16 +150,18 @@ onMount(async () => {
 
 		<div class="mobile-view">
 			{#each items as item}
-				<div class="approval-card">
-					<div class="card-header">
-						<span class="issue-tag">#{item.content.number}</span>
-						<span class="repo-tag">{item.content.repository.nameWithOwner}</span>
+				<a href="{base}/approval/{item.content.repository.owner.login}/{item.content.repository.name}/{item.content.number}" class="mobile-card-link">
+					<div class="approval-card">
+						<div class="card-header">
+							<span class="repo-tag">{item.content.repository.nameWithOwner}</span>
+							<span class="issue-tag">#{item.content.number}</span>
+						</div>
+						<h2 class="card-title">{item.content.title}</h2>
+						<div class="card-footer">
+							<span class="action-hint">View & Approve →</span>
+						</div>
 					</div>
-					<h2 class="card-title">{item.content.title}</h2>
-					<a href="{base}/approval/{item.content.repository.owner.login}/{item.content.repository.name}/{item.content.number}" class="mobile-action-btn">
-						View & Approve
-					</a>
-				</div>
+				</a>
 			{/each}
 		</div>
 	{/if}
@@ -214,58 +237,68 @@ onMount(async () => {
 	}
 
 	/* Mobile Card Styles */
+	.mobile-card-link {
+		text-decoration: none;
+		color: inherit;
+		display: block;
+	}
+
 	.approval-card {
 		background: white;
 		border: 1px solid #e5e7eb;
 		border-radius: 0.75rem;
 		padding: 1.25rem;
 		box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+		transition: border-color 0.2s, box-shadow 0.2s;
+	}
+
+	.mobile-card-link:active .approval-card {
+		background-color: #f9fafb;
+		border-color: #d1d5db;
 	}
 
 	.card-header {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		margin-bottom: 0.75rem;
+		margin-bottom: 0.5rem;
 	}
 
 	.issue-tag {
-		font-weight: 600;
-		color: #6b7280;
-		font-size: 0.875rem;
+		font-weight: 500;
+		color: #9ca3af;
+		font-size: 0.75rem;
 	}
 
 	.repo-tag {
 		font-size: 0.75rem;
-		color: #9ca3af;
-		background: #f3f4f6;
-		padding: 0.25rem 0.5rem;
-		border-radius: 0.25rem;
+		color: #6b7280;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.025em;
 	}
 
 	.card-title {
 		font-size: 1.125rem;
-		font-weight: 600;
+		font-weight: 700;
 		color: #111827;
-		margin: 0 0 1.25rem 0;
-		line-height: 1.4;
+		margin: 0 0 0.75rem 0;
+		line-height: 1.3;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
 	}
 
-	.mobile-action-btn {
-		display: block;
-		width: 100%;
-		text-align: center;
-		background-color: #2563eb;
-		color: white;
-		text-decoration: none;
-		padding: 0.75rem;
-		border-radius: 0.5rem;
+	.card-footer {
+		display: flex;
+		justify-content: flex-end;
+	}
+
+	.action-hint {
+		font-size: 0.875rem;
 		font-weight: 600;
-		transition: background-color 0.2s;
-	}
-
-	.mobile-action-btn:active {
-		background-color: #1d4ed8;
+		color: #2563eb;
 	}
 
 	.error {
