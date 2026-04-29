@@ -150,16 +150,16 @@ onMount(async () => {
 
 		<div class="mobile-view">
 			{#each items as item}
-				<a href="{base}/approval/{item.content.repository.owner.login}/{item.content.repository.name}/{item.content.number}" class="mobile-card-link">
-					<div class="approval-card">
-						<div class="card-header">
-							<span class="repo-tag">{item.content.repository.nameWithOwner}</span>
-							<span class="issue-tag">#{item.content.number}</span>
-						</div>
-						<h2 class="card-title">{item.content.title}</h2>
-						<div class="card-footer">
+				<a href="{base}/approval/{item.content.repository.owner.login}/{item.content.repository.name}/{item.content.number}" class="mobile-item-link">
+					<div class="list-item">
+						<div class="item-meta">
+							<div class="meta-left">
+								<span class="repo-tag">{item.content.repository.nameWithOwner}</span>
+								<span class="issue-tag">#{item.content.number}</span>
+							</div>
 							<span class="action-hint">View & Approve →</span>
 						</div>
+						<h2 class="item-title">{item.content.title}</h2>
 					</div>
 				</a>
 			{/each}
@@ -186,7 +186,10 @@ onMount(async () => {
 		.mobile-view {
 			display: flex;
 			flex-direction: column;
-			gap: 1rem;
+		}
+
+		h1 {
+			margin-bottom: 1rem !important;
 		}
 	}
 
@@ -236,32 +239,33 @@ onMount(async () => {
 		text-decoration: underline;
 	}
 
-	/* Mobile Card Styles */
-	.mobile-card-link {
+	/* Mobile List Styles */
+	.mobile-item-link {
 		text-decoration: none;
 		color: inherit;
 		display: block;
+		border-bottom: 1px solid #f3f4f6;
 	}
 
-	.approval-card {
-		background: white;
-		border: 1px solid #e5e7eb;
-		border-radius: 0.75rem;
-		padding: 1.25rem;
-		box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-		transition: border-color 0.2s, box-shadow 0.2s;
-	}
-
-	.mobile-card-link:active .approval-card {
+	.mobile-item-link:active {
 		background-color: #f9fafb;
-		border-color: #d1d5db;
 	}
 
-	.card-header {
+	.list-item {
+		padding: 0.75rem 0;
+	}
+
+	.item-meta {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		margin-bottom: 0.5rem;
+		margin-bottom: 0.125rem;
+	}
+
+	.meta-left {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
 	}
 
 	.issue-tag {
@@ -278,27 +282,23 @@ onMount(async () => {
 		letter-spacing: 0.025em;
 	}
 
-	.card-title {
-		font-size: 1.125rem;
-		font-weight: 700;
+	.item-title {
+		font-size: 1rem;
+		font-weight: 600;
 		color: #111827;
-		margin: 0 0 0.75rem 0;
-		line-height: 1.3;
+		margin: 0;
+		line-height: 1.25;
 		display: -webkit-box;
 		-webkit-line-clamp: 2;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
 	}
 
-	.card-footer {
-		display: flex;
-		justify-content: flex-end;
-	}
-
 	.action-hint {
-		font-size: 0.875rem;
+		font-size: 0.75rem;
 		font-weight: 600;
 		color: #2563eb;
+		white-space: nowrap;
 	}
 
 	.error {

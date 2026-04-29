@@ -101,7 +101,7 @@ test("Approval Queue Mobile View", async ({ page }, testInfo) => {
 
 	await helper.step("mobile_view_active", {
 		description:
-			"Approval queue shows mobile card layout and hides desktop table",
+			"Approval queue shows mobile list layout and hides desktop table",
 		verifications: [
 			{
 				spec: "Mobile view container is visible",
@@ -112,23 +112,23 @@ test("Approval Queue Mobile View", async ({ page }, testInfo) => {
 				check: async () => expect(page.locator(".desktop-view")).toBeHidden(),
 			},
 			{
-				spec: "Approval card is visible",
-				check: async () => expect(page.locator(".approval-card")).toBeVisible(),
+				spec: "List item is visible",
+				check: async () => expect(page.locator(".list-item")).toBeVisible(),
 			},
 			{
-				spec: "Issue number is visible in card",
+				spec: "Issue number is visible in item",
 				check: async () =>
 					expect(page.locator(".issue-tag")).toContainText(`#${issueNumber}`),
 			},
 			{
-				spec: "Repo name is visible in card",
+				spec: "Repo name is visible in item",
 				check: async () =>
 					expect(page.locator(".repo-tag")).toContainText(`${owner}/${repo}`),
 			},
 			{
-				spec: "Title is visible in card",
+				spec: "Title is visible in item",
 				check: async () =>
-					expect(page.locator(".card-title")).toContainText(
+					expect(page.locator(".item-title")).toContainText(
 						"Test Mobile Issue",
 					),
 			},
@@ -143,8 +143,8 @@ test("Approval Queue Mobile View", async ({ page }, testInfo) => {
 		],
 	});
 
-	// Navigate to Detail Page via mobile card link
-	await page.click(".mobile-card-link");
+	// Navigate to Detail Page via mobile item link
+	await page.click(".mobile-item-link");
 
 	await helper.step("mobile_detail_view", {
 		description: "Approval detail page adjusts for mobile screen",
@@ -171,6 +171,90 @@ test("Approval Queue Mobile View", async ({ page }, testInfo) => {
 						// On mobile, it should take up most of the container width
 						expect(box.width).toBeGreaterThan(containerBox.width * 0.8);
 					}
+				},
+			},
+		],
+	});
+
+	// New step: Verify WorkflowTable on landing page
+	await page.goto("/");
+
+	// Mock repo API
+	await page.route(
+		"https://api.github.com/repos/LLM-Orchestration/conductor",
+		async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({
+					name: repo,
+					full_name: `${owner}/${repo}`,
+				}),
+			});
+		},
+	);
+
+	// Mock workflow runs API
+	await page.route(
+		"https://api.github.com/repos/LLM-Orchestration/conductor/actions/workflows/conductor.yml/runs?per_page=50",
+		async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({
+					workflow_runs: [
+						{
+							id: 12345,
+							display_title: `Conductor [${owner}/${repo}] Issue #${issueNumber}`,
+							status: "completed",
+							created_at: new Date().toISOString(),
+							head_branch: "test-branch",
+						},
+					],
+				}),
+			});
+		},
+	);
+	await page.reload();
+
+	await helper.step("workflow_table_mobile_view", {
+		description: "Workflow table displays as a list on mobile",
+		verifications: [
+			{
+				spec: "Workflow mobile view is visible",
+				check: async () =>
+					expect(
+						page.locator(".workflow-container .mobile-view"),
+					).toBeVisible(),
+			},
+			{
+				spec: "Workflow desktop view is hidden",
+				check: async () =>
+					expect(
+						page.locator(".workflow-container .desktop-view"),
+					).toBeHidden(),
+			},
+			{
+				spec: "Repo tag is visible",
+				check: async () =>
+					expect(
+						page.locator(".workflow-container .repo-tag").first(),
+					).toContainText(`${owner}/${repo}`),
+			},
+			{
+				spec: "Status link is visible",
+				check: async () =>
+					expect(
+						page.locator(".workflow-container .status-link").first(),
+					).toContainText("complete"),
+			},
+			{
+				spec: "No horizontal scrolling in workflow container",
+				check: async () => {
+					const container = page.locator(".workflow-container");
+					const scrollWidth = await container.evaluate((el) => el.scrollWidth);
+					const clientWidth = await container.evaluate((el) => el.clientWidth);
+					expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
 				},
 			},
 		],
