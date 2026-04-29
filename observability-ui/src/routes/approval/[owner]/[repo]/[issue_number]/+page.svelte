@@ -5,12 +5,60 @@ import { base } from "$app/paths";
 import { page } from "$app/state";
 import { getAccessToken, login } from "$lib/auth";
 
+interface LabelNode {
+	name: string;
+}
+
+interface ProjectItemNode {
+	id: string;
+}
+
+interface RepositorySettings {
+	mergeCommitAllowed: boolean;
+	squashMergeAllowed: boolean;
+	rebaseMergeAllowed: boolean;
+}
+
+interface PullRequestSource {
+	number: number;
+	url: string;
+	state: string;
+	baseRepository: {
+		owner: { login: string };
+		name: string;
+	};
+}
+
+interface TimelineNode {
+	source?: PullRequestSource;
+}
+
+interface GitHubIssueDetails {
+	id: string;
+	title: string;
+	body: string;
+	labels: { nodes: LabelNode[] };
+	projectItems: { nodes: ProjectItemNode[] };
+	timelineItems: { nodes: TimelineNode[] };
+}
+
+interface MarkdownFile {
+	filename: string;
+	raw_url: string;
+	content: string;
+}
+
+interface PullRequestWithArtifacts extends PullRequestSource {
+	repositorySettings: RepositorySettings;
+	markdownFiles: MarkdownFile[];
+}
+
 const owner = $derived(page.params.owner);
 const repo = $derived(page.params.repo);
 const issue_number = $derived(page.params.issue_number);
 
-let issue = $state<any>(null);
-let pullRequests = $state<any[]>([]);
+let issue = $state<GitHubIssueDetails | null>(null);
+let pullRequests = $state<PullRequestWithArtifacts[]>([]);
 let loading = $state(true);
 let error = $state<string | null>(null);
 let commentText = $state("");
@@ -41,9 +89,9 @@ onMount(async () => {
 
 	try {
 		await fetchData(token);
-	} catch (e: any) {
+	} catch (e: unknown) {
 		console.error(e);
-		error = e.message;
+		error = e instanceof Error ? e.message : String(e);
 	} finally {
 		loading = false;
 	}
@@ -119,15 +167,15 @@ async function fetchData(token: string) {
 	if (result.errors) throw new Error(result.errors[0].message);
 
 	const repository = result.data.repository;
-	issue = repository.issue;
+	issue = repository.issue as GitHubIssueDetails;
 	if (!issue) throw new Error("Issue not found");
 
 	// Find all unique PRs
 	const prNodes = issue.timelineItems.nodes
-		.filter((n: any) => n.source?.number)
-		.map((n: any) => {
+		.filter((n: TimelineNode) => n.source?.number)
+		.map((n: TimelineNode) => {
 			return {
-				...n.source,
+				...(n.source as PullRequestSource),
 				repositorySettings: {
 					mergeCommitAllowed: repository.mergeCommitAllowed,
 					squashMergeAllowed: repository.squashMergeAllowed,
@@ -136,7 +184,10 @@ async function fetchData(token: string) {
 			};
 		});
 
-	const uniquePrs = new Map<number, any>();
+	const uniquePrs = new Map<
+		number,
+		PullRequestSource & { repositorySettings: RepositorySettings }
+	>();
 	for (const pr of prNodes) {
 		uniquePrs.set(pr.number, pr);
 	}
@@ -152,13 +203,17 @@ async function fetchData(token: string) {
 			);
 			if (!filesRes.ok)
 				throw new Error(`Failed to fetch PR files for #${pr.number}`);
-			const files = await filesRes.json();
+			const files = (await filesRes.json()) as {
+				filename: string;
+				contents_url: string;
+				raw_url: string;
+			}[];
 
-			const mdFiles = files.filter((f: any) => f.filename.endsWith(".md"));
+			const mdFiles = files.filter((f) => f.filename.endsWith(".md"));
 
 			// Fetch content for each md file
 			const markdownFiles = await Promise.all(
-				mdFiles.map(async (file: any) => {
+				mdFiles.map(async (file) => {
 					const contentRes = await fetch(file.contents_url, {
 						headers: {
 							Authorization: `Bearer ${token}`,
@@ -201,11 +256,11 @@ function resolveRelativeUrls(html: string, baseUrl: string): string {
 
 async function updateProjectField(fieldId: string, optionId: string | null) {
 	const token = getAccessToken();
-	const projectItemId = issue.projectItems.nodes[0]?.id;
+	const projectItemId = issue?.projectItems.nodes[0]?.id;
 	if (!projectItemId) return;
 
 	let query: string;
-	let variables: any;
+	let variables: Record<string, unknown>;
 
 	if (optionId) {
 		query = `
@@ -262,9 +317,10 @@ async function updateLabels(add: string[], remove: string[]) {
 	const r = repo;
 	const n = issue_number;
 	if (!o || !r || !n) throw new Error("Missing route parameters");
+	if (!issue) throw new Error("Issue data not found");
 
 	const token = getAccessToken();
-	const currentLabels = issue.labels.nodes.map((l: any) => l.name);
+	const currentLabels = issue.labels.nodes.map((l: LabelNode) => l.name);
 	let newLabels = currentLabels.filter((l: string) => !remove.includes(l));
 	for (const label of add) {
 		if (!newLabels.includes(label)) {
@@ -272,14 +328,17 @@ async function updateLabels(add: string[], remove: string[]) {
 		}
 	}
 
-	const res = await fetch(`https://api.github.com/repos/${o}/${r}/issues/${n}/labels`, {
-		method: "PUT",
-		headers: {
-			Authorization: `Bearer ${token}`,
-			"Content-Type": "application/json",
+	const res = await fetch(
+		`https://api.github.com/repos/${o}/${r}/issues/${n}/labels`,
+		{
+			method: "PUT",
+			headers: {
+				Authorization: `Bearer ${token}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ labels: newLabels }),
 		},
-		body: JSON.stringify({ labels: newLabels }),
-	});
+	);
 	if (!res.ok) throw new Error("Failed to update labels");
 }
 
@@ -290,19 +349,23 @@ async function addComment(text: string) {
 	if (!o || !r || !n) throw new Error("Missing route parameters");
 
 	const token = getAccessToken();
-	const res = await fetch(`https://api.github.com/repos/${o}/${r}/issues/${n}/comments`, {
-		method: "POST",
-		headers: {
-			Authorization: `Bearer ${token}`,
-			"Content-Type": "application/json",
+	const res = await fetch(
+		`https://api.github.com/repos/${o}/${r}/issues/${n}/comments`,
+		{
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${token}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ body: text }),
 		},
-		body: JSON.stringify({ body: text }),
-	});
+	);
 	if (!res.ok) throw new Error("Failed to add comment");
 }
 
 async function handleApprove() {
 	if (!confirm("Are you sure you want to approve and merge?")) return;
+	if (!issue) return;
 	actionLoading = true;
 	try {
 		const token = getAccessToken();
@@ -348,7 +411,7 @@ async function handleApprove() {
 
 		// Remove persona and branch labels
 		const labelsToRemove = issue.labels.nodes
-			.map((l: any) => l.name)
+			.map((l: LabelNode) => l.name)
 			.filter(
 				(name: string) =>
 					name.startsWith("persona:") || name.startsWith("branch:"),
@@ -357,8 +420,9 @@ async function handleApprove() {
 
 		alert("Approved and merged successfully!");
 		window.location.href = `${base}/approval`;
-	} catch (e: any) {
-		alert(e.message);
+	} catch (e: unknown) {
+		const msg = e instanceof Error ? e.message : String(e);
+		alert(msg);
 	} finally {
 		actionLoading = false;
 	}
@@ -369,6 +433,7 @@ async function handleCommentInProgress() {
 		alert("Please enter a comment.");
 		return;
 	}
+	if (!issue) return;
 	actionLoading = true;
 	try {
 		await addComment(commentText);
@@ -379,7 +444,7 @@ async function handleCommentInProgress() {
 
 		// Set persona: conductor label
 		const labelsToRemove = issue.labels.nodes
-			.map((l: any) => l.name)
+			.map((l: LabelNode) => l.name)
 			.filter(
 				(name: string) =>
 					name.startsWith("persona:") && name !== "persona: conductor",
@@ -388,14 +453,16 @@ async function handleCommentInProgress() {
 
 		alert("Comment added and moved back to In Progress.");
 		window.location.href = `${base}/approval`;
-	} catch (e: any) {
-		alert(e.message);
+	} catch (e: unknown) {
+		const msg = e instanceof Error ? e.message : String(e);
+		alert(msg);
 	} finally {
 		actionLoading = false;
 	}
 }
 
 async function handleBackToTodo() {
+	if (!issue) return;
 	actionLoading = true;
 	try {
 		if (commentText.trim()) {
@@ -408,14 +475,15 @@ async function handleBackToTodo() {
 
 		// Remove persona labels
 		const labelsToRemove = issue.labels.nodes
-			.map((l: any) => l.name)
+			.map((l: LabelNode) => l.name)
 			.filter((name: string) => name.startsWith("persona:"));
 		await updateLabels([], labelsToRemove);
 
 		alert("Moved back to Todo.");
 		window.location.href = `${base}/approval`;
-	} catch (e: any) {
-		alert(e.message);
+	} catch (e: unknown) {
+		const msg = e instanceof Error ? e.message : String(e);
+		alert(msg);
 	} finally {
 		actionLoading = false;
 	}
