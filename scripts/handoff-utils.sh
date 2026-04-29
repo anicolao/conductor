@@ -176,8 +176,22 @@ process.stdout.write(match ? match[2] : '');
 
   if [ -z "$item_id" ]; then
     echo "Finding project item for issue $issue_number in repository $target_repo in project $project_number"
-    # Use targeted GraphQL via gh issue view --json projectItems
-    item_id=$(gh issue view "$issue_number" -R "$target_repo" --json projectItems --jq ".projectItems[] | select(.project.number == $project_number) | .id" | head -n 1)
+    # Use targeted GraphQL via gh api graphql
+    item_id=$(gh api graphql -f id="$issue_node_id" -f query='
+      query($id: ID!) {
+        node(id: $id) {
+          ... on Issue {
+            projectItems(first: 10) {
+              nodes {
+                id
+                project {
+                  number
+                }
+              }
+            }
+          }
+        }
+      }' --jq ".data.node.projectItems.nodes[] | select(.project.number == $project_number) | .id" | head -n 1)
   fi
 
   if [ -z "$item_id" ] || [ "$item_id" == "null" ]; then
