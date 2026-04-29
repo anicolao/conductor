@@ -32,14 +32,14 @@ fi
 # Create branch label if it doesn't exist and we are not on main, and the branch is pushed to origin
 if [ "$branch_name" != "main" ] && git rev-parse --verify "origin/$branch_name" >/dev/null 2>&1; then
   # Use a subshell to avoid exit on failure if label list fails for some reason
-  if ! (gh label list -R "$target_repo" --json name --jq '.[].name' | grep -qx "branch: $branch_name") 2>/dev/null; then
+  if ! (gh api --paginate "repos/$target_repo/labels" --jq '.[].name' | grep -qx "branch: $branch_name") 2>/dev/null; then
     echo "Creating missing label 'branch: $branch_name'..."
-    gh label create "branch: $branch_name" --color "CCCCCC" --description "Active branch for this issue" -R "$target_repo" || true
+    gh api "repos/$target_repo/labels" -X POST -f name="branch: $branch_name" -f color="CCCCCC" -f description="Active branch for this issue" >/dev/null 2>&1 || true
   fi
 fi
 
 current_labels() {
-  gh issue view "$issue_number" -R "$target_repo" --json labels --jq '.labels[].name'
+  gh api "repos/$target_repo/issues/$issue_number" --jq '.labels[].name'
 }
 
 existing_labels="$(current_labels)"
@@ -68,7 +68,7 @@ if [ -n "${CONDUCTOR_LAST_COMMENT_URL:-}" ]; then
   comment_id="${CONDUCTOR_LAST_COMMENT_URL##*-}"
   echo "I am the **$persona**, and I am responding to comment [$comment_id]($CONDUCTOR_LAST_COMMENT_URL) on branch $branch_name." > "$body_file"
 else
-  issue_url="$(gh issue view "$issue_number" -R "$target_repo" --json url --jq .url)"
+  issue_url="$(gh api "repos/$target_repo/issues/$issue_number" --jq .html_url)"
   echo "I am the **$persona**, and I am responding to the [original issue]($issue_url) on branch $branch_name." > "$body_file"
 fi
 echo "" >> "$body_file"

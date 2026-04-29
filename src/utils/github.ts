@@ -58,6 +58,7 @@ export function extractEventData(event: GitHubEvent, env: NodeJS.ProcessEnv) {
 		event.comment?.html_url || event.client_payload?.last_comment_url || "";
 	const projectNumber = event.client_payload?.project_number;
 	const projectUrl = event.client_payload?.project_url;
+	const projectItemId = event.client_payload?.project_item_id;
 	const eventName =
 		event.client_payload?.event_name || env.GITHUB_EVENT_NAME || "";
 	const action = event.client_payload?.action || event.action || "";
@@ -73,6 +74,7 @@ export function extractEventData(event: GitHubEvent, env: NodeJS.ProcessEnv) {
 		commentUrl,
 		projectNumber,
 		projectUrl,
+		projectItemId,
 		eventName,
 		action,
 	};

@@ -269,6 +269,23 @@ describe("extractEventData", () => {
 		expect(result.labels).toEqual([]);
 	});
 
+	it("should extract project_item_id from client_payload", () => {
+		const event: GitHubEvent = {
+			client_payload: {
+				repository: "other/repo",
+				issue_number: 456,
+				issue_node_id: "I_456",
+				project_item_id: "PVTI_123",
+			},
+		};
+		const env = { GITHUB_REPOSITORY: "owner/repo" };
+		const result = extractEventData(event, env);
+		expect(result.repository).toBe("other/repo");
+		expect(result.issueNumber).toBe(456);
+		expect(result.issueNodeId).toBe("I_456");
+		expect(result.projectItemId).toBe("PVTI_123");
+	});
+
 	it("should fallback to GITHUB_REPOSITORY if repository is missing in client_payload", () => {
 		const event: GitHubEvent = {
 			client_payload: {

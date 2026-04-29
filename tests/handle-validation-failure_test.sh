@@ -17,15 +17,14 @@ cat > "$TEST_DIR/gh" <<EOF
 #!/usr/bin/env bash
 echo "gh \$*" >> "$CALL_LOG"
 case "\$*" in
-  "pr view 123 -R LLM-Orchestration/conductor --json body,headRefName")
+  "api repos/LLM-Orchestration/conductor/pulls/123 --jq {body: .body, headRefName: .head.ref}")
     echo '{"body": "Closes #456", "headRefName": "issue-456"}'
     ;;
-  "issue view 456 -R LLM-Orchestration/conductor --json labels --jq .labels[].name")
-    echo "persona: coder"
-    echo "bug"
+  "api repos/LLM-Orchestration/conductor/issues/456")
+    echo '{"labels":[{"name":"persona: coder"}], "node_id": "I_456"}'
     ;;
-  "issue view 456 -R LLM-Orchestration/conductor --json projectItems --jq .projectItems[] | select(.project.number == 1)")
-    echo '{"id": "item_node_id", "status": "Human Review", "project": {"id": "project_node_id", "number": 1}}'
+  "api graphql"*)
+    echo '{"id": "item_node_id", "project": {"id": "project_node_id"}, "status": "Human Review"}'
     ;;
   "project field-list 1 --owner LLM-Orchestration --format json")
     echo '{"fields": [{"name": "Status", "id": "status_field_id", "options": [{"name": "Todo", "id": "todo_id"}, {"name": "In Progress", "id": "in_progress_id"}]}]}'
@@ -79,14 +78,14 @@ cat > "$TEST_DIR/gh" <<EOF
 #!/usr/bin/env bash
 echo "gh \$*" >> "$CALL_LOG"
 case "\$*" in
-  "pr view 124 -R LLM-Orchestration/conductor --json body,headRefName")
+  "api repos/LLM-Orchestration/conductor/pulls/124 --jq {body: .body, headRefName: .head.ref}")
     echo '{"body": "Resolves #457", "headRefName": "issue-457"}'
     ;;
-  "issue view 457 -R LLM-Orchestration/conductor --json labels --jq .labels[].name")
-    echo "persona: conductor"
+  "api repos/LLM-Orchestration/conductor/issues/457")
+    echo '{"labels":[{"name":"persona: conductor"}], "node_id": "I_457"}'
     ;;
-  "issue view 457 -R LLM-Orchestration/conductor --json projectItems --jq .projectItems[] | select(.project.number == 1)")
-    echo '{"id": "item_node_id_2", "status": "In Progress", "project": {"id": "project_node_id", "number": 1}}'
+  "api graphql"*)
+    echo '{"id": "item_node_id_2", "project": {"id": "project_node_id"}, "status": "In Progress"}'
     ;;
   "issue comment 457 -R LLM-Orchestration/conductor --body"*)
     exit 0

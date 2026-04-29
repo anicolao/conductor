@@ -12,6 +12,7 @@ describe("project dispatch payload", () => {
 			repository: "LLM-Orchestration/conductor",
 			issueNumber: 157,
 			issueNodeId: "I_123",
+			project_item_id: "PVTI_123",
 			projectNumber: 1,
 			projectUrl: "https://github.com/orgs/LLM-Orchestration/projects/1",
 			persona: null,
@@ -20,6 +21,7 @@ describe("project dispatch payload", () => {
 		});
 
 		expect(payload.client_payload).not.toHaveProperty("persona");
+		expect(payload.client_payload.project_item_id).toBe("PVTI_123");
 	});
 
 	it("preserves valid persona values", () => {
@@ -27,6 +29,7 @@ describe("project dispatch payload", () => {
 			repository: "LLM-Orchestration/conductor",
 			issueNumber: 157,
 			issueNodeId: "I_123",
+			project_item_id: "PVTI_123",
 			projectNumber: 1,
 			projectUrl: "https://github.com/orgs/LLM-Orchestration/projects/1",
 			persona: "coder",
@@ -35,6 +38,7 @@ describe("project dispatch payload", () => {
 		});
 
 		expect(payload.client_payload.persona).toBe("coder");
+		expect(payload.client_payload.project_item_id).toBe("PVTI_123");
 	});
 
 	it("normalizes invalid persona values to undefined", () => {
