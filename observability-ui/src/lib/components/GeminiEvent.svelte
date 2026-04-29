@@ -32,7 +32,7 @@ const markdownContent = $derived.by(() => {
 	}
 	if (
 		eventData.type === "result" &&
-		eventData.status === "success" &&
+		eventData.status?.toLowerCase() === "success" &&
 		eventData.response
 	) {
 		return marked.parse(String(eventData.response)) as string;
@@ -145,14 +145,14 @@ function getToolCallLabel(toolCall: Record<string, unknown>) {
       {/if}
     </div>
     <div class="event-body">
-      {#if eventData.status === 'success'}
+      {#if eventData.status?.toLowerCase() === 'success'}
         <div class="tool-result-status success">
           <strong>Status:</strong> success
         </div>
         {#if eventData.output}
           <pre class="terminal-output"><code>{eventData.output}</code></pre>
         {/if}
-      {:else if eventData.status === 'error'}
+      {:else if eventData.status?.toLowerCase() === 'error'}
         <div class="tool-result-status error">
           <strong>Error:</strong> {eventData.error}
         </div>
@@ -216,12 +216,12 @@ function getToolCallLabel(toolCall: Record<string, unknown>) {
     </div>
     <div class="event-body markdown">
       {@html markdownContent}
-      {#if eventData.status === 'error'}
+      {#if eventData.status?.toLowerCase() === 'error'}
         <div class="tool-result-status error">
           <strong>Error:</strong> {eventData.error}
         </div>
       {/if}
-	      {#if eventData.status === 'success'}
+	      {#if eventData.status?.toLowerCase() === 'success'}
 	        <div class="stats">
 	          <div class="stat">
 	            <span class="label">Tokens:</span>
