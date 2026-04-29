@@ -207,7 +207,7 @@ test("Approval Queue Mobile View", async ({ page }, testInfo) => {
 							id: 12345,
 							display_title: `Conductor [${owner}/${repo}] Issue #${issueNumber}`,
 							status: "completed",
-							created_at: new Date().toISOString(),
+							created_at: "2026-04-29T12:00:00Z",
 							head_branch: "test-branch",
 						},
 					],

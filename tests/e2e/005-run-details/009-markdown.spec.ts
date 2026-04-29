@@ -88,6 +88,7 @@ test("Markdown Support in Gemini Events", async ({ page }, testInfo) => {
 				event: "GEMINI_EVENT",
 				data: {
 					type: "result",
+					status: "success",
 					response: "### Success\nYour task is **complete**.\n1. One\n2. Two",
 					stats: {
 						tokens: { total: 10, prompt: 5, completion: 5 },

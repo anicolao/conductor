@@ -217,8 +217,8 @@ function formatStatus(status: string) {
 	<div class="mobile-view">
 		{#each runs as run}
 			{@const parsed = parseTitle(run.display_title)}
-			{@const path = parsed ? `${parsed.repo}/issues/${parsed.issue}` : ''}
-			{@const pr = parsed ? (issueDetails[path]?.pull_request || prDetails[run.id.toString()]) : null}
+			{@const path = parsed ? `${parsed.repo}/issues/${parsed.issue}` : ""}
+			{@const pr = prDetails[run.id.toString()]}
 			<div class="mobile-item">
 				<div class="item-header">
 					<span class="repo-tag">

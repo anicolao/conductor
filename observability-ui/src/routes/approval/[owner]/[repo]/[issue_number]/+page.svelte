@@ -503,7 +503,7 @@ async function handleBackToTodo() {
 		<p>Loading details...</p>
 	{:else if error}
 		<p class="error">{error}</p>
-	{:else}
+	{:else if issue}
 		<header>
 			<h1>{issue.title} <span class="issue-number">#{issue_number}</span></h1>
 			<p class="repo-name">{owner}/{repo}</p>
