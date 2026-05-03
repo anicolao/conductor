@@ -10,10 +10,12 @@ Verify the approval queue mobile-specific layout and responsiveness.
 - [x] Mobile view container is visible
 - [x] Desktop view container is hidden
 - [x] List item is visible
-- [x] Issue number is visible in item
-- [x] Repo name is visible in item
-- [x] Title is visible in item
-- [x] Mobile action hint is visible
+- [x] Avatar is visible
+- [x] Repo name is visible in header
+- [x] Relative time is visible
+- [x] Subject (Title) is visible and bold
+- [x] Snippet is visible
+- [x] Issue number is visible in footer
 
 ---
 

@@ -49,6 +49,14 @@ test("Approval Queue Mobile View", async ({ page }, testInfo) => {
 											content: {
 												number: issueNumber,
 												title: "Test Mobile Issue",
+												updatedAt: new Date(
+													Date.now() - 2 * 60 * 60 * 1000,
+												).toISOString(), // 2h ago
+												bodyText: "This is a test issue body snippet for mobile view verification.",
+												author: {
+													login: "test-author",
+													avatarUrl: "https://github.com/test-author.png",
+												},
 												repository: {
 													nameWithOwner: `${owner}/${repo}`,
 													owner: { login: owner },
@@ -116,29 +124,37 @@ test("Approval Queue Mobile View", async ({ page }, testInfo) => {
 				check: async () => expect(page.locator(".list-item")).toBeVisible(),
 			},
 			{
-				spec: "Issue number is visible in item",
+				spec: "Avatar is visible",
 				check: async () =>
-					expect(page.locator(".issue-tag")).toContainText(`#${issueNumber}`),
+					expect(page.locator(".author-avatar")).toBeVisible(),
 			},
 			{
-				spec: "Repo name is visible in item",
+				spec: "Repo name is visible in header",
 				check: async () =>
-					expect(page.locator(".repo-tag")).toContainText(`${owner}/${repo}`),
+					expect(page.locator(".repo-name")).toContainText(`${owner}/${repo}`),
 			},
 			{
-				spec: "Title is visible in item",
+				spec: "Relative time is visible",
 				check: async () =>
-					expect(page.locator(".item-title")).toContainText(
-						"Test Mobile Issue",
-					),
+					expect(page.locator(".time-stamp")).toContainText("2h ago"),
 			},
 			{
-				spec: "Mobile action hint is visible",
+				spec: "Subject (Title) is visible and bold",
 				check: async () => {
-					const hint = page.locator(".action-hint");
-					await expect(hint).toBeVisible();
-					await expect(hint).toContainText("View & Approve");
+					const subject = page.locator(".item-subject");
+					await expect(subject).toContainText("Test Mobile Issue");
+					await expect(subject).toHaveCSS("font-weight", "700");
 				},
+			},
+			{
+				spec: "Snippet is visible",
+				check: async () =>
+					expect(page.locator(".item-snippet")).toContainText("This is a test issue body snippet"),
+			},
+			{
+				spec: "Issue number is visible in footer",
+				check: async () =>
+					expect(page.locator(".issue-number")).toContainText(`#${issueNumber}`),
 			},
 		],
 	});

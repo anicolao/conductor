@@ -13,6 +13,12 @@ interface GitHubIssue {
 	number: number;
 	title: string;
 	repository: GitHubRepo;
+	updatedAt: string;
+	bodyText: string;
+	author: {
+		login: string;
+		avatarUrl: string;
+	};
 }
 
 interface ProjectItem {
@@ -57,6 +63,12 @@ onMount(async () => {
 									... on Issue {
 										number
 										title
+										updatedAt
+										bodyText
+										author {
+											login
+											avatarUrl
+										}
 										repository {
 											nameWithOwner
 											owner { login }
@@ -101,6 +113,19 @@ onMount(async () => {
 		loading = false;
 	}
 });
+
+function formatRelativeTime(dateString: string) {
+	const date = new Date(dateString);
+	const now = new Date();
+	const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+	if (diffInSeconds < 60) return "just now";
+	if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+	if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+	if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+
+	return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 </script>
 
 <svelte:head>
@@ -152,14 +177,24 @@ onMount(async () => {
 			{#each items as item}
 				<a href="{base}/approval/{item.content.repository.owner.login}/{item.content.repository.name}/{item.content.number}" class="mobile-item-link">
 					<div class="list-item">
-						<div class="item-meta">
-							<div class="meta-left">
-								<span class="repo-tag">{item.content.repository.nameWithOwner}</span>
-								<span class="issue-tag">#{item.content.number}</span>
-							</div>
-							<span class="action-hint">View & Approve →</span>
+						<div class="avatar-col">
+							<img src={item.content.author.avatarUrl} alt={item.content.author.login} class="author-avatar" />
 						</div>
-						<h2 class="item-title">{item.content.title}</h2>
+						<div class="content-col">
+							<div class="item-header">
+								<span class="repo-name">{item.content.repository.nameWithOwner}</span>
+								<span class="time-stamp">{formatRelativeTime(item.content.updatedAt)}</span>
+							</div>
+							<div class="item-subject">
+								{item.content.title}
+							</div>
+							<div class="item-snippet">
+								{item.content.bodyText}
+							</div>
+							<div class="item-footer">
+								<span class="issue-number">#{item.content.number}</span>
+							</div>
+						</div>
 					</div>
 				</a>
 			{/each}
@@ -176,7 +211,17 @@ onMount(async () => {
 
 	@media (max-width: 768px) {
 		.container {
-			padding: 1rem;
+			padding: 0;
+		}
+
+		nav {
+			padding: 1rem 1rem 0 1rem;
+		}
+
+		h1 {
+			padding: 0 1rem;
+			margin-bottom: 1rem !important;
+			font-size: 1.5rem;
 		}
 
 		.desktop-view {
@@ -186,10 +231,7 @@ onMount(async () => {
 		.mobile-view {
 			display: flex;
 			flex-direction: column;
-		}
-
-		h1 {
-			margin-bottom: 1rem !important;
+			border-top: 1px solid #e5e7eb;
 		}
 	}
 
@@ -244,61 +286,89 @@ onMount(async () => {
 		text-decoration: none;
 		color: inherit;
 		display: block;
-		border-bottom: 1px solid #f3f4f6;
+		border-bottom: 1px solid #e5e7eb;
+		background: #fff;
+		transition: background-color 0.2s;
 	}
 
 	.mobile-item-link:active {
-		background-color: #f9fafb;
+		background-color: #f3f4f6;
 	}
 
 	.list-item {
-		padding: 0.75rem 0;
+		display: flex;
+		padding: 0.875rem 1rem;
+		gap: 0.75rem;
 	}
 
-	.item-meta {
+	.avatar-col {
+		flex-shrink: 0;
+	}
+
+	.author-avatar {
+		width: 40px;
+		height: 40px;
+		border-radius: 50%;
+		background-color: #f3f4f6;
+	}
+
+	.content-col {
+		flex-grow: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.125rem;
+	}
+
+	.item-header {
 		display: flex;
 		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 0.125rem;
-	}
-
-	.meta-left {
-		display: flex;
-		align-items: center;
+		align-items: baseline;
 		gap: 0.5rem;
 	}
 
-	.issue-tag {
+	.repo-name {
+		font-size: 0.875rem;
 		font-weight: 500;
-		color: #9ca3af;
-		font-size: 0.75rem;
+		color: #111827;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
-	.repo-tag {
+	.time-stamp {
 		font-size: 0.75rem;
 		color: #6b7280;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.025em;
+		flex-shrink: 0;
 	}
 
-	.item-title {
-		font-size: 1rem;
-		font-weight: 600;
+	.item-subject {
+		font-size: 0.875rem;
+		font-weight: 700;
 		color: #111827;
-		margin: 0;
-		line-height: 1.25;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.item-snippet {
+		font-size: 0.875rem;
+		color: #4b5563;
 		display: -webkit-box;
 		-webkit-line-clamp: 2;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
+		line-height: 1.4;
 	}
 
-	.action-hint {
+	.item-footer {
+		margin-top: 0.25rem;
+	}
+
+	.issue-number {
 		font-size: 0.75rem;
-		font-weight: 600;
-		color: #2563eb;
-		white-space: nowrap;
+		color: #9ca3af;
+		font-family: monospace;
 	}
 
 	.error {
