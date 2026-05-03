@@ -60,6 +60,12 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 											content: {
 												number: issueNumber,
 												title: "Test Issue",
+												updatedAt: new Date().toISOString(),
+												bodyText: "Test body snippet for the approval queue.",
+												author: {
+													login: "test-user",
+													avatarUrl: "https://github.com/test-user.png",
+												},
 												repository: {
 													nameWithOwner: `${owner}/${repo}`,
 													owner: { login: owner },
