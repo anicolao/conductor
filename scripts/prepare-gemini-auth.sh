@@ -13,6 +13,24 @@ if [ -n "${GEMINI_OAUTH_CREDS_JSON:-}" ]; then
   node -e 'JSON.parse(process.env.GEMINI_OAUTH_CREDS_JSON || "")'
   printf '%s' "$GEMINI_OAUTH_CREDS_JSON" > "$gemini_dir/oauth_creds.json"
   chmod 600 "$gemini_dir/oauth_creds.json"
+  node - "$gemini_dir/settings.json" <<'NODE'
+const fs = require("fs");
+
+const settingsPath = process.argv[2];
+let settings = {};
+
+try {
+  settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+} catch (_) {
+  settings = {};
+}
+
+settings.security ??= {};
+settings.security.auth ??= {};
+settings.security.auth.selectedType = "oauth-personal";
+
+fs.writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
+NODE
   echo "Using Gemini OAuth credentials from GEMINI_OAUTH_CREDS_JSON."
   exit 0
 fi
