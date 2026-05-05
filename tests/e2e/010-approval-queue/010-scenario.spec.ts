@@ -539,6 +539,30 @@ test("Approval Queue Fallback Item ID", async ({ page }, testInfo) => {
 		},
 	);
 
+	// Mock Issue Labels API
+	await page.route(
+		`https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/labels`,
+		async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify([]),
+			});
+		},
+	);
+
+	// Mock Issue Comment API
+	await page.route(
+		`https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
+		async (route) => {
+			await route.fulfill({
+				status: 201,
+				contentType: "application/json",
+				body: JSON.stringify({ id: 123 }),
+			});
+		},
+	);
+
 	// Set token and navigate to detail page WITHOUT itemId in URL
 	await page.goto("/");
 	await page.evaluate(() => {
