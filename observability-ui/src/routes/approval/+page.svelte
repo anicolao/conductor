@@ -163,7 +163,7 @@ function formatRelativeTime(dateString: string) {
 							<td>{item.content.repository.nameWithOwner}</td>
 							<td>{item.content.title}</td>
 							<td>
-								<a href="{base}/approval/{item.content.repository.owner.login}/{item.content.repository.name}/{item.content.number}" class="view-link">
+								<a href="{base}/approval/{item.content.repository.owner.login}/{item.content.repository.name}/{item.content.number}?itemId={item.id}" class="view-link">
 									View & Approve
 								</a>
 							</td>
@@ -175,7 +175,7 @@ function formatRelativeTime(dateString: string) {
 
 		<div class="mobile-view">
 			{#each items as item}
-				<a href="{base}/approval/{item.content.repository.owner.login}/{item.content.repository.name}/{item.content.number}" class="mobile-item-link">
+				<a href="{base}/approval/{item.content.repository.owner.login}/{item.content.repository.name}/{item.content.number}?itemId={item.id}" class="mobile-item-link">
 					<div class="list-item">
 						<div class="avatar-col">
 							<img src={item.content.author.avatarUrl} alt={item.content.author.login} class="author-avatar" />

@@ -56,6 +56,7 @@ interface PullRequestWithArtifacts extends PullRequestSource {
 const owner = $derived(page.params.owner);
 const repo = $derived(page.params.repo);
 const issue_number = $derived(page.params.issue_number);
+const itemIdFromUrl = $derived(page.url.searchParams.get("itemId"));
 
 let issue = $state<GitHubIssueDetails | null>(null);
 let pullRequests = $state<PullRequestWithArtifacts[]>([]);
@@ -64,9 +65,13 @@ let error = $state<string | null>(null);
 let commentText = $state("");
 let actionLoading = $state(false);
 
-const PROJECT_ID = "PVT_kwDOEGPutc4BUN0D";
-const STATUS_FIELD_ID = "PVTSSF_lADOEGPutc4BUN0DzhBXf98";
-const PERSONA_FIELD_ID = "PVTSSF_lADOEGPutc4BUN0DzhBbZaw";
+let projectId = $state<string>("");
+let statusFieldId = $state<string>("");
+let personaFieldId = $state<string>("");
+let projectItemId = $state<string | null>(null);
+
+const ORG = "LLM-Orchestration";
+const PROJECT_NUMBER = 1;
 
 const STATUS_OPTIONS = {
 	TODO: "f75ad846",
@@ -106,9 +111,26 @@ async function fetchData(token: string) {
 		throw new Error("Missing route parameters");
 	}
 
-	// Fetch issue and find linked PR via GraphQL
+	// Fetch project info and issue details
 	const query = `
-		query IssueDetails($owner: String!, $repo: String!, $number: Int!) {
+		query GetDetails($owner: String!, $repo: String!, $number: Int!, $org: String!, $projectNumber: Int!) {
+			organization(login: $org) {
+				projectV2(number: $projectNumber) {
+					id
+					fields(first: 50) {
+						nodes {
+							... on ProjectV2Field {
+								id
+								name
+							}
+							... on ProjectV2SingleSelectField {
+								id
+								name
+							}
+						}
+					}
+				}
+			}
 			repository(owner: $owner, name: $repo) {
 				mergeCommitAllowed
 				squashMergeAllowed
@@ -159,6 +181,8 @@ async function fetchData(token: string) {
 				owner: o,
 				repo: r,
 				number: parseInt(n, 10),
+				org: ORG,
+				projectNumber: PROJECT_NUMBER,
 			},
 		}),
 	});
@@ -166,9 +190,74 @@ async function fetchData(token: string) {
 	const result = await res.json();
 	if (result.errors) throw new Error(result.errors[0].message);
 
+	const project = result.data.organization.projectV2;
+	projectId = project.id;
+	
+	const statusField = project.fields.nodes.find((f: any) => f.name === "Status");
+	const personaField = project.fields.nodes.find((f: any) => f.name === "Persona");
+	
+	if (statusField) statusFieldId = statusField.id;
+	if (personaField) personaFieldId = personaField.id;
+
 	const repository = result.data.repository;
 	issue = repository.issue as GitHubIssueDetails;
 	if (!issue) throw new Error("Issue not found");
+
+	// Determine project item ID
+	if (itemIdFromUrl) {
+		projectItemId = itemIdFromUrl;
+	} else if (issue.projectItems.nodes.length > 0) {
+		projectItemId = issue.projectItems.nodes[0].id;
+	} else {
+		// Fallback: search in project items if not found in issue
+		const fallbackQuery = `
+			query FallbackProjectItem($org: String!, $number: Int!) {
+				organization(login: $org) {
+					projectV2(number: $number) {
+						items(first: 100) {
+							nodes {
+								id
+								content {
+									... on Issue {
+										number
+										repository {
+											owner { login }
+											name
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		`;
+		
+		const fbRes = await fetch("https://api.github.com/graphql", {
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${token}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				query: fallbackQuery,
+				variables: { org: ORG, number: PROJECT_NUMBER },
+			}),
+		});
+		
+		const fbResult = await fbRes.json();
+		if (!fbResult.errors) {
+			const nodes = fbResult.data.organization.projectV2.items.nodes;
+			const match = nodes.find((node: any) => 
+				node.content?.number === parseInt(n, 10) &&
+				node.content?.repository?.owner?.login === o &&
+				node.content?.repository?.name === r
+			);
+			if (match) {
+				projectItemId = match.id;
+			}
+		}
+	}
 
 	// Find all unique PRs
 	const prNodes = issue.timelineItems.nodes
@@ -256,8 +345,9 @@ function resolveRelativeUrls(html: string, baseUrl: string): string {
 
 async function updateProjectField(fieldId: string, optionId: string | null) {
 	const token = getAccessToken();
-	const projectItemId = issue?.projectItems.nodes[0]?.id;
-	if (!projectItemId) return;
+	if (!projectItemId) {
+		throw new Error("Project Item ID not found. Cannot update project status.");
+	}
 
 	let query: string;
 	let variables: Record<string, unknown>;
@@ -276,7 +366,7 @@ async function updateProjectField(fieldId: string, optionId: string | null) {
 			}
 		`;
 		variables = {
-			projectId: PROJECT_ID,
+			projectId: projectId,
 			itemId: projectItemId,
 			fieldId: fieldId,
 			optionId: optionId,
@@ -294,7 +384,7 @@ async function updateProjectField(fieldId: string, optionId: string | null) {
 			}
 		`;
 		variables = {
-			projectId: PROJECT_ID,
+			projectId: projectId,
 			itemId: projectItemId,
 			fieldId: fieldId,
 		};
@@ -404,10 +494,10 @@ async function handleApprove() {
 		}
 
 		// Update status to Done
-		await updateProjectField(STATUS_FIELD_ID, STATUS_OPTIONS.DONE);
+		await updateProjectField(statusFieldId, STATUS_OPTIONS.DONE);
 
 		// Clear persona field
-		await updateProjectField(PERSONA_FIELD_ID, null);
+		await updateProjectField(personaFieldId, null);
 
 		// Remove persona and branch labels
 		const labelsToRemove = issue.labels.nodes
@@ -437,10 +527,10 @@ async function handleCommentInProgress() {
 	actionLoading = true;
 	try {
 		await addComment(commentText);
-		await updateProjectField(STATUS_FIELD_ID, STATUS_OPTIONS.IN_PROGRESS);
+		await updateProjectField(statusFieldId, STATUS_OPTIONS.IN_PROGRESS);
 
 		// Update persona field to conductor
-		await updateProjectField(PERSONA_FIELD_ID, PERSONA_OPTIONS.CONDUCTOR);
+		await updateProjectField(personaFieldId, PERSONA_OPTIONS.CONDUCTOR);
 
 		// Set persona: conductor label
 		const labelsToRemove = issue.labels.nodes
@@ -468,10 +558,10 @@ async function handleBackToTodo() {
 		if (commentText.trim()) {
 			await addComment(commentText);
 		}
-		await updateProjectField(STATUS_FIELD_ID, STATUS_OPTIONS.TODO);
+		await updateProjectField(statusFieldId, STATUS_OPTIONS.TODO);
 
 		// Clear persona field
-		await updateProjectField(PERSONA_FIELD_ID, null);
+		await updateProjectField(personaFieldId, null);
 
 		// Remove persona labels
 		const labelsToRemove = issue.labels.nodes
