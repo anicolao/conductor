@@ -80,12 +80,23 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 					},
 				}),
 			});
-		} else if (requestBody.query.includes("IssueDetails")) {
+		} else if (requestBody.query.includes("GetDetails")) {
 			await route.fulfill({
 				status: 200,
 				contentType: "application/json",
 				body: JSON.stringify({
 					data: {
+						organization: {
+							projectV2: {
+								id: "project_id",
+								fields: {
+									nodes: [
+										{ id: "status_field_id", name: "Status" },
+										{ id: "persona_field_id", name: "Persona" },
+									],
+								},
+							},
+						},
 						repository: {
 							mergeCommitAllowed: true,
 							squashMergeAllowed: true,
@@ -127,6 +138,33 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 					data: {
 						updateProjectV2ItemFieldValue: {
 							projectV2Item: { id: "item_1" },
+						},
+					},
+				}),
+			});
+		} else if (requestBody.query.includes("FallbackProjectItem")) {
+			await route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({
+					data: {
+						organization: {
+							projectV2: {
+								items: {
+									nodes: [
+										{
+											id: "item_1",
+											content: {
+												number: issueNumber,
+												repository: {
+													owner: { login: owner },
+													name: repo,
+												},
+											},
+										},
+									],
+								},
+							},
 						},
 					},
 				}),
@@ -272,6 +310,15 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 							.getByRole("link", { name: "View & Approve" }),
 					).toBeVisible(),
 			},
+			{
+				spec: "View & Approve link has itemId query param",
+				check: async () => {
+					const link = page
+						.locator(".desktop-view")
+						.getByRole("link", { name: "View & Approve" });
+					await expect(link).toHaveAttribute("href", /itemId=item_1/);
+				},
+			},
 		],
 	});
 
@@ -373,6 +420,161 @@ test("Approval Queue Flow", async ({ page }, testInfo) => {
 
 	await helper.step("approved_successfully", {
 		description: "Approve action redirects back to queue",
+		verifications: [
+			{
+				spec: "Redirected back to /approval",
+				check: async () => expect(page.url()).toContain("/approval"),
+			},
+		],
+	});
+
+	helper.generateDocs();
+});
+
+test("Approval Queue Fallback Item ID", async ({ page }, testInfo) => {
+	const helper = new TestStepHelper(page, testInfo);
+	helper.setMetadata(
+		"Approval Queue Fallback",
+		"Verify the fallback search for project item ID if missing from URL and issue.",
+	);
+
+	const issueNumber = 193;
+	const owner = "LLM-Orchestration";
+	const repo = "conductor";
+
+	// Mock GitHub GraphQL API
+	await page.route("https://api.github.com/graphql", async (route) => {
+		const requestBody = route.request().postDataJSON();
+
+		if (requestBody.query.includes("GetDetails")) {
+			await route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({
+					data: {
+						organization: {
+							projectV2: {
+								id: "project_id",
+								fields: {
+									nodes: [
+										{ id: "status_field_id", name: "Status" },
+										{ id: "persona_field_id", name: "Persona" },
+									],
+								},
+							},
+						},
+						repository: {
+							mergeCommitAllowed: true,
+							squashMergeAllowed: true,
+							rebaseMergeAllowed: true,
+							issue: {
+								id: "issue_node_id",
+								title: "Test Issue Fallback",
+								body: "Test Body",
+								labels: { nodes: [] },
+								projectItems: { nodes: [] }, // EMPTY!
+								timelineItems: { nodes: [] },
+							},
+						},
+					},
+				}),
+			});
+		} else if (requestBody.query.includes("FallbackProjectItem")) {
+			await route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({
+					data: {
+						organization: {
+							projectV2: {
+								items: {
+									nodes: [
+										{
+											id: "fallback_item_id",
+											content: {
+												number: issueNumber,
+												repository: {
+													owner: { login: owner },
+													name: repo,
+												},
+											},
+										},
+									],
+								},
+							},
+						},
+					},
+				}),
+			});
+		} else if (requestBody.query.includes("UpdateField")) {
+			await route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({
+					data: {
+						updateProjectV2ItemFieldValue: {
+							projectV2Item: { id: "fallback_item_id" },
+						},
+					},
+				}),
+			});
+		} else {
+			await route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({ data: {} }),
+			});
+		}
+	});
+
+	// Mock PR files API (return empty)
+	await page.route(
+		`https://api.github.com/repos/${owner}/${repo}/pulls/**`,
+		async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify([]),
+			});
+		},
+	);
+
+	// Set token and navigate to detail page WITHOUT itemId in URL
+	await page.goto("/");
+	await page.evaluate(() => {
+		localStorage.setItem("github_access_token", "test_access_token");
+	});
+
+	await page.goto(`/approval/${owner}/${repo}/${issueNumber}`);
+
+	await helper.step("fallback_detail_loaded", {
+		description: "Approval detail page loaded and fallback item ID found",
+		verifications: [
+			{
+				spec: "Issue title is visible",
+				check: async () =>
+					expect(
+						page.getByRole("heading", { name: "Test Issue Fallback" }),
+					).toBeVisible(),
+			},
+		],
+	});
+
+	// Mock window.confirm
+	page.on("dialog", async (dialog) => {
+		if (dialog.type() === "confirm") {
+			await dialog.accept();
+		} else if (dialog.type() === "alert") {
+			await dialog.accept();
+		}
+	});
+
+	// Test Back to Todo Action (doesn't require comment)
+	await page.click('button:has-text("Back to TODO")');
+	await page.waitForURL(/\/approval\/?$/);
+
+	await helper.step("fallback_action_successful", {
+		description: "Action using fallback item ID successful",
 		verifications: [
 			{
 				spec: "Redirected back to /approval",
