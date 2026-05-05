@@ -133,9 +133,10 @@ if [ "$verified" -ne 1 ]; then
   exit 1
 fi
 
-gh issue comment "$issue_number" -R "$target_repo" --body-file "$body_file"
-
-# Update Project V2 Persona field if project info is available
+# Update Project V2 Persona field before posting the handoff comment, so a
+# failed project lookup does not leave a misleading delegation comment behind.
 if [ -n "$project_number" ] && [ "$target" != "human" ]; then
   update_project_v2_field "Persona" "$target" ".persona"
 fi
+
+gh issue comment "$issue_number" -R "$target_repo" --body-file "$body_file"

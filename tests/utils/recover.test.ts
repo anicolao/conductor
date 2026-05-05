@@ -47,6 +47,7 @@ describe("recover utils", () => {
 
 	it("detects an active run for a matching issue", () => {
 		const item: ProjectIssueItem = {
+			projectItemId: "PVTI_53",
 			repository: "LLM-Orchestration/conductor",
 			issueNumber: 53,
 			issueNodeId: "I_53",
@@ -70,6 +71,7 @@ describe("recover utils", () => {
 	it("finds only in-progress items without an active conductor run", () => {
 		const items: ProjectIssueItem[] = [
 			{
+				projectItemId: "PVTI_53",
 				repository: "LLM-Orchestration/conductor",
 				issueNumber: 53,
 				issueNodeId: "I_53",
@@ -79,6 +81,7 @@ describe("recover utils", () => {
 				persona: "coder",
 			},
 			{
+				projectItemId: "PVTI_54",
 				repository: "LLM-Orchestration/conductor",
 				issueNumber: 54,
 				issueNodeId: "I_54",
@@ -102,6 +105,7 @@ describe("recover utils", () => {
 
 	it("counts only retry-mechanism attempts for the matching issue", () => {
 		const item: ProjectIssueItem = {
+			projectItemId: "PVTI_53",
 			repository: "LLM-Orchestration/conductor",
 			issueNumber: 53,
 			issueNodeId: "I_53",
@@ -158,7 +162,7 @@ describe("recover utils", () => {
 		).toBeNull();
 	});
 
-	it("maps valid project issue nodes into recoverable items", () => {
+	it("ignores project issue nodes without a project item id", () => {
 		expect(
 			toProjectIssueItem(
 				{
@@ -173,7 +177,27 @@ describe("recover utils", () => {
 				1,
 				"https://github.com/orgs/LLM-Orchestration/projects/1",
 			),
+		).toBeNull();
+	});
+
+	it("maps valid project issue nodes into recoverable items", () => {
+		expect(
+			toProjectIssueItem(
+				{
+					id: "PVTI_157",
+					status: { name: "In Progress" },
+					persona: { name: "coder" },
+					content: {
+						id: "I_157",
+						number: 157,
+						repository: { nameWithOwner: "LLM-Orchestration/conductor" },
+					},
+				},
+				1,
+				"https://github.com/orgs/LLM-Orchestration/projects/1",
+			),
 		).toEqual({
+			projectItemId: "PVTI_157",
 			repository: "LLM-Orchestration/conductor",
 			issueNumber: 157,
 			issueNodeId: "I_157",

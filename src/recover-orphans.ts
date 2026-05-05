@@ -43,6 +43,7 @@ const ProjectItemsQuerySchema = z
 					}),
 					nodes: z.array(
 						z.object({
+							id: z.string().nullable().optional(),
 							status: z
 								.object({
 									name: z.string().nullable(),
@@ -211,6 +212,7 @@ async function loadProjectItems(token: string): Promise<ProjectIssueItem[]> {
               endCursor
             }
             nodes {
+              id
               status: fieldValueByName(name: "Status") {
                 ... on ProjectV2ItemFieldSingleSelectValue {
                   name
@@ -291,6 +293,7 @@ async function dispatchRecovery(
 				repository: item.repository,
 				issue_number: item.issueNumber,
 				issue_node_id: item.issueNodeId,
+				project_item_id: item.projectItemId,
 				project_number: item.projectNumber,
 				project_url: item.projectUrl,
 				persona: normalizePersona(item.persona),
