@@ -52,7 +52,8 @@ test("Approval Queue Mobile View", async ({ page }, testInfo) => {
 												updatedAt: new Date(
 													Date.now() - 2 * 60 * 60 * 1000,
 												).toISOString(), // 2h ago
-												bodyText: "This is a test issue body snippet for mobile view verification.",
+												bodyText:
+													"This is a test issue body snippet for mobile view verification.",
 												author: {
 													login: "test-author",
 													avatarUrl: "https://github.com/test-author.png",
@@ -125,8 +126,7 @@ test("Approval Queue Mobile View", async ({ page }, testInfo) => {
 			},
 			{
 				spec: "Avatar is visible",
-				check: async () =>
-					expect(page.locator(".author-avatar")).toBeVisible(),
+				check: async () => expect(page.locator(".author-avatar")).toBeVisible(),
 			},
 			{
 				spec: "Repo name is visible in header",
@@ -149,12 +149,16 @@ test("Approval Queue Mobile View", async ({ page }, testInfo) => {
 			{
 				spec: "Snippet is visible",
 				check: async () =>
-					expect(page.locator(".item-snippet")).toContainText("This is a test issue body snippet"),
+					expect(page.locator(".item-snippet")).toContainText(
+						"This is a test issue body snippet",
+					),
 			},
 			{
 				spec: "Issue number is visible in footer",
 				check: async () =>
-					expect(page.locator(".issue-number")).toContainText(`#${issueNumber}`),
+					expect(page.locator(".issue-number")).toContainText(
+						`#${issueNumber}`,
+					),
 			},
 		],
 	});
