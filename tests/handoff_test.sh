@@ -128,7 +128,15 @@ case "\$*" in
     ;;
   "api"*"graphql"*)
     if [ -f "$TEST_DIR/mock_project_item_missing" ]; then
+      if echo "\$*" | grep -q -- "--jq"; then
+        echo ""
+      else
+        echo '{"data":{"organization":{"projectV2":{"items":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[]}}}}}'
+      fi
+    elif [ -f "$TEST_DIR/mock_issue_projectitems_missing" ] && echo "\$*" | grep -q "projectItems"; then
       echo ""
+    elif echo "\$*" | grep -q "projectV2"; then
+      echo '{"data":{"organization":{"projectV2":{"items":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[{"id":"ITEM_123","content":{"id":"I_123"}}]}}}}}'
     elif echo "\$*" | grep -q "projectItems" || echo "\$*" | grep -q "query"; then
       if echo "\$*" | grep -q "ProjectV2Item"; then
         echo "coder"
@@ -171,6 +179,28 @@ else
   fi
 fi
 rm "$TEST_DIR/mock_project_item_missing"
+
+# Test 1b: Fall back to scanning project contents when Issue.projectItems is empty
+echo "Running Test 1b: Use project content scan when reverse issue lookup is empty..."
+touch "$TEST_DIR/mock_issue_projectitems_missing"
+rm -f "$TEST_DIR/gh_calls"
+if bash scripts/handoff.sh coder 0 < "$TEST_DIR/comment.md" > "$TEST_DIR/stdout" 2> "$TEST_DIR/stderr"; then
+  if grep -q "Issue projectItems lookup did not find the item; scanning project content for issue node I_123" "$TEST_DIR/stdout" &&
+     grep -q "Project V2 update verified: Persona is now 'coder'" "$TEST_DIR/stdout"; then
+    echo "Success: Test 1b passed"
+  else
+    echo "Error: Test 1b failed with wrong output"
+    cat "$TEST_DIR/stdout"
+    cat "$TEST_DIR/stderr"
+    exit 1
+  fi
+else
+  echo "Error: Test 1b failed (handoff.sh exited with non-zero)"
+  cat "$TEST_DIR/stdout"
+  cat "$TEST_DIR/stderr"
+  exit 1
+fi
+rm "$TEST_DIR/mock_issue_projectitems_missing"
 
 # Test 2: PUSH FAILURE
 echo "Running Test 2: PUSH FAILURE..."

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export interface ProjectIssueItem {
+	projectItemId: string;
 	repository: string;
 	issueNumber: number;
 	issueNodeId: string;
@@ -11,6 +12,7 @@ export interface ProjectIssueItem {
 }
 
 export interface ProjectItemNode {
+	id?: string | null;
 	status?: { name?: string | null } | null;
 	persona?: { name?: string | null } | null;
 	content?: {
@@ -63,12 +65,14 @@ export function toProjectIssueItem(
 	const repository = node.content?.repository?.nameWithOwner;
 	const issueNumber = node.content?.number;
 	const issueNodeId = node.content?.id;
+	const projectItemId = node.id;
 	const status = node.status?.name;
 
 	if (!repository || !issueNumber) return null;
-	if (!issueNodeId || !status) return null;
+	if (!issueNodeId || !projectItemId || !status) return null;
 
 	return {
+		projectItemId,
 		repository,
 		issueNumber,
 		issueNodeId,

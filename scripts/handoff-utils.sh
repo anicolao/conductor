@@ -151,6 +151,99 @@ strip_local_media_markers() {
   mv "$tmp_file" "$body_file"
 }
 
+find_project_item_id_by_issue_content() {
+  local owner_kind
+  local owner_query
+  local after=""
+  local response
+  local item_id
+  local page_info
+  local end_cursor
+  local -a graphql_args
+
+  if [ -z "${issue_node_id:-}" ]; then
+    return 0
+  fi
+
+  owner_kind="$(node -e "
+const url = process.argv[1] || '';
+const match = url.match(/github\.com\/(orgs|users)\//);
+process.stdout.write(match ? match[1] : '');
+" "$project_url")"
+
+  case "$owner_kind" in
+    orgs)
+      owner_query='organization(login: $owner)'
+      ;;
+    users)
+      owner_query='user(login: $owner)'
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+
+  while :; do
+    graphql_args=(-f owner="$project_owner" -F number="$project_number" -f query="
+      query(\$owner: String!, \$number: Int!, \$after: String) {
+        $owner_query {
+          projectV2(number: \$number) {
+            items(first: 100, after: \$after) {
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+              nodes {
+                id
+                content {
+                  ... on Issue {
+                    id
+                  }
+                }
+              }
+            }
+          }
+        }
+      }")
+    if [ -n "$after" ]; then
+      graphql_args+=(-f after="$after")
+    fi
+
+    response="$(gh api graphql "${graphql_args[@]}")"
+
+    item_id="$(printf '%s' "$response" | node -e "
+const fs = require('fs');
+const issueNodeId = process.argv[1];
+const body = JSON.parse(fs.readFileSync(0, 'utf8'));
+const project = body.data?.organization?.projectV2 || body.data?.user?.projectV2;
+const item = project?.items?.nodes?.find((node) => node.content?.id === issueNodeId);
+if (item?.id) process.stdout.write(item.id);
+" "$issue_node_id")"
+
+    if [ -n "$item_id" ]; then
+      echo "$item_id"
+      return 0
+    fi
+
+    page_info="$(printf '%s' "$response" | node -e "
+const fs = require('fs');
+const body = JSON.parse(fs.readFileSync(0, 'utf8'));
+const project = body.data?.organization?.projectV2 || body.data?.user?.projectV2;
+const pageInfo = project?.items?.pageInfo;
+if (pageInfo?.hasNextPage && pageInfo?.endCursor) {
+  process.stdout.write(`${pageInfo.endCursor}`);
+}
+")"
+
+    end_cursor="$page_info"
+    if [ -z "$end_cursor" ]; then
+      break
+    fi
+
+    after="$end_cursor"
+  done
+}
+
 update_project_v2_field() {
   local field_name="$1"
   local option_name="$2"
@@ -176,7 +269,7 @@ process.stdout.write(match ? match[2] : '');
 
   if [ -z "$item_id" ]; then
     echo "Finding project item for issue $issue_number in repository $target_repo in project $project_number"
-    # Use targeted GraphQL via gh api graphql
+    # Prefer the issue's projectItems connection when GitHub exposes it.
     item_id=$(gh api graphql -f id="$issue_node_id" -f query='
       query($id: ID!) {
         node(id: $id) {
@@ -192,6 +285,11 @@ process.stdout.write(match ? match[2] : '');
           }
         }
       }' --jq ".data.node.projectItems.nodes[] | select(.project.number == $project_number) | .id" | head -n 1)
+  fi
+
+  if [ -z "$item_id" ] || [ "$item_id" == "null" ]; then
+    echo "Issue projectItems lookup did not find the item; scanning project content for issue node $issue_node_id"
+    item_id="$(find_project_item_id_by_issue_content)"
   fi
 
   if [ -z "$item_id" ] || [ "$item_id" == "null" ]; then
