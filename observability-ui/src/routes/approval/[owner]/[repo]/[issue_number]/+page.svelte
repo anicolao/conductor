@@ -53,6 +53,22 @@ interface PullRequestWithArtifacts extends PullRequestSource {
 	markdownFiles: MarkdownFile[];
 }
 
+interface ProjectFieldNode {
+	id: string;
+	name: string;
+}
+
+interface FallbackItemNode {
+	id: string;
+	content?: {
+		number: number;
+		repository: {
+			owner: { login: string };
+			name: string;
+		};
+	};
+}
+
 const owner = $derived(page.params.owner);
 const repo = $derived(page.params.repo);
 const issue_number = $derived(page.params.issue_number);
@@ -192,10 +208,14 @@ async function fetchData(token: string) {
 
 	const project = result.data.organization.projectV2;
 	projectId = project.id;
-	
-	const statusField = project.fields.nodes.find((f: any) => f.name === "Status");
-	const personaField = project.fields.nodes.find((f: any) => f.name === "Persona");
-	
+
+	const statusField = project.fields.nodes.find(
+		(f: ProjectFieldNode) => f.name === "Status",
+	);
+	const personaField = project.fields.nodes.find(
+		(f: ProjectFieldNode) => f.name === "Persona",
+	);
+
 	if (statusField) statusFieldId = statusField.id;
 	if (personaField) personaFieldId = personaField.id;
 
@@ -232,7 +252,7 @@ async function fetchData(token: string) {
 				}
 			}
 		`;
-		
+
 		const fbRes = await fetch("https://api.github.com/graphql", {
 			method: "POST",
 			headers: {
@@ -244,14 +264,16 @@ async function fetchData(token: string) {
 				variables: { org: ORG, number: PROJECT_NUMBER },
 			}),
 		});
-		
+
 		const fbResult = await fbRes.json();
 		if (!fbResult.errors) {
-			const nodes = fbResult.data.organization.projectV2.items.nodes;
-			const match = nodes.find((node: any) => 
-				node.content?.number === parseInt(n, 10) &&
-				node.content?.repository?.owner?.login === o &&
-				node.content?.repository?.name === r
+			const nodes = fbResult.data.organization.projectV2.items
+				.nodes as FallbackItemNode[];
+			const match = nodes.find(
+				(node) =>
+					node.content?.number === parseInt(n, 10) &&
+					node.content?.repository?.owner?.login === o &&
+					node.content?.repository?.name === r,
 			);
 			if (match) {
 				projectItemId = match.id;
