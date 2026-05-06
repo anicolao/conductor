@@ -157,6 +157,22 @@ function hasGeminiOAuthCredentials(): boolean {
 	}
 }
 
+export function buildGeminiCliArgs(prompt: string): string[] {
+	return [
+		"-y",
+		"@google/gemini-cli",
+		"--debug",
+		"--model",
+		"auto",
+		"--prompt",
+		prompt,
+		"--approval-mode",
+		"yolo",
+		"-o",
+		"stream-json",
+	];
+}
+
 const CommentSchema = z.object({
 	body: z.string(),
 	html_url: z.string(),
@@ -633,17 +649,7 @@ ENVIRONMENT:
 - If a gh command fails, report the exact command and stderr instead of inferring an authentication problem.`;
 
 			// Invoke the official CLI package in headless mode so Actions does not depend on a preinstalled binary.
-			const args = [
-				"-y",
-				"@google/gemini-cli",
-				"--debug",
-				"--prompt",
-				prompt,
-				"--approval-mode",
-				"yolo",
-				"-o",
-				"stream-json",
-			];
+			const args = buildGeminiCliArgs(prompt);
 
 			logger.info("Invoking Gemini CLI...");
 			const childEnv = buildGeminiEnv();
