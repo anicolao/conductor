@@ -2,7 +2,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildGeminiCliArgs, loadPrompts } from "../src/index";
+import {
+	buildGeminiCliArgs,
+	loadPrompts,
+	selectGeminiCliModel,
+} from "../src/index";
 
 describe("buildGeminiCliArgs", () => {
 	it("runs Gemini CLI in auto model mode with stream-json output", () => {
@@ -19,6 +23,63 @@ describe("buildGeminiCliArgs", () => {
 			"-o",
 			"stream-json",
 		]);
+	});
+
+	it("can pin Gemini CLI to an explicit model", () => {
+		expect(buildGeminiCliArgs("test prompt", "pro")).toContain("pro");
+	});
+});
+
+describe("selectGeminiCliModel", () => {
+	it("allows auto when all model families have quota remaining", () => {
+		expect(
+			selectGeminiCliModel("coder", [
+				{ modelId: "gemini-2.5-flash", remainingFraction: 0.1 },
+				{ modelId: "gemini-2.5-flash-lite", remainingFraction: 0.1 },
+				{ modelId: "gemini-2.5-pro", remainingFraction: 0.1 },
+			]),
+		).toBe("auto");
+	});
+
+	it("prefers flash for conductor when auto is unsafe", () => {
+		expect(
+			selectGeminiCliModel("conductor", [
+				{ modelId: "gemini-2.5-flash", remainingFraction: 0.1 },
+				{ modelId: "gemini-2.5-flash-lite", remainingFraction: 0 },
+				{ modelId: "gemini-2.5-pro", remainingFraction: 0.1 },
+			]),
+		).toBe("flash");
+	});
+
+	it("pins a model when any returned model bucket is exhausted", () => {
+		expect(
+			selectGeminiCliModel("coder", [
+				{ modelId: "gemini-2.5-flash", remainingFraction: 0.1 },
+				{ modelId: "gemini-3-flash-preview", remainingFraction: 0 },
+				{ modelId: "gemini-2.5-flash-lite", remainingFraction: 0.1 },
+				{ modelId: "gemini-2.5-pro", remainingFraction: 0.1 },
+			]),
+		).toBe("pro");
+	});
+
+	it("prefers pro for coder when auto is unsafe", () => {
+		expect(
+			selectGeminiCliModel("coder", [
+				{ modelId: "gemini-2.5-flash", remainingFraction: 0.1 },
+				{ modelId: "gemini-2.5-flash-lite", remainingFraction: 0 },
+				{ modelId: "gemini-2.5-pro", remainingFraction: 0.1 },
+			]),
+		).toBe("pro");
+	});
+
+	it("falls back to an available model when the persona preference is exhausted", () => {
+		expect(
+			selectGeminiCliModel("coder", [
+				{ modelId: "gemini-2.5-flash", remainingFraction: 0 },
+				{ modelId: "gemini-2.5-flash-lite", remainingFraction: 0.5 },
+				{ modelId: "gemini-2.5-pro", remainingFraction: 0 },
+			]),
+		).toBe("flash-lite");
 	});
 });
 
